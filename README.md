@@ -7,10 +7,13 @@ There is no defined scope for now, so feel free to propose additional patches id
 
 Compatible with KSP 1.12
 
-Dependency : [HarmonyKSP](https://github.com/KSPModdingLibs/HarmonyKSP/releases)
-HarmonyKSP is **required** and **must be downloaded separately** !
+**Required** and **must be downloaded separately** : [HarmonyKSP](https://github.com/KSPModdingLibs/HarmonyKSP/releases)
 
-For manual installation :
+**Incompatible with** :
+
+- KSP-Recall / TweakScale
+
+**Installation**
 
 - Go to the **[GitHub release page](https://github.com/KSPModdingLibs/KSPCommunityFixes/releases)** and download the file named `KSPCommunityFixes_x.x.x.zip`
 - Open the downloaded *.zip archive
