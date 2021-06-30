@@ -10,6 +10,7 @@ namespace KSPCommunityFixes.BugFixes
 
     // Since the introduction of inventories in KSP 1.11, cost modifiers from the PartModule IPartCostModifier interface are ignored on vessel recovery.
     // This seems to be an oversight in the Funding.onVesselRecoveryProcessing() callback when Squad refactored it for inventories support.
+    // Corresponding KSP bugtracker entry : https://bugs.kerbalspaceprogram.com/issues/26988
 
     // Technical overview :
 
@@ -30,8 +31,8 @@ namespace KSPCommunityFixes.BugFixes
     // In the case of ModuleInventoryPart, the ProtoPartSnapshot.moduleCosts value include the full cost of
     // all stored parts (including their own moduleCosts).
     // Since Funding.onVesselRecoveryProcessing() iterates on all the protovessel protoparts + the in-inventory
-    // protoparts (calls ProtoVessel.GetAllProtoPartsIncludingCargo()),
-    // by setting the includeModuleCosts to true, we would have the in-inventory parts costs counted twice.
+    // protoparts (calls ProtoVessel.GetAllProtoPartsIncludingCargo()), by setting the includeModuleCosts to true,
+    // we would have the in-inventory parts costs counted twice.
     // Setting includeModuleCosts to false for parts having a ModuleInventoryPart isn't really an option either,
     // as any other IPartCostModifier on the part would be ignored.
 
