@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- Duplicate this file, rename it to "KSPDevPath.xml", and change the path to your KSP -->
+  <!-- install folder. Then close/reopen the solution for the references to be updated. -->
+  
+  <PropertyGroup>
+    <KSPInstallPath>K:\Projets\KSP\Kerbal Space Program 1.11.0 DEV\</KSPInstallPath>
+  </PropertyGroup>
+  
+</Project>
