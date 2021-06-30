@@ -7,7 +7,7 @@ There is no defined scope for now, so feel free to propose additional patches id
 
 Compatible with KSP 1.12
 
-**Required** and **must be downloaded separately** : [HarmonyKSP](https://github.com/KSPModdingLibs/HarmonyKSP/releases)
+**Required** and **must be downloaded separately** : **[HarmonyKSP](https://github.com/KSPModdingLibs/HarmonyKSP/releases)**
 
 **Incompatible with** :
 
