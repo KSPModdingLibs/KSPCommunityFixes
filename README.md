@@ -5,13 +5,12 @@ There is no defined scope for now, so feel free to propose additional patches id
 
 ### Dowload and installation
 
-Compatible with KSP 1.12
+Compatible with **KSP 1.12**
 
-**Required** and **must be downloaded separately** : **[HarmonyKSP](https://github.com/KSPModdingLibs/HarmonyKSP/releases)**
+**Required** and **must be downloaded separately** : 
 
-**Incompatible with** :
-
-- KSP-Recall / TweakScale
+- **HarmonyKSP** : **[Download](https://github.com/KSPModdingLibs/HarmonyKSP/releases)** - [Homepage](https://github.com/KSPModdingLibs/HarmonyKSP/) - Available on [CKAN]
+- **ModuleManager** : **[Download](https://ksp.sarbian.com/jenkins/job/ModuleManager/lastSuccessfulBuild/artifact/)** - [Forum post](https://forum.kerbalspaceprogram.com/index.php?/topic/50533-18x-110x-module-manager-414-july-7th-2020-locked-inside-edition/) - Available on [CKAN]
 
 **Installation**
 
@@ -21,14 +20,18 @@ Compatible with KSP 1.12
 
 ### Features
 
+Individual patches can be enabled or disabled by editing the `Settings.cfg` file.
+
 #### Bugfixes
 
-- Recovery costs properly account for modules implementing IPartCostModifier
+- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier
 
 #### Quality of Life tweaks 
 
-- PAW inventories now start collapsed
+- **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories. ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
 
 ### License
 
 MIT
+
+[CKAN]: https://forum.kerbalspaceprogram.com/index.php?/topic/197082-ckan-the-comprehensive-kerbal-archive-network-v1304-hubble/

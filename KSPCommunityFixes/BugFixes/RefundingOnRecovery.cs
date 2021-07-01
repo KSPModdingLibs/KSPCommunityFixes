@@ -48,11 +48,19 @@ namespace KSPCommunityFixes.BugFixes
     // IL_00f3: sub
     // IL_00f4: stloc.s 7
 
-    [HarmonyPatch(typeof(Funding))]
-    [HarmonyPatch("onVesselRecoveryProcessing")]
-    class Funding_onVesselRecoveryProcessing
+    class RefundingOnRecovery : BasePatch
     {
-        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        protected override Version VersionMin => new Version(1, 11, 0);
+
+        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        {
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(Funding), "onVesselRecoveryProcessing"),
+                GetType()));
+        }
+
+        static IEnumerable<CodeInstruction> Funding_onVesselRecoveryProcessing_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
@@ -92,7 +100,7 @@ namespace KSPCommunityFixes.BugFixes
             }
 
             List<CodeInstruction> instructionsToInsert = new List<CodeInstruction>();
-            MethodInfo getStoredPartsModuleCosts = AccessTools.Method(typeof(Funding_onVesselRecoveryProcessing), "GetStoredPartsModuleCosts");
+            MethodInfo getStoredPartsModuleCosts = AccessTools.Method(typeof(RefundingOnRecovery), nameof(GetStoredPartsCosts));
 
             instructionsToInsert.Add(new CodeInstruction(OpCodes.Ldloc_S, dryCostVarOperand));
             instructionsToInsert.Add(new CodeInstruction(protoPartSnapshotOpcode));
@@ -109,7 +117,7 @@ namespace KSPCommunityFixes.BugFixes
         // Derived from the ModuleInventoryPart.OnLoad() code
         // Alternatively, we could instantiate a ModuleInventoryPart and call its OnLoad() method,
         // but that require messing around with creating dummy instances of a Part too
-        static float GetStoredPartsModuleCosts(ProtoPartSnapshot protoPart)
+        static float GetStoredPartsCosts(ProtoPartSnapshot protoPart)
         {
             ConstructorInfo storedPartCtor = AccessTools.Constructor(typeof(StoredPart), new[] {typeof(ConfigNode)});
 
