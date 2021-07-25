@@ -61,6 +61,7 @@
     <Compile Include="KSPCommunityFixes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QoL\PAWCollapsedInventories.cs" />
+    <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

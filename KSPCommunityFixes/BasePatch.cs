@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -11,6 +12,9 @@ namespace KSPCommunityFixes
 {
     public abstract class BasePatch
     {
+        private static readonly string gameData = "GameData";
+        private static readonly string modName = "KSPCommunityFixes";
+        private static readonly string pluginData = "PluginData";
         private static readonly Version versionMinDefault = new Version(1, 12, 0);
         private static readonly Version versionMaxDefault = new Version(1, 12, 99);
 
@@ -24,7 +28,7 @@ namespace KSPCommunityFixes
                 return;
             }
 
-            BasePatch patch = (BasePatch)Activator.CreateInstance(patchType);
+            T patch = (T)Activator.CreateInstance(patchType);
 
             if (!patch.IsVersionValid)
             {
@@ -40,7 +44,11 @@ namespace KSPCommunityFixes
             catch (Exception e)
             {
                 Debug.LogError($"[KSPCommunityFixes] Patch {patchType.Name} not applied : {e}");
+                return;
             }
+
+            KSPCommunityFixes.patchInstances.Add(patchType, patch);
+            patch.LoadData();
         }
 
         protected enum PatchMethodType
@@ -73,7 +81,6 @@ namespace KSPCommunityFixes
 
         public bool IsVersionValid => KSPCommunityFixes.KspVersion >= VersionMin && KSPCommunityFixes.KspVersion <= VersionMax;
 
-
         private void ApplyHarmonyPatch()
         {
             List<PatchInfo> patches = new List<PatchInfo>();
@@ -91,5 +98,39 @@ namespace KSPCommunityFixes
             }
         }
 
+        private void LoadData()
+        {
+            string patchName = GetType().Name;
+            string path = Path.Combine(KSPUtil.ApplicationRootPath, gameData, modName, pluginData, patchName + ".cfg");
+
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            ConfigNode node = ConfigNode.Load(path);
+
+            if (node != null)
+            {
+                OnLoadData(node);
+            }
+        }
+
+        protected virtual void OnLoadData(ConfigNode node) { }
+
+        public static void SaveData<T>(ConfigNode node) where T : BasePatch
+        {
+            string patchName = typeof(T).Name;
+            string pluginDataPath = Path.Combine(KSPUtil.ApplicationRootPath, gameData, modName, pluginData);
+
+            if (!Directory.Exists(pluginDataPath))
+            {
+                Directory.CreateDirectory(pluginDataPath);
+            }
+
+            ConfigNode topNode = new ConfigNode();
+            topNode.AddNode(patchName, node);
+            topNode.Save(Path.Combine(pluginDataPath, patchName + ".cfg"));
+        }
     }
 }

@@ -24,11 +24,12 @@ Individual patches can be enabled or disabled by editing the `Settings.cfg` file
 
 #### Bugfixes
 
-- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier
+- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier (affect stock cargo parts and many modules from various mods)
 
 #### Quality of Life tweaks 
 
 - **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories. ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
+- **AltimeterHorizontalPosition** : Altimeter widget horizontal position is now tweakable in the pause menu settings. ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
 
 ### License
 
