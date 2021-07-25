@@ -1,11 +1,11 @@
 # KSP Community Fixes
 
 This plugin is a collection of code patches aiming at fixing internal bugs in the KSP codebase, as well as QoL improvements.
-There is no defined scope for now, so feel free to propose additional patches ideas by opening an issue.
+There is no defined scope for now, so feel free to propose additional patches ideas by opening an issue, or to contribute with a pull request.
 
-### Dowload and installation
+### Download and installation
 
-Compatible with **KSP 1.12**
+Compatible with **KSP 1.12** - Available on [CKAN]
 
 **Required** and **must be downloaded separately** : 
 
@@ -24,12 +24,14 @@ Individual patches can be enabled or disabled by editing the `Settings.cfg` file
 
 #### Bugfixes
 
-- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier (affect stock cargo parts and many modules from various mods)
+- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock cargo parts and many modules from various mods.
 
 #### Quality of Life tweaks 
 
-- **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories. ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
-- **AltimeterHorizontalPosition** : Altimeter widget horizontal position is now tweakable in the pause menu settings. ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
+- **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories. 
+![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
+- **AltimeterHorizontalPosition** : Altimeter widget horizontal position is now tweakable in the pause menu settings. 
+![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
 
 ### License
 
