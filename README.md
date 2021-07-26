@@ -24,7 +24,7 @@ Individual patches can be enabled or disabled by editing the `Settings.cfg` file
 
 #### Bugfixes
 
-- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock cargo parts and many modules from various mods.
+- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods.
 
 #### Quality of Life tweaks 
 
