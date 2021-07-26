@@ -24,13 +24,14 @@ Individual patches can be enabled or disabled by editing the `Settings.cfg` file
 
 #### Bugfixes
 
-- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods.
+- **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).\
+This is the same issue that is also fixed by [KSP-Recall](https://forum.kerbalspaceprogram.com/index.php?/topic/192048-18/), but by patching the actual stock bug instead of doing a huge hack with hidden resources. If KSP-Recall is installed, the fix from KSPCommunityFixes will by used instead of the KSP-Recall one.
 
 #### Quality of Life tweaks 
 
-- **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories. 
+- **PAWCollapsedInventories** : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.\
 ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
-- **AltimeterHorizontalPosition** : Altimeter widget horizontal position is now tweakable in the pause menu settings. 
+- **AltimeterHorizontalPosition** : Altimeter widget horizontal position is now tweakable in the pause menu settings.\
 ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
 
 ### License
