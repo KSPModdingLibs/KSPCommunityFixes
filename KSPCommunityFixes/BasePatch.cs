@@ -12,8 +12,6 @@ namespace KSPCommunityFixes
 {
     public abstract class BasePatch
     {
-        private static readonly string gameData = "GameData";
-        private static readonly string modName = "KSPCommunityFixes";
         private static readonly string pluginData = "PluginData";
         private static readonly Version versionMinDefault = new Version(1, 12, 0);
         private static readonly Version versionMaxDefault = new Version(1, 12, 99);
@@ -101,7 +99,7 @@ namespace KSPCommunityFixes
         private void LoadData()
         {
             string patchName = GetType().Name;
-            string path = Path.Combine(KSPUtil.ApplicationRootPath, gameData, modName, pluginData, patchName + ".cfg");
+            string path = Path.Combine(KSPCommunityFixes.ModPath, pluginData, patchName + ".cfg");
 
             if (!File.Exists(path))
             {
@@ -110,9 +108,9 @@ namespace KSPCommunityFixes
 
             ConfigNode node = ConfigNode.Load(path);
 
-            if (node != null)
+            if (node?.nodes[0] != null)
             {
-                OnLoadData(node);
+                OnLoadData(node.nodes[0]);
             }
         }
 
@@ -121,7 +119,7 @@ namespace KSPCommunityFixes
         public static void SaveData<T>(ConfigNode node) where T : BasePatch
         {
             string patchName = typeof(T).Name;
-            string pluginDataPath = Path.Combine(KSPUtil.ApplicationRootPath, gameData, modName, pluginData);
+            string pluginDataPath = Path.Combine(KSPCommunityFixes.ModPath, pluginData);
 
             if (!Directory.Exists(pluginDataPath))
             {

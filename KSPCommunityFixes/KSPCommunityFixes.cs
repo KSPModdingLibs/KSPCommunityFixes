@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using HarmonyLib;
 using KSPCommunityFixes.BugFixes;
@@ -15,6 +16,7 @@ namespace KSPCommunityFixes
     {
         public static Version KspVersion { get; private set; }
         public static Harmony Harmony { get; private set; }
+        public static string ModPath { get; private set; }
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
         public static Dictionary<Type, BasePatch> patchInstances = new Dictionary<Type, BasePatch>();
@@ -23,6 +25,7 @@ namespace KSPCommunityFixes
         {
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
+            ModPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
         }
 
         public void ModuleManagerPostLoad()
