@@ -5,7 +5,7 @@ There is no defined scope for now, so feel free to propose additional patches id
 
 ### Download and installation
 
-Compatible with **KSP 1.12** - Available on [CKAN]
+Compatible only with **KSP 1.12.2** - Available on [CKAN]
 
 **Required** and **must be downloaded separately** : 
 
@@ -26,6 +26,7 @@ Individual patches can be enabled or disabled by editing the `Settings.cfg` file
 
 - **RefundingOnRecovery** : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).\
 This is the same issue that is also fixed by [KSP-Recall](https://forum.kerbalspaceprogram.com/index.php?/topic/192048-18/), but by patching the actual stock bug instead of doing a huge hack with hidden resources. If KSP-Recall is installed, the fix from KSPCommunityFixes will by used instead of the KSP-Recall one.
+- **DockingPortDrift** : Prevent persistent position drift of docking port connections, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
 
 #### Quality of Life tweaks 
 
