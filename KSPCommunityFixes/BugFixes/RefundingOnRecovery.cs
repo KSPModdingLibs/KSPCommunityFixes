@@ -50,6 +50,8 @@ namespace KSPCommunityFixes.BugFixes
 
     class RefundingOnRecovery : BasePatch
     {
+        private static readonly List<string> moduleInventoryPartDerivatives = new List<string>();
+
         protected override Version VersionMin => new Version(1, 11, 0);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
@@ -58,6 +60,13 @@ namespace KSPCommunityFixes.BugFixes
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Funding), "onVesselRecoveryProcessing"),
                 GetType()));
+
+            moduleInventoryPartDerivatives.Clear();
+            moduleInventoryPartDerivatives.Add(nameof(ModuleInventoryPart));
+            foreach (Type type in AssemblyLoader.GetSubclassesOfParentClass(typeof(ModuleInventoryPart)))
+            {
+                moduleInventoryPartDerivatives.Add(type.Name);
+            }
         }
 
         static IEnumerable<CodeInstruction> Funding_onVesselRecoveryProcessing_Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -114,9 +123,7 @@ namespace KSPCommunityFixes.BugFixes
         }
 
 
-        // Derived from the ModuleInventoryPart.OnLoad() code
-        // Alternatively, we could instantiate a ModuleInventoryPart and call its OnLoad() method,
-        // but that require messing around with creating dummy instances of a Part too
+        // Derived from the ModuleInventoryPart.OnLoad() code, get stored parts cost
         static float GetStoredPartsCosts(ProtoPartSnapshot protoPart)
         {
             ConstructorInfo storedPartCtor = AccessTools.Constructor(typeof(StoredPart), new[] {typeof(ConfigNode)});
@@ -124,55 +131,54 @@ namespace KSPCommunityFixes.BugFixes
             float cost = 0f;
             foreach (ProtoPartModuleSnapshot protoModule in protoPart.modules)
             {
-                // TODO : match ModuleInventoryPart derivatives
-                if (protoModule.moduleName == nameof(ModuleInventoryPart))
+                if (!moduleInventoryPartDerivatives.Contains(protoModule.moduleName))
+                    continue;
+
+                ConfigNode moduleNode = protoModule.moduleValues;
+
+                List<StoredPart> storedParts = new List<StoredPart>();
+
+                ConfigNode storedPartsNode = null;
+                if (moduleNode.TryGetNode("STOREDPARTS", ref storedPartsNode))
                 {
-                    ConfigNode moduleNode = protoModule.moduleValues;
-
-                    List<StoredPart> storedParts = new List<StoredPart>();
-
-                    ConfigNode storedPartsNode = null;
-                    if (moduleNode.TryGetNode("STOREDPARTS", ref storedPartsNode))
+                    ConfigNode[] storedPartsNodes = storedPartsNode.GetNodes("STOREDPART");
+                    if (storedPartsNodes.Length != 0)
                     {
-                        ConfigNode[] storedPartsNodes = storedPartsNode.GetNodes("STOREDPART");
-                        if (storedPartsNodes.Length != 0)
+                        for (int i = 0; i < storedPartsNodes.Length; i++)
                         {
-                            for (int i = 0; i < storedPartsNodes.Length; i++)
-                            {
-                                storedParts.Add((StoredPart)storedPartCtor.Invoke(new object[] { storedPartsNodes[i] }));
-                            }
-                        }
-                        else
-                        {
-                            storedPartsNodes = storedPartsNode.GetNodes("PART");
-                            ConfigNode stackAmountsNode = null;
-                            bool flag = moduleNode.TryGetNode("STACKAMOUNTS", ref stackAmountsNode);
-                            for (int j = 0; j < storedPartsNodes.Length; j++)
-                            {
-                                ConfigNode node4 = storedPartsNodes[j];
-
-                                ProtoPartSnapshot protoPartSnapshot = new ProtoPartSnapshot(node4, null, null);
-                                StoredPart storedPart = new StoredPart(protoPartSnapshot.partName, j);
-                                storedPart.snapshot = protoPartSnapshot;
-
-
-                                if (flag && j < stackAmountsNode.nodes.Count)
-                                {
-                                    stackAmountsNode.nodes[j].TryGetValue("amount", ref storedPart.quantity);
-                                }
-                                else
-                                {
-                                    storedPart.quantity = 1;
-                                }
-                                storedParts.Add(storedPart);
-                            }
+                            storedParts.Add((StoredPart)storedPartCtor.Invoke(new object[] { storedPartsNodes[i] }));
                         }
                     }
-
-                    foreach (StoredPart storedPart in storedParts)
+                    else
                     {
-                        cost += ShipConstruction.GetPartCosts(storedPart.snapshot, true, storedPart.snapshot.partInfo, out _, out _) * storedPart.quantity;
+                        storedPartsNodes = storedPartsNode.GetNodes("PART");
+                        ConfigNode stackAmountsNode = null;
+                        bool flag = moduleNode.TryGetNode("STACKAMOUNTS", ref stackAmountsNode);
+                        for (int j = 0; j < storedPartsNodes.Length; j++)
+                        {
+                            ConfigNode node4 = storedPartsNodes[j];
+
+                            ProtoPartSnapshot protoPartSnapshot = new ProtoPartSnapshot(node4, null, null);
+                            StoredPart storedPart = new StoredPart(protoPartSnapshot.partName, j);
+                            storedPart.snapshot = protoPartSnapshot;
+
+
+                            if (flag && j < stackAmountsNode.nodes.Count)
+                            {
+                                stackAmountsNode.nodes[j].TryGetValue("amount", ref storedPart.quantity);
+                            }
+                            else
+                            {
+                                storedPart.quantity = 1;
+                            }
+                            storedParts.Add(storedPart);
+                        }
                     }
+                }
+
+                foreach (StoredPart storedPart in storedParts)
+                {
+                    cost += ShipConstruction.GetPartCosts(storedPart.snapshot, true, storedPart.snapshot.partInfo, out _, out _) * storedPart.quantity;
                 }
             }
 
@@ -189,5 +195,9 @@ namespace KSPCommunityFixes.BugFixes
         }
 
         public ModifierChangeWhen GetModuleCostChangeWhen() => ModifierChangeWhen.CONSTANTLY;
+    }
+
+    public class ModuleInventoryPartDerivativeTest : ModuleInventoryPart
+    {
     }
 }
