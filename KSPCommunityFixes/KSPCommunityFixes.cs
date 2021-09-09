@@ -52,6 +52,7 @@ namespace KSPCommunityFixes
             // Bugfixes :
             BasePatch.Patch<RefundingOnRecovery>();
             BasePatch.Patch<DockingPortDrift>();
+            BasePatch.Patch<FlightSceneLoadKraken>();
 
             // UI :
             BasePatch.Patch<AltimeterHorizontalPosition>();

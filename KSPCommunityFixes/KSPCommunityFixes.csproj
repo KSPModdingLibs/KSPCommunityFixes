@@ -58,6 +58,7 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\DockingPortDrift.cs" />
+    <Compile Include="BugFixes\FlightSceneLoadKraken.cs" />
     <Compile Include="BugFixes\RefundingOnRecovery.cs" />
     <Compile Include="KSPCommunityFixes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
