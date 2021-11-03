@@ -1,10 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using HarmonyLib;
 
 namespace KSPCommunityFixes.BugFixes
 {
     class DockingPortDrift : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 12, 2);
+
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(

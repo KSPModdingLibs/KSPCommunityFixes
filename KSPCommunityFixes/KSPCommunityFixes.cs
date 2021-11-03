@@ -49,18 +49,16 @@ namespace KSPCommunityFixes
                 }
             }
 
-            // QoL :
-            BasePatch.Patch<PAWCollapsedInventories>();
-
             // Bugfixes :
             BasePatch.Patch<RefundingOnRecovery>();
             BasePatch.Patch<DockingPortDrift>();
             BasePatch.Patch<ModuleIndexingMismatch>();
             BasePatch.Patch<StockAlarmCustomFormatterDate>();
+            BasePatch.Patch<PAWGroupMemory>();
 
-            // UI :
+            // QoL :
             BasePatch.Patch<AltimeterHorizontalPosition>();
-
+            BasePatch.Patch<PAWCollapsedInventories>();
             BasePatch.Patch<PAWStockGroups>();
 
             Destroy(this);

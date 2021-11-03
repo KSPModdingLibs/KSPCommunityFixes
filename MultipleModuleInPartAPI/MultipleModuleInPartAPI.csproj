@@ -9,7 +9,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>MultipleModuleInPartAPI</RootNamespace>
-    <AssemblyName>MultipleModuleInPartAPI</AssemblyName>
+    <AssemblyName>0_MultipleModuleInPartAPI</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -41,7 +41,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterBuild">
-    <Copy SourceFiles="$(TargetDir)\MultipleModuleInPartAPI.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
-    <Copy SourceFiles="$(TargetDir)\MultipleModuleInPartAPI.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
+    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
   </Target>
 </Project>

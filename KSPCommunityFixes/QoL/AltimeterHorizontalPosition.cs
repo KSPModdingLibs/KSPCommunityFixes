@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using KSP.Localization;
 using KSP.UI.Screens;
@@ -25,6 +26,8 @@ namespace KSPCommunityFixes
 
     class AltimeterHorizontalPosition : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(

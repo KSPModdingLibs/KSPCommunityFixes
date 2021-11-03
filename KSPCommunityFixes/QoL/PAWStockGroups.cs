@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using KSP.Localization;
 
@@ -6,16 +7,12 @@ namespace KSPCommunityFixes
 {
     class PAWStockGroups : BasePatch
     {
-        private static bool partGroup;
-        private static bool commsGroup;
-        private static bool commandGroup;
-        private static bool attitudeControlGroup;
-
         private static string partGroupTitle;
         private static string commsGroupTitle;
         private static string commandGroupTitle;
         private static string attitudeControlGroupTitle;
 
+        protected override Version VersionMin => new Version(1, 11, 1);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
@@ -64,14 +61,14 @@ namespace KSPCommunityFixes
         {
             BasePAWGroup pawGroup = new BasePAWGroup("CF_Part", partGroupTitle, true);
 
-            __instance.Fields[nameof(Part.sameVesselCollision)].group = pawGroup;
+            __instance.Fields[nameof(Part.sameVesselCollision)].group = pawGroup; // 1.11.1
             __instance.Events[nameof(Part.AimCamera)].group = pawGroup;
             __instance.Events[nameof(Part.ResetCamera)].group = pawGroup;
             __instance.Events[nameof(Part.ToggleAutoStrut)].group = pawGroup;
             __instance.Events[nameof(Part.ToggleRigidAttachment)].group = pawGroup;
             __instance.Events[nameof(Part.ShowUpgradeStats)].group = pawGroup;
 
-            if (__instance.Events.Contains(nameof(Part.SetVesselNaming)))
+            if (__instance.Events.Contains(nameof(Part.SetVesselNaming))) // 1.11.0
             {
                 __instance.Events[nameof(Part.SetVesselNaming)].group = pawGroup;
             }

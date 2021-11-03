@@ -59,6 +59,7 @@
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\DockingPortDrift.cs" />
     <Compile Include="BugFixes\ModuleIndexingMismatch.cs" />
+    <Compile Include="BugFixes\PAWGroupMemory.cs" />
     <Compile Include="BugFixes\RefundingOnRecovery.cs" />
     <Compile Include="BugFixes\StockAlarmCustomFormatterDate.cs" />
     <Compile Include="KSPCommunityFixes.cs" />
@@ -79,7 +80,7 @@
       <GameDataFiles Include="$(SolutionDir)\GameData\KSPCommunityFixes\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
-    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
-    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
+    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
   </Target>
 </Project>
