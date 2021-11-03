@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
 using KSPCommunityFixes.BugFixes;
 using KSPCommunityFixes.UI;
-using Smooth.Collections;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -55,6 +53,7 @@ namespace KSPCommunityFixes
             BasePatch.Patch<ModuleIndexingMismatch>();
             BasePatch.Patch<StockAlarmCustomFormatterDate>();
             BasePatch.Patch<PAWGroupMemory>();
+            BasePatch.Patch<KerbalInventoryPersistence>();
 
             // QoL :
             BasePatch.Patch<AltimeterHorizontalPosition>();

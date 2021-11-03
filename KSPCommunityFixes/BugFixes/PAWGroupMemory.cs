@@ -149,13 +149,15 @@ namespace KSPCommunityFixes
                 }
             }
 
-            List<CodeInstruction> insert = new List<CodeInstruction>();
-            insert.Add(new CodeInstruction(OpCodes.Ldarg_S, 4)); // pawWindow
-            insert.Add(new CodeInstruction(OpCodes.Ldarg_1)); // groupName
-            insert.Add(new CodeInstruction(OpCodes.Ldarg_0));
-            insert.Add(new CodeInstruction(OpCodes.Ldflda, isContentCollapsed));
-            insert.Add(new CodeInstruction(OpCodes.Call, IsGroupCollapsed));
-            insert.Add(new CodeInstruction(OpCodes.Brtrue_S, jump));
+            List<CodeInstruction> insert = new List<CodeInstruction>
+            {
+                new CodeInstruction(OpCodes.Ldarg_S, 4),
+                new CodeInstruction(OpCodes.Ldarg_1),
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldflda, isContentCollapsed),
+                new CodeInstruction(OpCodes.Call, IsGroupCollapsed),
+                new CodeInstruction(OpCodes.Brtrue_S, jump)
+            };
 
             code.InsertRange(insertionIndex, insert);
 

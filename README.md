@@ -16,8 +16,9 @@ Compatible with **KSP 1.8.0** to **1.12.2** - Available on [CKAN]
 
 - Go to the **[GitHub release page](https://github.com/KSPModdingLibs/KSPCommunityFixes/releases)** and download the file named `KSPCommunityFixes_x.x.x.zip`
 - Open the downloaded *.zip archive
+- Open the `GameData` folder of your KSP installation
 - Delete any existing `KSPCommunityFixes` folder in your `GameData` folder
-- Copy the `KSPCommunityFixes` folder found in the archive into the `GameData` folder of your KSP installation.
+- Copy the `KSPCommunityFixes` folder found in the archive into your `GameData` folder
 
 ### Features
 
@@ -26,12 +27,12 @@ Some patches will be applied only to specific KSP versions.
 
 #### Bugfixes
 
-- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.2] : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).\
-This is the same issue that is also fixed by [KSP-Recall](https://forum.kerbalspaceprogram.com/index.php?/topic/192048-18/), but by patching the actual stock bug instead of doing a huge hack with hidden resources. If KSP-Recall is installed, the fix from KSPCommunityFixes will by used instead of the KSP-Recall one.
+- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.2] : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
 - **DockingPortDrift** [KSP 1.12.2] : Prevent persistent position drift of docking port connections, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
-- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.2] : Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update
-- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2] : Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the custom IDateTimeFormatter if implemented.
-- **PAWGroupMemory** [KSP 1.8.0 - 1.12.2] : Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is internally rebuilt (especially frequent in the editor).
+- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.2] : Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
+- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2] : Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
+- **PAWGroupMemory** [KSP 1.8.0 - 1.12.2] : Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
+- **KerbalInventoryPersistence** [KSP 1.12.2] : Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
 
 #### Quality of Life tweaks 
 
@@ -41,8 +42,38 @@ This is the same issue that is also fixed by [KSP-Recall](https://forum.kerbalsp
 ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
 - **PAWStockGroups** [KSP 1.11.1 - 1.12.2] : Part Action Window groups for a selection of stock modules
 
+#### Mod API
+- **MultipleModuleInPartAPI** : This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
+
 ### License
 
 MIT
+
+### Changelog
+
+##### 1.1.0
+- New bugfixes : ModuleIndexingMismatch, StockAlarmCustomFormatterDate, PAWGroupMemory, KerbalInventoryPersistence
+- New QoL patch : PAWStockGroups
+- New API : MultipleModuleInPartAPI
+- Small tweaks to the patching engine
+
+##### 1.0.4
+- new bugfix : DockingPortDrift
+
+##### 1.0.3
+- Fix persisted altimeter position not being correctly reloaded
+- Fix map filters transition coroutine errors by disabling the nested gameobject instead of the top one
+
+##### 1.0.2
+- New QoL patch : AltimeterHorizontalPosition
+
+##### 1.0.1
+- New QoL patch : PAWCollapsedInventories
+- Base infrastructure for patch managment and conditional activation based on the KSP version
+- Patches can be enabled/disabled in configs
+- Support for KSP-Recall / Tweakscale
+
+##### 1.0.0
+- Initial release : RefundingOnRecovery bugfix
 
 [CKAN]: https://forum.kerbalspaceprogram.com/index.php?/topic/197082-ckan-the-comprehensive-kerbal-archive-network-v1304-hubble/
