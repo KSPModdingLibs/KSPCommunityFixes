@@ -61,6 +61,8 @@ namespace KSPCommunityFixes
             // UI :
             BasePatch.Patch<AltimeterHorizontalPosition>();
 
+            BasePatch.Patch<PAWStockGroups>();
+
             Destroy(this);
         }
     }
