@@ -68,7 +68,7 @@
     <Compile Include="QoL\PAWStockGroups.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\IMultipleModuleInPart\MultipleModuleInPartAPI.csproj">
+    <ProjectReference Include="..\MultipleModuleInPartAPI\MultipleModuleInPartAPI.csproj">
       <Project>{32b601f4-b648-4c69-aa98-620fe7ba070c}</Project>
       <Name>MultipleModuleInPartAPI</Name>
     </ProjectReference>
