@@ -26,6 +26,9 @@ namespace KSPCommunityFixes
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
             ModPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+#if DEBUG
+            Harmony.DEBUG = true;
+#endif
         }
 
         public void ModuleManagerPostLoad()
@@ -52,6 +55,8 @@ namespace KSPCommunityFixes
             // Bugfixes :
             BasePatch.Patch<RefundingOnRecovery>();
             BasePatch.Patch<DockingPortDrift>();
+            BasePatch.Patch<ModuleIndexingMismatch>();
+            BasePatch.Patch<StockAlarmCustomFormatterDate>();
 
             // UI :
             BasePatch.Patch<AltimeterHorizontalPosition>();

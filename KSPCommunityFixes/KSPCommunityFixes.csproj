@@ -28,7 +28,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <DebugType>portable</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
@@ -58,13 +58,20 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\DockingPortDrift.cs" />
+    <Compile Include="BugFixes\ModuleIndexingMismatch.cs" />
     <Compile Include="BugFixes\RefundingOnRecovery.cs" />
+    <Compile Include="BugFixes\StockAlarmCustomFormatterDate.cs" />
     <Compile Include="KSPCommunityFixes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QoL\PAWCollapsedInventories.cs" />
     <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\IMultipleModuleInPart\MultipleModuleInPartAPI.csproj">
+      <Project>{32b601f4-b648-4c69-aa98-620fe7ba070c}</Project>
+      <Name>MultipleModuleInPartAPI</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterBuild">
     <ItemGroup>
