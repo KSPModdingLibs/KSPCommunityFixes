@@ -58,6 +58,7 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\DockingPortDrift.cs" />
+    <Compile Include="BugFixes\FlightSceneLoadKraken.cs" />
     <Compile Include="BugFixes\KerbalInventoryPersistence.cs" />
     <Compile Include="BugFixes\ModuleIndexingMismatch.cs" />
     <Compile Include="BugFixes\PAWGroupMemory.cs" />

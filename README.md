@@ -33,6 +33,7 @@ Some patches will be applied only to specific KSP versions.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2] : Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.2] : Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **KerbalInventoryPersistence** [KSP 1.12.2] : Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
+- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.2] : Prevent kraken events on flight scene load in laggy situations
 
 #### Quality of Life tweaks 
 
@@ -52,7 +53,7 @@ MIT
 ### Changelog
 
 ##### 1.1.0
-- New bugfixes : ModuleIndexingMismatch, StockAlarmCustomFormatterDate, PAWGroupMemory, KerbalInventoryPersistence
+- New bugfixes : ModuleIndexingMismatch, StockAlarmCustomFormatterDate, PAWGroupMemory, KerbalInventoryPersistence, FlightSceneLoadKraken
 - New QoL patch : PAWStockGroups
 - New API : MultipleModuleInPartAPI
 - Small tweaks to the patching engine
