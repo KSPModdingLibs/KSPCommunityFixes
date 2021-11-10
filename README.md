@@ -54,16 +54,16 @@ MIT
 ### Changelog
 
 ##### 1.2.0
-- New QoL patch : TweakableWheelsAutostrut (issue #16)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16]
+- New QoL patch : TweakableWheelsAutostrut [issue #16](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)
 - Fix PluginData folder being created in the Plugins folder
 
 ##### 1.1.0
-- New bugfix : ModuleIndexingMismatch (issue #14)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/14]
-- New bugfix : FlightSceneLoadKraken (issue #9)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9]
+- New bugfix : ModuleIndexingMismatch [issue #14](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/14)
+- New bugfix : FlightSceneLoadKraken [issue #9](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)
 - New bugfix : StockAlarmCustomFormatterDate (thanks to @LGG)
 - New bugfix : PAWGroupMemory
-- New bugfix : KerbalInventoryPersistence (Squad bugtracker)[https://bugs.kerbalspaceprogram.com/issues/28569]
-- New QoL patch : PAWStockGroups (issue #1)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/1]
+- New bugfix : KerbalInventoryPersistence [Squad bugtracker](https://bugs.kerbalspaceprogram.com/issues/28569)
+- New QoL patch : PAWStockGroups [issue #1](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/1)
 - New API : MultipleModuleInPartAPI
 - Small tweaks to the patching engine
 
