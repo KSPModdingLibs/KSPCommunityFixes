@@ -23,7 +23,7 @@ namespace KSPCommunityFixes
         {
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
-            ModPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            ModPath = Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 #if DEBUG
             Harmony.DEBUG = true;
 #endif
@@ -54,11 +54,12 @@ namespace KSPCommunityFixes
             BasePatch.Patch<StockAlarmCustomFormatterDate>();
             BasePatch.Patch<PAWGroupMemory>();
             BasePatch.Patch<KerbalInventoryPersistence>();
-
+            
             // QoL :
             BasePatch.Patch<AltimeterHorizontalPosition>();
             BasePatch.Patch<PAWCollapsedInventories>();
             BasePatch.Patch<PAWStockGroups>();
+            BasePatch.Patch<TweakableWheelsAutostrut>();
 
             Destroy(this);
         }

@@ -42,6 +42,7 @@ Some patches will be applied only to specific KSP versions.
 - **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.2] : Altimeter widget horizontal position is now tweakable in the pause menu settings.\
 ![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
 - **PAWStockGroups** [KSP 1.11.1 - 1.12.2] : Part Action Window groups for a selection of stock modules
+- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2] : Allow tweaking the autostrut mode of wheels/landing legs. Still default to "heaviest".
 
 #### Mod API
 - **MultipleModuleInPartAPI** : This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -52,9 +53,17 @@ MIT
 
 ### Changelog
 
+##### 1.2.0
+- New QoL patch : TweakableWheelsAutostrut (issue #16)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16]
+- Fix PluginData folder being created in the Plugins folder
+
 ##### 1.1.0
-- New bugfixes : ModuleIndexingMismatch, StockAlarmCustomFormatterDate, PAWGroupMemory, KerbalInventoryPersistence, FlightSceneLoadKraken
-- New QoL patch : PAWStockGroups
+- New bugfix : ModuleIndexingMismatch (issue #14)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/14]
+- New bugfix : FlightSceneLoadKraken (issue #9)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9]
+- New bugfix : StockAlarmCustomFormatterDate (thanks to @LGG)
+- New bugfix : PAWGroupMemory
+- New bugfix : KerbalInventoryPersistence (Squad bugtracker)[https://bugs.kerbalspaceprogram.com/issues/28569]
+- New QoL patch : PAWStockGroups (issue #1)[https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/1]
 - New API : MultipleModuleInPartAPI
 - Small tweaks to the patching engine
 
