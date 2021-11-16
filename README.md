@@ -27,31 +27,33 @@ Some patches will be applied only to specific KSP versions.
 
 #### Bugfixes
 
-- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.2] : Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
-- **DockingPortDrift** [KSP 1.12.2] : Prevent persistent position drift of docking port connections, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
-- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.2] : Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
-- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2] : Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
-- **PAWGroupMemory** [KSP 1.8.0 - 1.12.2] : Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
-- **KerbalInventoryPersistence** [KSP 1.12.2] : Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
-- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.2] : Prevent kraken events on flight scene load in laggy situations
+- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.2]<br/>Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
+- **DockingPortDrift** [KSP 1.12.2]<br/>Prevent persistent position drift of docking port connections, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
+- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.2]<br/>Prevent kraken events on flight scene load in laggy situations
+- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.2]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
+- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
+- **KerbalInventoryPersistence** [KSP 1.12.2]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
+- **PAWGroupMemory** [KSP 1.8.0 - 1.12.2]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
+- **PAWItemsOrder** [KSP 1.8.0 - 1.12.2]<br/>Fix PAW items position randomly changing and flickering
 
 #### Quality of Life tweaks 
 
-- **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.2] : Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.\
-![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif)
-- **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.2] : Altimeter widget horizontal position is now tweakable in the pause menu settings.\
-![](https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif)
-- **PAWStockGroups** [KSP 1.11.1 - 1.12.2] : Part Action Window groups for a selection of stock modules
-- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2] : Allow tweaking the autostrut mode of wheels/landing legs. Still default to "heaviest".
+- **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.2]<br/>Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif" width="300"/>
+- **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.2]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
+- **PAWStockGroups** [KSP 1.11.1 - 1.12.2]<br/>Part Action Window groups for a selection of stock modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
+- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "heaviest".
 
 #### Mod API
-- **MultipleModuleInPartAPI** : This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
+- **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
 
 ### License
 
 MIT
 
 ### Changelog
+
+##### 1.3.0
+- New bugfix : PAWItemsOrder
 
 ##### 1.2.0
 - New QoL patch : TweakableWheelsAutostrut [issue #16](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)
