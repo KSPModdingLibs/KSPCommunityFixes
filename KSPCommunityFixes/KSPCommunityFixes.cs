@@ -54,6 +54,7 @@ namespace KSPCommunityFixes
             BasePatch.Patch<StockAlarmCustomFormatterDate>();
             BasePatch.Patch<PAWGroupMemory>();
             BasePatch.Patch<KerbalInventoryPersistence>();
+            BasePatch.Patch<PAWItemsOrder>();
             
             // QoL :
             BasePatch.Patch<AltimeterHorizontalPosition>();
