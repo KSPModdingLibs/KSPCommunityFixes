@@ -9,6 +9,8 @@ namespace KSPCommunityFixes
 {
     class PAWItemsOrder : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
@@ -25,10 +27,13 @@ namespace KSPCommunityFixes
             }
 
 #if DEBUG
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList)),
-                GetType()));
+            if (KSPCommunityFixes.KspVersion >= new Version(1, 12, 2))
+            {
+                patches.Add(new PatchInfo(
+                    PatchMethodType.Prefix,
+                    AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList)),
+                    GetType()));
+            }
 #endif
         }
 

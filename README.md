@@ -40,8 +40,9 @@ Some patches will be applied only to specific KSP versions.
 
 - **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.2]<br/>Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif" width="300"/>
 - **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.2]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
-- **PAWStockGroups** [KSP 1.11.1 - 1.12.2]<br/>Part Action Window groups for a selection of stock modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
-- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "heaviest".
+- **PAWStockGroups** [KSP 1.10.1 - 1.12.2]<br/>Part Action Window groups for a selection of stock modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
+- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "heaviest".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
+- **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.2]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
 
 #### Mod API
 - **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -51,6 +52,11 @@ Some patches will be applied only to specific KSP versions.
 MIT
 
 ### Changelog
+
+##### 1.4.0
+- New QoL patch : UIFloatEditNumericInput
+- Fixed some patches not being applied in KSP versions below 1.12 : PAWItemsOrder, TweakableWheelsAutostrut, ModuleIndexingMismatch, FlightSceneLoadKraken.
+- PAWStockGroups patch now applicable to KSP 1.10.1 (min version was 1.11.1 before)
 
 ##### 1.3.0
 - New bugfix : PAWItemsOrder
