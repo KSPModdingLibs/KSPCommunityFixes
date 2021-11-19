@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System;
+using HarmonyLib;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,6 +8,8 @@ namespace KSPCommunityFixes
 {
     class FlightSceneLoadKraken : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(

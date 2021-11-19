@@ -8,6 +8,8 @@ namespace KSPCommunityFixes
 {
     public class PAWGroupMemory : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         private static Dictionary<int, Dictionary<string, bool>> collapseState;
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)

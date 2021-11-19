@@ -8,6 +8,8 @@ namespace KSPCommunityFixes.BugFixes
 {
     class TweakableWheelsAutostrut : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(

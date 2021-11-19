@@ -55,12 +55,13 @@ namespace KSPCommunityFixes
             BasePatch.Patch<PAWGroupMemory>();
             BasePatch.Patch<KerbalInventoryPersistence>();
             BasePatch.Patch<PAWItemsOrder>();
-            
+
             // QoL :
             BasePatch.Patch<AltimeterHorizontalPosition>();
             BasePatch.Patch<PAWCollapsedInventories>();
             BasePatch.Patch<PAWStockGroups>();
             BasePatch.Patch<TweakableWheelsAutostrut>();
+            BasePatch.Patch<UIFloatEditNumericInput>();
 
             Destroy(this);
         }

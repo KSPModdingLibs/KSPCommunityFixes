@@ -12,7 +12,7 @@ namespace KSPCommunityFixes
         private static string commandGroupTitle;
         private static string attitudeControlGroupTitle;
 
-        protected override Version VersionMin => new Version(1, 11, 1);
+        protected override Version VersionMin => new Version(1, 10, 1);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
@@ -61,17 +61,19 @@ namespace KSPCommunityFixes
         {
             BasePAWGroup pawGroup = new BasePAWGroup("CF_Part", partGroupTitle, true);
 
-            __instance.Fields[nameof(Part.sameVesselCollision)].group = pawGroup; // 1.11.1
+            BaseField sameVesselCollision = __instance.Fields["sameVesselCollision"]; // 1.11.1
+            if (sameVesselCollision != null)
+                sameVesselCollision.group = pawGroup;
+
+            BaseEvent setVesselNaming = __instance.Events["SetVesselNaming"]; // 1.11.0
+            if (setVesselNaming != null)
+                setVesselNaming.group = pawGroup;
+
             __instance.Events[nameof(Part.AimCamera)].group = pawGroup;
             __instance.Events[nameof(Part.ResetCamera)].group = pawGroup;
             __instance.Events[nameof(Part.ToggleAutoStrut)].group = pawGroup;
             __instance.Events[nameof(Part.ToggleRigidAttachment)].group = pawGroup;
             __instance.Events[nameof(Part.ShowUpgradeStats)].group = pawGroup;
-
-            if (__instance.Events.Contains(nameof(Part.SetVesselNaming))) // 1.11.0
-            {
-                __instance.Events[nameof(Part.SetVesselNaming)].group = pawGroup;
-            }
         }
 
         static void ModuleDataTransmitter_OnStart_Postfix(ModuleDataTransmitter __instance)
