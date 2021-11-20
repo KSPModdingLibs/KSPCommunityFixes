@@ -1,5 +1,6 @@
-﻿using System;
-using HarmonyLib;
+﻿using HarmonyLib;
+using KSP.UI;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -56,30 +57,39 @@ namespace KSPCommunityFixes
     [UI_FloatEdit]
     public class UIPartActionNumericFloatEdit : UIPartActionFloatEdit
     {
-        public static UIPartActionNumericFloatEdit CreatePrefab(UIPartActionFloatEdit original, UIPartActionFloatRange floatRange)
+        public static UIPartActionNumericFloatEdit CreatePrefab(UIPartActionFloatEdit prefabComponent, UIPartActionFloatRange floatRange)
         {
-            UIPartActionNumericFloatEdit customComponent = original.gameObject.AddComponent<UIPartActionNumericFloatEdit>();
+            GameObject customPrefab = Instantiate(prefabComponent.gameObject);
+            DontDestroyOnLoad(customPrefab);
+            customPrefab.name = "UIPartActionNumericFloatEdit";
+            customPrefab.transform.SetParent(UIMasterController.Instance.transform);
 
-            customComponent.fieldName = original.fieldName;
-            customComponent.fieldValue = original.fieldValue;
-            customComponent.incLarge = original.incLarge;
-            customComponent.incSmall = original.incSmall;
-            customComponent.decLarge = original.decLarge;
-            customComponent.decSmall = original.decSmall;
-            customComponent.slider = original.slider;
+            UIPartActionFloatEdit originalComponent = customPrefab.GetComponent<UIPartActionFloatEdit>();
+            UIPartActionNumericFloatEdit customComponent = customPrefab.AddComponent<UIPartActionNumericFloatEdit>();
 
-            customComponent.originalObjects = new GameObject[original.transform.childCount];
+            customComponent.fieldName = originalComponent.fieldName;
+            customComponent.fieldValue = originalComponent.fieldValue;
+            customComponent.incLarge = originalComponent.incLarge;
+            customComponent.incSmall = originalComponent.incSmall;
+            customComponent.decLarge = originalComponent.decLarge;
+            customComponent.decSmall = originalComponent.decSmall;
+            customComponent.slider = originalComponent.slider;
+
+            customComponent.originalObjects = new GameObject[originalComponent.transform.childCount];
             int i = 0;
-            foreach (Transform child in original.transform)
+            foreach (Transform child in originalComponent.transform)
             {
                 customComponent.originalObjects[i] = child.gameObject;
                 i++;
             }
 
             customComponent.numericContainer = Instantiate(floatRange.transform.Find("InputFieldHolder").gameObject);
-            customComponent.numericContainer.transform.SetParent(original.transform);
+            customComponent.numericContainer.name = "InputFieldHolder";
+            customComponent.numericContainer.transform.SetParent(originalComponent.transform);
             customComponent.fieldNameNumeric = customComponent.numericContainer.transform.Find("NameNumeric").GetComponent<TextMeshProUGUI>();
             customComponent.inputField = customComponent.numericContainer.GetComponentInChildren<TMP_InputField>();
+
+            Destroy(originalComponent);
 
             return customComponent;
         }

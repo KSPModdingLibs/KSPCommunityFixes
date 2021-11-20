@@ -53,6 +53,9 @@ MIT
 
 ### Changelog
 
+##### 1.4.1
+- Fixed UIFloatEditNumericInput patch causing various errors and generally not working as intended.
+
 ##### 1.4.0
 - New QoL patch : UIFloatEditNumericInput
 - Fixed some patches not being applied in KSP versions below 1.12 : PAWItemsOrder, TweakableWheelsAutostrut, ModuleIndexingMismatch, FlightSceneLoadKraken.
