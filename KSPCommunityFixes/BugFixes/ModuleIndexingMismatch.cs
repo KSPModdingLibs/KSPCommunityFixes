@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+using Expansions.Missions.Flow;
 using HarmonyLib;
 using MultipleModuleInPartAPI;
 using UnityEngine;
@@ -23,16 +24,6 @@ namespace KSPCommunityFixes
     // or removing a module that exists in multiple occurences, and isn't the last module of that type.
     // There is no way to handle that case without requiring manually defining a per-part persisted unique ID for
     // modules that can exist in multiple occurence.
-
-    // In the end, the only fail proof way is to implement a unique id. This is something we could provide here.
-    // - IMultipleModule interface
-    // - string ModulePartId { get; }
-    // - string ModulePartIdPersistedName { get; }
-
-    // Then we only patch Part.LoadModule() :
-    // - Maintain a Dictionary<string, string> of all IMultipleModule module type names, and the corresponding ModulePartIdPersistedName
-    // - prefix :
-
 
     public class ModuleIndexingMismatch : BasePatch
     {
@@ -363,66 +354,76 @@ namespace KSPCommunityFixes
             }
         }
 
-
-
-
         static IEnumerable<CodeInstruction> ShipConstruct_LoadShip_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo Part_LoadModule = AccessTools.Method(typeof(Part), nameof(Part.LoadModule));
-            MethodInfo AddShipModuleNode = AccessTools.Method(typeof(ModuleIndexingMismatch), nameof(ModuleIndexingMismatch.AddShipModuleNode));
-            FieldInfo Part_persistentId = AccessTools.Field(typeof(Part), nameof(Part.persistentId));
             MethodInfo LoadShipModuleNodes = AccessTools.Method(typeof(ModuleIndexingMismatch), nameof(ModuleIndexingMismatch.LoadShipModuleNodes));
+            MethodInfo ConfigNode_get_nodes = AccessTools.PropertyGetter(typeof(ConfigNode), nameof(ConfigNode.nodes));
 
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
-            //// part.LoadModule(configNode2, ref moduleIndex);
-            //IL_180d: ldloc.s 6 // part
-            //IL_180f: ldloc.3 // configNode2
-            //IL_1810: ldloca.s 39 // moduleIndex
-            //IL_1812: callvirt instance class PartModule Part::LoadModule(class ConfigNode, int32&)
-            //IL_1817: dup
-            //IL_1818: pop
-            //IL_1819: pop
-            //IL_181a: br.s IL_1869
-
-            int moduleLoadMinIndex = 0;
-
-            for (int i = 3; i < code.Count; i++)
+            // first, remove the original module load call
+            bool originalFound = false;
+            for (int i = 0; i < code.Count - 6; i++)
             {
-                if (code[i].opcode == OpCodes.Callvirt && code[i].operand == Part_LoadModule && code[i - 3].opcode == OpCodes.Ldloc_S)
+                //// part.LoadModule(configNode2, ref moduleIndex);
+                // ldloc.s 6
+                // ldloc.3
+                // ldloca.s 39
+                // callvirt instance class PartModule Part::LoadModule(class ConfigNode, int32&)
+                // dup
+                // pop
+                // pop
+                if (code[i].opcode == OpCodes.Ldloc_S
+                    && code[i + 1].opcode == OpCodes.Ldloc_3
+                    && code[i + 2].opcode == OpCodes.Ldloca_S
+                    && code[i + 3].opcode == OpCodes.Callvirt && code[i + 3].operand == Part_LoadModule
+                    && code[i + 4].opcode == OpCodes.Dup
+                    && code[i + 5].opcode == OpCodes.Pop
+                    && code[i + 6].opcode == OpCodes.Pop)
                 {
-                    code[i - 1].opcode = OpCodes.Nop;
-                    code[i - 1].operand = null;
-                    code[i].opcode = OpCodes.Call;
-                    code[i].operand = AddShipModuleNode;
-
-                    for (int j = i + 1; j < code.Count; j++)
+                    originalFound = true;
+                    for (int j = i; j < i + 7; j++)
                     {
-                        if (code[j].opcode == OpCodes.Br_S)
-                            break;
-
                         code[j].opcode = OpCodes.Nop;
                         code[j].operand = null;
                     }
-
-                    moduleLoadMinIndex = i;
                     break;
                 }
             }
 
-            for (int i = moduleLoadMinIndex; i < code.Count; i++)
+            if (!originalFound)
             {
-                // uint num4 = part.persistentId;
-                // IL_1882: ldloc.s 6
-                // IL_1884: ldfld uint32 Part::persistentId
-                // IL_1889: stloc.s 20
-                if (code[i].opcode == OpCodes.Ldloc_S
-                    && code[i + 1].opcode == OpCodes.Ldfld
-                    && code[i + 1].operand == Part_persistentId
-                    && code[i + 2].opcode == OpCodes.Stloc_S)
+                Debug.LogError($"Error applying ModuleIndexingMismatch patch : couldn't find Part.LoadModule() call in ShipConstruct.LoadShip()");
+                return instructions;
+            }
+
+            // then, insert our own module loading call before the original part nodes parsing loop
+            for (int i = 0; i < code.Count - 6; i++)
+            {
+                //// int moduleIndex = 0;
+                // ldc.i4.0 NULL
+                // stloc.s 39(System.Int32)
+                //// int m = 0;
+                // ldc.i4.0 NULL
+                // stloc.s 45(System.Int32)
+                //// int count5 = configNode.nodes.Count
+                // ldloc.2 NULL
+                // callvirt ConfigNodeList ConfigNode::get_nodes()
+                // dup NULL
+                // pop NULL
+                // callvirt System.Int32 ConfigNodeList::get_Count()
+
+                if (code[i].opcode == OpCodes.Ldc_I4_0
+                && code[i + 1].opcode == OpCodes.Stloc_S
+                && code[i + 2].opcode == OpCodes.Ldc_I4_0
+                && code[i + 3].opcode == OpCodes.Stloc_S
+                && code[i + 4].opcode == OpCodes.Ldloc_2
+                && code[i + 5].opcode == OpCodes.Callvirt && code[i + 5].operand == ConfigNode_get_nodes)
                 {
-                    code.Insert(i, new CodeInstruction(OpCodes.Ldloc_S, code[i].operand));
-                    code.Insert(i + 1, new CodeInstruction(OpCodes.Call, LoadShipModuleNodes));
+                    code.Insert(i, new CodeInstruction(OpCodes.Ldloc_S, 6)); // ldloc.s 6 is the Part local variable
+                    code.Insert(i + 1, new CodeInstruction(OpCodes.Ldloc_2)); // Ldloc_2 is the part ConfigNode variable
+                    code.Insert(i + 2, new CodeInstruction(OpCodes.Call, LoadShipModuleNodes));
                     break;
                 }
             }
@@ -438,28 +439,20 @@ namespace KSPCommunityFixes
             return code;
         }
 
-        private static int shipCurrentPartId;
-        private static List<ConfigNode> shipCurrentPartModuleNodes = new List<ConfigNode>();
+        private static List<ConfigNode> currentModuleNodes = new List<ConfigNode>();
 
-        static void AddShipModuleNode(Part part, ConfigNode moduleNode)
+        static void LoadShipModuleNodes(Part part, ConfigNode partNode)
         {
-            int partId = part.GetInstanceID();
-            if (shipCurrentPartId != partId)
-            {
-                shipCurrentPartId = partId;
-                shipCurrentPartModuleNodes.Clear();
-            }
+            currentModuleNodes.Clear();
+            foreach (ConfigNode compNode in partNode.nodes)
+                if (compNode.name == "MODULE")
+                    currentModuleNodes.Add(compNode);
 
-            shipCurrentPartModuleNodes.Add(moduleNode);
-        }
-
-        static void LoadShipModuleNodes(Part part)
-        {
-            int nodeModuleCount = shipCurrentPartModuleNodes.Count;
+            int nodeModuleCount = currentModuleNodes.Count;
 
             string[] nodeModuleNames = new string[nodeModuleCount];
             for (int i = 0; i < nodeModuleCount; i++)
-                nodeModuleNames[i] = shipCurrentPartModuleNodes[i].GetValue("name");
+                nodeModuleNames[i] = currentModuleNodes[i].GetValue("name");
 
             int partModuleCount = part.Modules.Count;
             bool inSync = nodeModuleCount == partModuleCount;
@@ -484,7 +477,7 @@ namespace KSPCommunityFixes
 
                     if (part.Modules[i] is IMultipleModuleInPart multiModule)
                     {
-                        string nodeModuleId = shipCurrentPartModuleNodes[i].GetValue(VALUENAME_MODULEPARTCONFIGID);
+                        string nodeModuleId = currentModuleNodes[i].GetValue(VALUENAME_MODULEPARTCONFIGID);
                         if (!string.IsNullOrEmpty(nodeModuleId) && multiModule.ModulePartConfigId != nodeModuleId)
                         {
                             moduleIndex = -1;
@@ -507,7 +500,7 @@ namespace KSPCommunityFixes
 
                     }
 
-                    part.LoadModule(shipCurrentPartModuleNodes[i], ref moduleIndex);
+                    part.LoadModule(currentModuleNodes[i], ref moduleIndex);
                 }
                 return;
             }
@@ -517,7 +510,7 @@ namespace KSPCommunityFixes
 
             for (int i = 0; i < nodeModuleCount; i++)
             {
-                ConfigNode nodeModule = shipCurrentPartModuleNodes[i];
+                ConfigNode nodeModule = currentModuleNodes[i];
                 string nodeModuleName = nodeModuleNames[i];
 
                 if (multiModules.Contains(nodeModuleName))
@@ -554,7 +547,7 @@ namespace KSPCommunityFixes
                 {
                     if (nodeModuleNames[j] == nodeModuleName)
                     {
-                        if (shipCurrentPartModuleNodes[j] == nodeModule)
+                        if (currentModuleNodes[j] == nodeModule)
                             break;
 
                         nodeIndexInType++;

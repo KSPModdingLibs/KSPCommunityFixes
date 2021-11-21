@@ -53,6 +53,9 @@ MIT
 
 ### Changelog
 
+##### 1.4.2
+- Fixed ModuleIndexingMismatch patch causing issues with modules dynamically adding/removing resources. Specifically, the patch was causing part resources to be loaded before (instead of after in stock) the `PartModule.OnLoad()` call when loading a `ShipConstruct`. This notably fixes RealFuel resources being lost when reloading/launching a craft file, but that mistake likely had consequences for other fuel/resource switchers mods (B9PS, Firespitter...)
+
 ##### 1.4.1
 - Fixed UIFloatEditNumericInput patch causing various errors and generally not working as intended.
 
