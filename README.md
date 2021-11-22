@@ -1,7 +1,6 @@
 # KSP Community Fixes
 
-This plugin is a collection of code patches aiming at fixing internal bugs in the KSP codebase, as well as QoL improvements.
-There is no defined scope for now, so feel free to propose additional patches ideas by opening an issue, or to contribute with a pull request.
+This plugin is a collection of code patches aiming at fixing internal bugs in the KSP codebase, as well as implementing QoL improvements for the KSP UI. Entirely new features are usually out of scope, especially those already covered by other mods. This mod is meant as community project, so feel free to propose additional patches ideas by opening an issue, or to contribute with a pull request.
 
 ### Download and installation
 
