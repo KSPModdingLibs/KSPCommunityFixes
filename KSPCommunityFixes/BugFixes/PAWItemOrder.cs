@@ -7,6 +7,12 @@ using Object = UnityEngine.Object;
 
 namespace KSPCommunityFixes
 {
+    // note on the flickering issue :
+    // - pin 2 PAWS that have at least a group and a few other ungrouped fields
+    // - trigger a rebuild by grabbing a part then destroying it
+    // - only one of the 2 PAW flickers
+
+
     class PAWItemsOrder : BasePatch
     {
         protected override Version VersionMin => new Version(1, 8, 0);
@@ -16,14 +22,14 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] {typeof(Transform), typeof(BasePAWGroup)}),
-                GetType(), nameof(UIPartActionWindow_AddGroup_1_Prefix)));
+                this, nameof(UIPartActionWindow_AddGroup_1_Prefix)));
 
             if (KSPCommunityFixes.KspVersion >= new Version(1, 11, 0))
             {
                 patches.Add(new PatchInfo(
                     PatchMethodType.Prefix,
                     AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] { typeof(Transform), typeof(string), typeof(bool) }),
-                    GetType(), nameof(UIPartActionWindow_AddGroup_2_Prefix)));
+                    this, nameof(UIPartActionWindow_AddGroup_2_Prefix)));
             }
 
 #if DEBUG
@@ -32,7 +38,7 @@ namespace KSPCommunityFixes
                 patches.Add(new PatchInfo(
                     PatchMethodType.Prefix,
                     AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList)),
-                    GetType()));
+                    this));
             }
 #endif
         }

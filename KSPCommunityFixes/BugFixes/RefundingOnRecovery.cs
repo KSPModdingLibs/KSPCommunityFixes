@@ -59,7 +59,7 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Funding), "onVesselRecoveryProcessing"),
-                GetType()));
+                this));
 
             moduleInventoryPartDerivatives.Clear();
             moduleInventoryPartDerivatives.Add(nameof(ModuleInventoryPart));

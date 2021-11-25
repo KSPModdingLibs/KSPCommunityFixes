@@ -34,6 +34,7 @@ Some patches will be applied only to specific KSP versions.
 - **KerbalInventoryPersistence** [KSP 1.12.2]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.2]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.2]<br/>Fix PAW items position randomly changing and flickering
+- **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.2]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information
 
 #### Quality of Life tweaks 
 
@@ -51,6 +52,10 @@ Some patches will be applied only to specific KSP versions.
 MIT
 
 ### Changelog
+
+##### 1.5.0
+- New bugfix : KerbalTooltipMaxSustainedG
+- Fixed (again...) some patches not being applied
 
 ##### 1.4.2
 - Fixed ModuleIndexingMismatch patch causing issues with modules dynamically adding/removing resources. Specifically, the patch was causing part resources to be loaded before (instead of after in stock) the `PartModule.OnLoad()` call when loading a `ShipConstruct`. This notably fixes RealFuel resources being lost when reloading/launching a craft file, but that mistake likely had consequences for other fuel/resource switchers mods (B9PS, Firespitter...)

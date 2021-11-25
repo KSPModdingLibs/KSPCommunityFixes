@@ -33,27 +33,27 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(FlightUIModeController), "Start"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(GameplaySettingsScreen), "DrawMiniSettings"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(GameplaySettingsScreen), "ApplySettings"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(MapView), "enterMapView"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(MapView), "exitMapView"),
-                GetType()));
+                this));
         }
 
         private static float altimeterPosition = -1f;

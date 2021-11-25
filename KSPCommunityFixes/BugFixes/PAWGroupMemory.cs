@@ -17,17 +17,17 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Initialize)),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Collapse)),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Expand)),
-                GetType()));
+                this));
 
             collapseState = new Dictionary<int, Dictionary<string, bool>>();
 

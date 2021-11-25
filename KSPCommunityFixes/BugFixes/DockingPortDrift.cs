@@ -13,7 +13,7 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ModuleDockingNode), "ApplyCoordsUpdate"),
-                GetType()));
+                this));
         }
 
         // Credit to JPLRepo : https://github.com/JPLRepo/FixDockingNodes

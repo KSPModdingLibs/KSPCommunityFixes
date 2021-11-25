@@ -15,12 +15,12 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                GetType()));
+                this));
 
             GameEvents.OnPartLoaderLoaded.Add(OnPartLoaderLoaded);
         }

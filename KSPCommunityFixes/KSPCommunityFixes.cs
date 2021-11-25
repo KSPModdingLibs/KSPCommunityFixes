@@ -47,21 +47,14 @@ namespace KSPCommunityFixes
                 }
             }
 
-            // Bugfixes :
-            BasePatch.Patch<RefundingOnRecovery>();
-            BasePatch.Patch<DockingPortDrift>();
-            BasePatch.Patch<ModuleIndexingMismatch>();
-            BasePatch.Patch<StockAlarmCustomFormatterDate>();
-            BasePatch.Patch<PAWGroupMemory>();
-            BasePatch.Patch<KerbalInventoryPersistence>();
-            BasePatch.Patch<PAWItemsOrder>();
-
-            // QoL :
-            BasePatch.Patch<AltimeterHorizontalPosition>();
-            BasePatch.Patch<PAWCollapsedInventories>();
-            BasePatch.Patch<PAWStockGroups>();
-            BasePatch.Patch<TweakableWheelsAutostrut>();
-            BasePatch.Patch<UIFloatEditNumericInput>();
+            Type basePatchType = typeof(BasePatch);
+            foreach (Type type in Assembly.GetAssembly(basePatchType).GetTypes())
+            {
+                if (!type.IsAbstract && type.IsSubclassOf(basePatchType))
+                {
+                    BasePatch.Patch(type);
+                }
+            }
 
             Destroy(this);
         }

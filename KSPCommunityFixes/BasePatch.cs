@@ -13,11 +13,9 @@ namespace KSPCommunityFixes
         private static readonly Version versionMinDefault = new Version(1, 12, 0);
         private static readonly Version versionMaxDefault = new Version(1, 12, 99);
 
-        public static void Patch<T>() where T : BasePatch
+        public static void Patch(Type patchType)
         {
-            Type patchType = typeof(T);
-
-            T patch = (T)Activator.CreateInstance(patchType);
+            BasePatch patch = (BasePatch)Activator.CreateInstance(patchType);
 
             if (!patch.CanApplyPatch(out string reason))
             {
@@ -66,25 +64,44 @@ namespace KSPCommunityFixes
 
         protected struct PatchInfo
         {
-            public PatchMethodType patchMethodType;
-            public MethodBase originalMethod;
+            public PatchMethodType patchType;
+            public MethodBase patchedMethod;
             public MethodInfo patchMethod;
 
-            public PatchInfo(PatchMethodType patchMethodType, MethodBase originalMethod, Type patchType, string patchMethodName = null)
+            /// <summary>
+            /// Define a harmony patch
+            /// </summary>
+            /// <param name="patchType">Patch type</param>
+            /// <param name="patchedMethod">Method to be patched</param>
+            /// <param name="patchClass">Class where the patch method is implemented. Usually "this"</param>
+            /// <param name="patchMethodName">if null, will default to a method with the name "ClassToPatch_MethodToPatch_PatchType"</param>
+            public PatchInfo(PatchMethodType patchType, MethodBase patchedMethod, BasePatch patchClass, string patchMethodName = null)
             {
-                this.patchMethodType = patchMethodType;
-                this.originalMethod = originalMethod;
+                this.patchType = patchType;
+                this.patchedMethod = patchedMethod;
 
                 if (patchMethodName == null)
-                    patchMethodName = originalMethod.DeclaringType.Name + "_" + originalMethod.Name + "_" + patchMethodType;
+                    patchMethodName = this.patchedMethod.DeclaringType.Name + "_" + this.patchedMethod.Name + "_" + this.patchType;
 
-                patchMethod = AccessTools.Method(patchType, patchMethodName);
+                patchMethod = AccessTools.Method(patchClass.GetType(), patchMethodName);
             }
         }
 
+        /// <summary>
+        /// Called during loading, after ModuleManager has patched the game DataBase, and before part compilation.
+        /// Add PatchInfo entries to the patches list to appply harmony patches
+        /// </summary>
+        /// <param name="patches"></param>
         protected abstract void ApplyPatches(ref List<PatchInfo> patches);
 
+        /// <summary>
+        /// Override this to define the min KSP version for witch this patch applies. Defaults to KSP 1.12.0
+        /// </summary>
         protected virtual Version VersionMin => versionMinDefault;
+
+        /// <summary>
+        /// Override this to define the max KSP version for witch this patch applies. Defaults to KSP 1.12.99
+        /// </summary>
         protected virtual Version VersionMax => versionMaxDefault;
 
         public bool IsVersionValid => KSPCommunityFixes.KspVersion >= VersionMin && KSPCommunityFixes.KspVersion <= VersionMax;
@@ -96,13 +113,13 @@ namespace KSPCommunityFixes
 
             foreach (PatchInfo patch in patches)
             {
-                switch (patch.patchMethodType)
+                switch (patch.patchType)
                 {
-                    case PatchMethodType.Prefix: KSPCommunityFixes.Harmony.Patch(patch.originalMethod, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Postfix: KSPCommunityFixes.Harmony.Patch(patch.originalMethod, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Transpiler: KSPCommunityFixes.Harmony.Patch(patch.originalMethod, null, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Finalizer: KSPCommunityFixes.Harmony.Patch(patch.originalMethod, null, null, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.ReversePatch: KSPCommunityFixes.Harmony.CreateReversePatcher(patch.originalMethod, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.Prefix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.Postfix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.Transpiler: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.Finalizer: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, null, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.ReversePatch: KSPCommunityFixes.Harmony.CreateReversePatcher(patch.patchedMethod, new HarmonyMethod(patch.patchMethod)); break;
                 }
             }
         }
@@ -125,14 +142,25 @@ namespace KSPCommunityFixes
             }
         }
 
+        /// <summary>
+        /// Override this to add custom checks for applying a patch or not
+        /// </summary>
+        /// <param name="reason">string printed in the log if the patch isn't applied</param>
         protected virtual bool CanApplyPatch(out string reason)
         {
             reason = null;
             return true;
         }
 
+        /// <summary>
+        /// Called after a the patch has been applied during loading
+        /// Get custom data that was saved using SaveData()
+        /// </summary>
         protected virtual void OnLoadData(ConfigNode node) { }
 
+        /// <summary>
+        /// Call this to save custom patch-specific data that will be reloaded on the next KSP launch (see OnLoadData())
+        /// </summary>
         public static void SaveData<T>(ConfigNode node) where T : BasePatch
         {
             string patchName = typeof(T).Name;

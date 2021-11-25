@@ -21,27 +21,27 @@ namespace KSPCommunityFixes.UI
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleInventoryPart), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionInventory), "UpdateSlot"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionInventory), "Setup"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(UIPartActionWindow), "AddCrewInventory", new[] { typeof(ProtoCrewMember) }),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionWindow), "AddCrewInventory", new[] { typeof(ProtoCrewMember) }),
-                GetType()));
+                this));
         }
 
         static string GetGroupName(ModuleInventoryPart inventory)

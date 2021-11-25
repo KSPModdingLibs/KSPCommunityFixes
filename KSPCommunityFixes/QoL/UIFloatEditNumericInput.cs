@@ -18,7 +18,7 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(UIPartActionController), "Awake"),
-                GetType()));
+                this));
         }
 
         static void UIPartActionController_Awake_Postfix(UIPartActionController __instance)

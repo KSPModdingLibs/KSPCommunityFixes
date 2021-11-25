@@ -19,37 +19,37 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(Part), "Start"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleDataTransmitter), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleCommand), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleReactionWheel), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleRCS), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleGimbal), "OnStart"),
-                GetType()));
+                this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ModuleControlSurface), "OnStart"),
-                GetType()));
+                this));
 
             partGroupTitle = Localizer.Format("#autoLOC_6100048"); // Part
             commsGroupTitle = Localizer.Format("#autoLOC_453582"); // Communication

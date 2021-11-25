@@ -341,3 +341,6 @@ healthchecksdb
 
 # User configuration
 KSPDevPath.xml
+
+# Binaries
+GameData/KSPCommunityFixes/Plugins/*

@@ -33,7 +33,7 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.PropertyGetter(typeof(ProtoCrewMember), "kerbalModule"),
-                GetType(), nameof(ProtoCrewMember_kerbalModule_Transpiler)));
+                this, nameof(ProtoCrewMember_kerbalModule_Transpiler)));
         }
 
         private static IEnumerable<CodeInstruction> ProtoCrewMember_kerbalModule_Transpiler(IEnumerable<CodeInstruction> instructions)
