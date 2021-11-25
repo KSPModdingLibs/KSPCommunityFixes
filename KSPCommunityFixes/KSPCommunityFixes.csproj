@@ -81,12 +81,37 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="AfterBuild">
+  <Target Name="AfterBuild" Condition=" '$(Configuration)' == 'Debug' ">
     <ItemGroup>
       <GameDataFiles Include="$(SolutionDir)\GameData\KSPCommunityFixes\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\" />
     <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
     <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
+  </Target>
+
+  <Target Name="AfterBuild" Condition=" '$(Configuration)' == 'Release' ">
+    <PropertyGroup>
+      <PublishFolder>$(SolutionDir)\Releases\</PublishFolder>
+      <PublishTempFolderPath>$(PublishFolder)\Temp\</PublishTempFolderPath>
+    </PropertyGroup>
+
+    <RemoveDir Condition="Exists('$(PublishTempFolderPath)')" Directories="$(PublishTempFolderPath)" />
+
+    <ItemGroup>
+      <GameDataFiles Include="$(SolutionDir)\GameData\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(PublishTempFolderPath)\GameData\%(RecursiveDir)" />
+
+    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.dll" DestinationFolder="$(PublishTempFolderPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(TargetDir)\KSPCommunityFixes.pdb" DestinationFolder="$(PublishTempFolderPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.dll" DestinationFolder="$(PublishTempFolderPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.pdb" DestinationFolder="$(PublishTempFolderPath)\GameData\KSPCommunityFixes\Plugins\" />
+    <Copy SourceFiles="$(SolutionDir)\README.md" DestinationFolder="$(PublishTempFolderPath)\GameData\KSPCommunityFixes\" />
+
+    <ZipDirectory SourceDirectory="$(PublishTempFolderPath)" DestinationFile="$(PublishFolder)\latest.zip" Overwrite="true"/>
+
+
+
   </Target>
 </Project>
