@@ -7,6 +7,23 @@ using UnityEngine;
 
 namespace KSPCommunityFixes
 {
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+    public class PatchPriority : Attribute
+    {
+        private int order;
+
+        public int Order
+        {
+            get => order;
+            set => order = value;
+        }
+
+        public PatchPriority()
+        {
+            order = 0;
+        }
+    }
+
     public abstract class BasePatch
     {
         private static readonly string pluginData = "PluginData";
@@ -24,7 +41,7 @@ namespace KSPCommunityFixes
                 return;
             }
 
-            if (!KSPCommunityFixes.enabledPatches.Contains(patchType.Name))
+            if (!patch.IgnoreConfig && !KSPCommunityFixes.enabledPatches.Contains(patchType.Name))
             {
                 Debug.Log($"[KSPCommunityFixes] Patch {patchType.Name} not applied (disabled in Settings.cfg)");
                 return;
@@ -151,6 +168,11 @@ namespace KSPCommunityFixes
             reason = null;
             return true;
         }
+
+        /// <summary>
+        /// Override to true to have this patch always applied regardless of the Settings.cfg flags
+        /// </summary>
+        protected virtual bool IgnoreConfig => false;
 
         /// <summary>
         /// Called after a the patch has been applied during loading

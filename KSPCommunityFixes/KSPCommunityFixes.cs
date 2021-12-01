@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
-using KSPCommunityFixes.BugFixes;
-using KSPCommunityFixes.UI;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -18,6 +16,15 @@ namespace KSPCommunityFixes
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
         public static Dictionary<Type, BasePatch> patchInstances = new Dictionary<Type, BasePatch>();
+
+        public static T GetPatchInstance<T>() where T : BasePatch
+        {
+            if (!patchInstances.TryGetValue(typeof(T), out BasePatch instance))
+                return null;
+
+            return (T)instance;
+
+        }
 
         void Start()
         {
@@ -48,12 +55,21 @@ namespace KSPCommunityFixes
             }
 
             Type basePatchType = typeof(BasePatch);
+            List<Type> patchesTypes = new List<Type>();
             foreach (Type type in Assembly.GetAssembly(basePatchType).GetTypes())
             {
                 if (!type.IsAbstract && type.IsSubclassOf(basePatchType))
                 {
-                    BasePatch.Patch(type);
+                    patchesTypes.Add(type);
+                    
                 }
+            }
+
+            patchesTypes.Sort((x, y) => (x.GetCustomAttribute<PatchPriority>()?.Order ?? 0).CompareTo(y.GetCustomAttribute<PatchPriority>()?.Order ?? 0));
+
+            foreach (Type patchesType in patchesTypes)
+            {
+                BasePatch.Patch(patchesType);
             }
 
             Destroy(this);

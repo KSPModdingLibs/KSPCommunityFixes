@@ -21,8 +21,9 @@ Compatible with **KSP 1.8.0** to **1.12.2** - Available on [CKAN]
 
 ### Features
 
-Individual patches can be enabled or disabled by editing the `Settings.cfg` file.
-Some patches will be applied only to specific KSP versions.
+Individual patches can be enabled or disabled by editing the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
+
+In-game options are available from the KSP settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.png"/>
 
 #### Bugfixes
 
@@ -43,6 +44,7 @@ Some patches will be applied only to specific KSP versions.
 - **PAWStockGroups** [KSP 1.10.1 - 1.12.2]<br/>Part Action Window groups for a selection of stock items/modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
 - **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.2]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
+- **DisableManeuverTool** [KSP 1.12.0 - 1.12.2]<br/>Allow disabling the stock maneuver tool in the settings (it can cause severe stutter/lag, especially with Kopernicus modified systems)
 
 #### Mod API
 - **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -52,6 +54,10 @@ Some patches will be applied only to specific KSP versions.
 MIT
 
 ### Changelog
+
+##### 1.6.0
+- New bugfix : CelestialSorting (Credit to @R-T-B)
+- New QoL patch : DisableManeuverTool
 
 ##### 1.5.0
 - New bugfix : KerbalTooltipMaxSustainedG

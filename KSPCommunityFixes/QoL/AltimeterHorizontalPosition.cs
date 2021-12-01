@@ -36,16 +36,6 @@ namespace KSPCommunityFixes
                 this));
 
             patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "DrawMiniSettings"),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "ApplySettings"),
-                this));
-
-            patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(MapView), "enterMapView"),
                 this));
@@ -56,7 +46,7 @@ namespace KSPCommunityFixes
                 this));
         }
 
-        private static float altimeterPosition = -1f;
+        public static float altimeterPosition = -1f;
 
         protected override void OnLoadData(ConfigNode node)
         {
@@ -68,7 +58,7 @@ namespace KSPCommunityFixes
 
         // Transform the [0, 1] altimeterPosition setting into a position that doesn't overlap the
         // others stock UI elements at the top of the screen
-        private static void SetTopFramePosition()
+        public static void SetTopFramePosition()
         {
             if (FlightUIModeController.Instance == null || FlightUIModeController.Instance.altimeterFrame == null || TelemetryUpdate.Instance == null || ApplicationLauncher.Instance == null)
             {
@@ -103,7 +93,6 @@ namespace KSPCommunityFixes
             topFrame.anchorMin = new Vector2(anchorPos, topFrame.anchorMin.y);
         }
 
-        
         static void FlightUIModeController_Start_Postfix()
         {
             // position the altimeter
@@ -115,46 +104,6 @@ namespace KSPCommunityFixes
             {
                 trackingFiltersHoverArea.SetActive(false);
             }
-        }
-
-        // add an altimeter horizontal position slider to the pause menu settings, similar to the stock navball position tweakable
-        static void GameplaySettingsScreen_DrawMiniSettings_Postfix(GameplaySettingsScreen __instance, ref DialogGUIBase[] __result)
-        {
-            DialogGUIBase[] modifiedResult = new DialogGUIBase[__result.Length + 1];
-
-            int lastPos = __result.Length - 2;
-
-            for (int i = 0; i < modifiedResult.Length; i++)
-            {
-                if (i < lastPos)
-                {
-                    modifiedResult[i] = __result[i];
-                }
-                else if (i == lastPos)
-                {
-                    modifiedResult[i] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft, 
-                        new DialogGUILabel(() => Localizer.Format("Altimeter pos (Left<->Right)"), 150f), 
-                        new DialogGUISlider(() => altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate (float f)
-                    {
-                        altimeterPosition = f;
-                        SetTopFramePosition();
-                    }), new DialogGUIFlexibleSpace());
-                }
-                else
-                {
-                    modifiedResult[i] = __result[i - 1];
-                }
-            }
-
-            __result = modifiedResult;
-        }
-
-        // save the altimeter position on apply/accept actions in the pause settings window
-        static void GameplaySettingsScreen_ApplySettings_Postfix()
-        {
-            ConfigNode node = new ConfigNode();
-            node.AddValue(nameof(altimeterPosition), altimeterPosition);
-            SaveData<AltimeterHorizontalPosition>(node);
         }
 
         // show the map vessel filters button when entering map view

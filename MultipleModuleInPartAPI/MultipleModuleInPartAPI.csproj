@@ -40,8 +40,4 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="AfterBuild">
-    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.dll" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
-    <Copy SourceFiles="$(TargetDir)\0_MultipleModuleInPartAPI.pdb" DestinationFolder="$(KSPInstallPath)\GameData\KSPCommunityFixes\Plugins\" />
-  </Target>
 </Project>

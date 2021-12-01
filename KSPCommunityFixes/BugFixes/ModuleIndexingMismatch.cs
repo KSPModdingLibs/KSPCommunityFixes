@@ -158,13 +158,6 @@ namespace KSPCommunityFixes
                 }
             }
 
-#if DEBUG
-            Debug.Log("ProtoPartSnapshot_Load_Transpiler");
-            foreach (CodeInstruction codeInstruction in code)
-            {
-                Debug.Log(codeInstruction);
-            }
-#endif
             return code;
         }
 
@@ -206,14 +199,6 @@ namespace KSPCommunityFixes
                     break;
                 }
             }
-
-#if DEBUG
-            Debug.Log("ProtoPartSnapshot_ConfigurePart_Transpiler");
-            foreach (CodeInstruction codeInstruction in code)
-            {
-                Debug.Log(codeInstruction);
-            }
-#endif
 
             return code;
         }
@@ -427,14 +412,6 @@ namespace KSPCommunityFixes
                     break;
                 }
             }
-
-#if DEBUG
-            Debug.Log("ShipConstruct_LoadShip_Transpiler");
-            foreach (CodeInstruction codeInstruction in code)
-            {
-                Debug.Log(codeInstruction);
-            }
-#endif
 
             return code;
         }
