@@ -56,6 +56,9 @@ MIT
 
 ### Changelog
 
+##### 1.6.1
+- Fixed version file for 1.12.3
+
 ##### 1.6.0
 - Updated for KSP 1.12.3
 - DockingPortDrift bugfix doesn't apply in 1.12.3 (identical fix was ported to stock)
