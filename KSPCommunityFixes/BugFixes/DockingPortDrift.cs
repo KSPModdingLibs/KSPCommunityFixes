@@ -7,6 +7,7 @@ namespace KSPCommunityFixes.BugFixes
     class DockingPortDrift : BasePatch
     {
         protected override Version VersionMin => new Version(1, 12, 2);
+        protected override Version VersionMax => new Version(1, 12, 2);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {

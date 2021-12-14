@@ -31,7 +31,10 @@ namespace KSPCommunityFixes.QoL
 
         private static bool ManeuverTool_OnAppAboutToStart_Prefix(ref bool __result)
         {
-            __result = enableManeuverTool;
+            if (enableManeuverTool)
+                return true;
+
+            __result = false;
             return false;
         }
 

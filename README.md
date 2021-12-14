@@ -4,7 +4,7 @@ This plugin is a collection of code patches aiming at fixing internal bugs in th
 
 ### Download and installation
 
-Compatible with **KSP 1.8.0** to **1.12.2** - Available on [CKAN]
+Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 **Required** and **must be downloaded separately** : 
 
@@ -27,24 +27,25 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 
 #### Bugfixes
 
-- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.2]<br/>Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
+- **RefundingOnRecovery** [KSP 1.11.0 - 1.12.3]<br/>Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
 - **DockingPortDrift** [KSP 1.12.2]<br/>Prevent part position drift of vessels having docking ports, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
-- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.2]<br/>Prevent kraken events on flight scene load in laggy situations
-- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.2]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
-- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.2]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
-- **KerbalInventoryPersistence** [KSP 1.12.2]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
-- **PAWGroupMemory** [KSP 1.8.0 - 1.12.2]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
-- **PAWItemsOrder** [KSP 1.8.0 - 1.12.2]<br/>Fix PAW items position randomly changing and flickering
-- **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.2]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information
+- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.3]<br/>Prevent kraken events on flight scene load in laggy situations
+- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.3]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
+- **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
+- **KerbalInventoryPersistence** [KSP 1.12.2 - 1.12.3]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2+. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
+- **PAWGroupMemory** [KSP 1.8.0 - 1.12.3]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
+- **PAWItemsOrder** [KSP 1.8.0 - 1.12.3]<br/>Fix PAW items position randomly changing and flickering
+- **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.3]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information
 
 #### Quality of Life tweaks 
 
-- **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.2]<br/>Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif" width="300"/>
-- **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.2]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
-- **PAWStockGroups** [KSP 1.10.1 - 1.12.2]<br/>Part Action Window groups for a selection of stock items/modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
-- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.2]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
-- **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.2]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
-- **DisableManeuverTool** [KSP 1.12.0 - 1.12.2]<br/>Allow disabling the stock maneuver tool in the settings (it can cause severe stutter/lag, especially with Kopernicus modified systems)
+- **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.3]<br/>Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif" width="300"/>
+- **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.3]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
+- **PAWStockGroups** [KSP 1.10.1 - 1.12.3]<br/>Part Action Window groups for a selection of stock items/modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
+- **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.3]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
+- **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.3]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
+- **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the stock maneuver tool in the in-game settings menu (it can cause severe lag/stutter, especially with Kopernicus modified systems)
+- **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.3]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 
 #### Mod API
 - **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -56,7 +57,10 @@ MIT
 ### Changelog
 
 ##### 1.6.0
-- New bugfix : CelestialSorting (Credit to @R-T-B)
+- Updated for KSP 1.12.3
+- DockingPortDrift bugfix doesn't apply in 1.12.3 (identical fix was ported to stock)
+- Moved KSPCommunityFixes in-game settings to a dedicated category in the KSP settings menu
+- New QoL patch : SceneLoadSpeedBoost
 - New QoL patch : DisableManeuverTool
 
 ##### 1.5.0

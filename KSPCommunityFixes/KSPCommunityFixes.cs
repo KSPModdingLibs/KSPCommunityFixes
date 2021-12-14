@@ -17,6 +17,8 @@ namespace KSPCommunityFixes
         public static HashSet<string> enabledPatches = new HashSet<string>();
         public static Dictionary<Type, BasePatch> patchInstances = new Dictionary<Type, BasePatch>();
 
+        public static KSPCommunityFixes Instance { get; private set; }
+
         public static T GetPatchInstance<T>() where T : BasePatch
         {
             if (!patchInstances.TryGetValue(typeof(T), out BasePatch instance))
@@ -28,6 +30,18 @@ namespace KSPCommunityFixes
 
         void Start()
         {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(Instance);
+                Instance = null;
+            }
+            
+            if (Instance == null)
+            {
+                Instance = this;
+                DontDestroyOnLoad(this);
+            }
+
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
             ModPath = Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
@@ -38,6 +52,9 @@ namespace KSPCommunityFixes
 
         public void ModuleManagerPostLoad()
         {
+            if (Instance == null || Instance != this)
+                return;
+
             var featuresNodes = GameDatabase.Instance.GetConfigs("KSP_COMMUNITY_FIXES");
 
             ConfigNode cfg;
@@ -48,7 +65,7 @@ namespace KSPCommunityFixes
 
             foreach (ConfigNode.Value value in cfg.values)
             {
-                if (!Boolean.TryParse(value.value, out bool patchEnabled) || patchEnabled)
+                if (!bool.TryParse(value.value, out bool patchEnabled) || patchEnabled)
                 {
                     enabledPatches.Add(value.name);
                 }
@@ -71,8 +88,6 @@ namespace KSPCommunityFixes
             {
                 BasePatch.Patch(patchesType);
             }
-
-            Destroy(this);
         }
     }
 }

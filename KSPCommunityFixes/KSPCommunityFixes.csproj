@@ -59,7 +59,7 @@
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
-    <Compile Include="BugFixes\SinkingWheels.cs" />
+    <Compile Include="QoL\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
     <Compile Include="QoL\TweakableWheelsAutostrut.cs" />
