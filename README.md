@@ -1,6 +1,8 @@
 # KSP Community Fixes
 
-This plugin is a collection of code patches aiming at fixing internal bugs in the KSP codebase, as well as implementing QoL improvements for the KSP UI. Entirely new features are usually out of scope, especially those already covered by other mods. This mod is meant as community project, so feel free to propose additional patches ideas by opening an issue, or to contribute with a pull request.
+This plugin is a collection of code patches for fixing bugs and performance issues in the KSP codebase, and adding small QoL improvements. Entirely new features (especially those already covered by other mods) are out of scope, as well as patches that might alter the stock behaviors to minimize potential mod compatbility issues.
+
+This mod is meant as community project, so feel free to propose additional patch ideas by opening an issue, or to contribute with a pull request.
 
 ### Download and installation
 
@@ -34,8 +36,9 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **KerbalInventoryPersistence** [KSP 1.12.2 - 1.12.3]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2+. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.3]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
-- **PAWItemsOrder** [KSP 1.8.0 - 1.12.3]<br/>Fix PAW items position randomly changing and flickering
-- **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.3]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information
+- **PAWItemsOrder** [KSP 1.8.0 - 1.12.3]<br/>Fix PAW items position randomly changing and flickering.
+- **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.3]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
+- **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 
 #### Quality of Life tweaks 
 
@@ -45,7 +48,11 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **TweakableWheelsAutostrut** [KSP 1.8.0 - 1.12.3]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.3]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
 - **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the stock maneuver tool in the in-game settings menu (it can cause severe lag/stutter, especially with Kopernicus modified systems)
+
+#### Performance tweaks 
+
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.3]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
+- **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 
 #### Mod API
 - **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -56,6 +63,10 @@ MIT
 
 ### Changelog
 
+##### 1.7.0
+- New performance patch : OnDemandPartBuoyancy (thanks to @siimav)
+- New bugfix : ROCValidationOOR (thanks to @R-T-B)
+
 ##### 1.6.1
 - Fixed version file for 1.12.3
 
@@ -63,7 +74,7 @@ MIT
 - Updated for KSP 1.12.3
 - DockingPortDrift bugfix doesn't apply in 1.12.3 (identical fix was ported to stock)
 - Moved KSPCommunityFixes in-game settings to a dedicated category in the KSP settings menu
-- New QoL patch : SceneLoadSpeedBoost
+- New performance patch : SceneLoadSpeedBoost
 - New QoL patch : DisableManeuverTool
 
 ##### 1.5.0
