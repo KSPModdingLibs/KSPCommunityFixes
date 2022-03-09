@@ -31,7 +31,6 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 
 - **RefundingOnRecovery** [KSP 1.11.0 - 1.12.3]<br/>Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
 - **DockingPortDrift** [KSP 1.12.2]<br/>Prevent part position drift of vessels having docking ports, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
-- **FlightSceneLoadKraken** [KSP 1.8.0 - 1.12.3]<br/>Prevent kraken events on flight scene load in laggy situations
 - **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.3]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **KerbalInventoryPersistence** [KSP 1.12.2 - 1.12.3]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2+. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
@@ -39,6 +38,9 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.3]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.3]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
+- **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
+- **AutoStrutDrift** [KSP 1.8.0 - 1.12.3]<br/>Improve the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
+- **PartStartStability** [KSP 1.8.0 - 1.12.3]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Quality of Life tweaks 
 
@@ -62,6 +64,11 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 MIT
 
 ### Changelog
+
+##### 1.8.0
+- New bugfix : AutoStrutDrift, see [issue #21](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21). Thanks to @Lisias for [investigation efforts](https://github.com/net-lisias-ksp/KSP-Recall/issues/27#issuecomment-1022167916).
+- New bugfix : PartStartStability, see [issue #9](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9).
+- The FlightSceneLoadKraken patch is superseded by the PartStartStability patch, which is now disabled by default
 
 ##### 1.7.0
 - New performance patch : OnDemandPartBuoyancy (thanks to @siimav)
@@ -96,16 +103,16 @@ MIT
 - New bugfix : PAWItemsOrder
 
 ##### 1.2.0
-- New QoL patch : TweakableWheelsAutostrut [issue #16](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)
+- New QoL patch : TweakableWheelsAutostrut, see [issue #16](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)
 - Fix PluginData folder being created in the Plugins folder
 
 ##### 1.1.0
-- New bugfix : ModuleIndexingMismatch [issue #14](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/14)
-- New bugfix : FlightSceneLoadKraken [issue #9](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)
+- New bugfix : ModuleIndexingMismatch, see [issue #14](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/14)
+- New bugfix : FlightSceneLoadKraken, see [issue #9](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)
 - New bugfix : StockAlarmCustomFormatterDate (thanks to @LGG)
 - New bugfix : PAWGroupMemory
-- New bugfix : KerbalInventoryPersistence [Squad bugtracker](https://bugs.kerbalspaceprogram.com/issues/28569)
-- New QoL patch : PAWStockGroups [issue #1](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/1)
+- New bugfix : KerbalInventoryPersistence, see [Squad bugtracker](https://bugs.kerbalspaceprogram.com/issues/28569)
+- New QoL patch : PAWStockGroups, see [issue #1](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/1)
 - New API : MultipleModuleInPartAPI
 - Small tweaks to the patching engine
 

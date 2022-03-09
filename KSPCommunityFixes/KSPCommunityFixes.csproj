@@ -57,8 +57,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="BugFixes\AutoStrutDrift.cs" />
     <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
+    <Compile Include="BugFixes\PartStartStability.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
+    <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
