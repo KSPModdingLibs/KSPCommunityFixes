@@ -100,7 +100,11 @@ namespace KSPCommunityFixes.BugFixes
 
         private static bool BaseServo_RecurseCoordUpdate_Prefix(BaseServo __instance, Part p, ConfigurableJoint ___servoJoint, GameObject ___movingPartObject)
         {
-            if (ReferenceEquals(___servoJoint, null) || p == null || ___movingPartObject == null)
+            // ignore our custome logic when :
+            // - in the editor => ReferenceEquals(___servoJoint, null)
+            // - called from OnStart() => ___movingPartObject == null
+            // - called from OnStartBeforePartAttachJoint() => p.attachJoint == null
+            if (ReferenceEquals(___servoJoint, null) || p == null || ___movingPartObject == null || p.attachJoint == null)
                 return true;
 
             if (!vesselServos.TryGetValue(__instance.vessel, out VesselRootServos vesselRootServos))
@@ -171,6 +175,7 @@ namespace KSPCommunityFixes.BugFixes
             public readonly Quaternion orgRot;
             public readonly Vector3 parentPosOffset;
             public readonly Quaternion parentRotOffset;
+            
             public readonly ServoInfo servoInfo;
 
             public PartPosition(Part part, PartPosition parentPartPosition)
@@ -190,9 +195,8 @@ namespace KSPCommunityFixes.BugFixes
         private abstract class ServoInfo
         {
             protected readonly BaseServo baseServo;
-            public GameObject movingPartObject;
-
-            private List<ServoRotation> servoRotations = new List<ServoRotation>();
+            protected readonly GameObject movingPartObject;
+            public readonly Quaternion localToVesselSpace;
 
             protected GameObject PristineMovingPartObject => baseServo.part.partInfo.partPrefab.gameObject.GetChild(baseServo.servoTransformName);
 
@@ -200,23 +204,24 @@ namespace KSPCommunityFixes.BugFixes
             {
                 this.baseServo = baseServo;
                 this.movingPartObject = movingPartObject;
+                localToVesselSpace = baseServo.part.orgRot.Inverse() * baseServo.part.vessel.rootPart.orgRot;
             }
-
-            public abstract void OnSave(ConfigNode node);
 
             protected abstract void UpdateOffset();
 
             public void RecurseCoordsUpdate()
             {
-                servoRotations.Clear();
-
                 if (!partPositions.TryGetValue(baseServo.part, out PartPosition partPosition))
                 {
-                    partPosition = new PartPosition(baseServo.part, null);
+                    // we need the parent part position as well
+                    PartPosition parentPartPosition = new PartPosition(baseServo.part.parent, null);
+                    partPositions.Add(baseServo.part.parent, parentPartPosition);
+
+                    partPosition = new PartPosition(baseServo.part, parentPartPosition);
                     partPositions.Add(baseServo.part, partPosition);
                 }
 
-                RecursePristineCoordsUpdate2(baseServo.part, partPosition, Quaternion.identity);
+                RecursePristineCoordsUpdate2(baseServo.part, partPosition, Vector3.zero, Quaternion.identity, Quaternion.identity);
             }
 
             private struct ServoRotation
@@ -231,89 +236,112 @@ namespace KSPCommunityFixes.BugFixes
                 }
             }
 
-            private static void RecursePristineCoordsUpdate2(Part parent, PartPosition parentPosition, Quaternion servoRotOffsetTotal)
+            private enum ServoType { None, Translation, Rotation}
+
+            // TODO: Currently things only work if you put the "child" parts on the right side of the servo part
+            // (ie, if the child parts are attached to the MovingPartObject). When the child(s) is attached to the
+            // base part :
+            // - For linear servos : the servo itself must be translated (instead of translating the childs)
+            // - For rotation servos : servoRotOffset must be inverted
+            // + some childs might actually not attached to the moving part
+            // Test the configurablejoint.connectedbody ?
+            private static void RecursePristineCoordsUpdate2(Part parent, PartPosition parentPosition, Vector3 parentPosOffset, Quaternion parentRotOffset, Quaternion servoRotOffsetTotal)
             {
                 Vector3 servoPosOffset = Vector3.zero;
                 Quaternion servoRotOffset = Quaternion.identity;
+                ServoType servoType = ServoType.None;
+                bool servoIsInverted = false;
 
-                if (parentPosition.servoInfo != null && parentPosition.servoInfo.baseServo.ServoInitComplete)
+                if (parentPosition.servoInfo != null) // && parentPosition.servoInfo.baseServo.ServoInitComplete
                 {
                     parentPosition.servoInfo.UpdateOffset();
 
                     if (parentPosition.servoInfo is PositionServoInfo positionServo)
                     {
+                        servoType = ServoType.Translation;
                         servoPosOffset = positionServo.currentOffset;
                     }
                     else
                     {
-                        // Nope... this rotation is expressed in the parent part local space, and I *think* I need to
-                        // convert it back to the vessel / root part local space
+                        servoType = ServoType.Rotation;
                         servoRotOffset = ((RotationServoInfo)parentPosition.servoInfo).currentOffset;
-                        //servoRotOffsetTotal = servoRotOffset;
-                        //servoRotOffsetTotal *= servoRotOffset;
+                        // Transform the rotation in vessel space
+                        servoRotOffsetTotal *= parentPosition.servoInfo.localToVesselSpace.Inverse() * servoRotOffset * parentPosition.servoInfo.localToVesselSpace;
+                    }
+
+                    // is servo attached to its parent by its moving part ?
+                    if (parent.attachJoint.Joint.gameObject == parentPosition.servoInfo.movingPartObject)
+                    {
+                        servoIsInverted = true;
+                        servoPosOffset = -servoPosOffset + parentPosOffset;
+                        servoRotOffset = servoRotOffset.Inverse() * parentRotOffset;
+
+                        // if translation, we need to move the servo part instead of the child parts
+                        Part grandParent = parent.parent;
+
+                        if (!partPositions.TryGetValue(grandParent, out PartPosition grandParentPosition))
+                        {
+                            Debug.LogWarning($"[RoboticsDrift] Querying grandparent part position for servo {parent} during RecursePristineCoordsUpdate, this shouldn't be happening...");
+                            grandParentPosition = new PartPosition(grandParent, null);
+                            partPositions.Add(grandParent, grandParentPosition);
+                        }
+
+                        parent.orgPos = grandParent.orgPos + (servoRotOffsetTotal * (parentPosition.parentPosOffset + servoPosOffset));
+                        parent.orgRot = grandParent.orgRot * parentPosition.parentRotOffset * servoRotOffset;
+
+                        servoPosOffset = Vector3.zero;
+                        servoRotOffset = Quaternion.identity;
+
+                        //foreach (Part child in parent.children)
+                        //{
+                        //    // ignore childs connected to the moving part of the parent servo
+                        //    if (child.attachJoint.Joint.connectedBody.gameObject == parentPosition.servoInfo.movingPartObject)
+                        //        continue;
+
+                        //    if (!partPositions.TryGetValue(child, out PartPosition childPosition))
+                        //    {
+                        //        childPosition = new PartPosition(child, parentPosition);
+                        //        partPositions.Add(child, childPosition);
+                        //    }
+
+                        //    RecursePristineCoordsUpdate2(child, childPosition, servoRotOffsetTotal);
+                        //}
+
+                        //return;
                     }
                 }
 
                 foreach (Part child in parent.children)
                 {
+                    // ignore childs connected to the non-moving part of the parent servo
+                    if (servoType != ServoType.None)
+                    {
+                        if (child.attachJoint.Joint.connectedBody.gameObject == parentPosition.servoInfo.movingPartObject)
+                        {
+                            if (servoIsInverted)
+                            {
+                                continue;
+                            }
+                        }
+                        else if (!servoIsInverted)
+                        {
+                            continue;
+                        }
+                    }
+                    
                     if (!partPositions.TryGetValue(child, out PartPosition childPosition))
                     {
                         childPosition = new PartPosition(child, parentPosition);
                         partPositions.Add(child, childPosition);
                     }
 
-                    child.orgPos = parent.orgPos + childPosition.parentPosOffset + servoPosOffset; // parent.orgPos + (servoRotOffset * childPosition.parentPosOffset) + servoPosOffset;
+                    child.orgPos = parent.orgPos + (servoRotOffsetTotal * (childPosition.parentPosOffset + servoPosOffset));
                     child.orgRot = parent.orgRot * childPosition.parentRotOffset * servoRotOffset;
 
-                    RecursePristineCoordsUpdate2(child, childPosition, servoRotOffsetTotal);
+                    RecursePristineCoordsUpdate2(child, childPosition, servoPosOffset, servoRotOffset, servoRotOffsetTotal);
                 }
 
             }
-
-
-            //private static void RecursePristineCoordsUpdate(Part part, Vector3 posOffset, Quaternion rotOffset, List<ServoRotation> servoRotations)
-            //{
-            //    if (!partPositions.TryGetValue(part, out PartPosition partPosition))
-            //    {
-            //        partPosition = new PartPosition(part);
-            //        partPositions.Add(part, partPosition);
-            //    }
-
-            //    part.orgPos = partPosition.orgPos + posOffset;
-            //    part.orgRot = rotOffset * partPosition.orgRot;
-
-            //    for (int i = 0; i < servoRotations.Count; i++)
-            //    {
-            //        Vector3 initialPartOffset = partPosition.orgPos + posOffset - servoRotations[i].origin;
-            //        Vector3 rotationInducedPosOffset = (servoRotations[i].rotation * initialPartOffset) - initialPartOffset;
-            //        part.orgPos += rotationInducedPosOffset;
-            //    }
-
-            //    // Ignore the first call when ServoInitComplete == false, as this mean initial MovingPartObject rot/pos
-            //    // won't be set because PostStartInitJoint() hasn't yet been called for servos other than the first one.
-            //    // That first call to RecurseCoordUpdate() seems useless anyway...
-            //    if (partPosition.servoInfo != null && partPosition.servoInfo.baseServo.ServoInitComplete)
-            //    {
-            //        partPosition.servoInfo.UpdateOffset();
-
-            //        if (partPosition.servoInfo is PositionServoInfo positionServo)
-            //        {
-            //            posOffset += positionServo.currentOffset;
-            //        }
-            //        else
-            //        {
-            //            RotationServoInfo rotationServo = (RotationServoInfo)partPosition.servoInfo;
-            //            rotOffset = rotationServo.currentOffset * rotOffset;
-
-            //            servoRotations.Add(new ServoRotation(part.orgPos, rotationServo.currentOffset));
-            //        }
-            //    }
-
-            //    for (int i = 0; i < part.children.Count; i++)
-            //    {
-            //        RecursePristineCoordsUpdate(part.children[i], posOffset, rotOffset, servoRotations);
-            //    }
-            //}
         }
 
         private class PositionServoInfo : ServoInfo
@@ -324,25 +352,11 @@ namespace KSPCommunityFixes.BugFixes
             public PositionServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3 movingPartObjectPosition) : base(baseServo, movingPartObject)
             {
                 initialOffset = movingPartObjectPosition;
-                //initialOffset = PristineMovingPartObject.transform.localPosition;
-                //initialOffset = movingPartObject.transform.localPosition;
-            }
-
-            //public PositionServoInfo(BaseServo baseServo, GameObject movingPartObject, ConfigNode node) : base(baseServo, movingPartObject)
-            //{
-            //    if (!node.TryGetValue("KSPCFOffset", ref initialOffset))
-            //        initialOffset = PristineMovingPartObject.transform.localPosition;
-            //}
-
-            public override void OnSave(ConfigNode node)
-            {
-                // node.AddValue("KSPCFOffset", movingPartObject.transform.localPosition - initialOffset);
-                node.AddValue("KSPCFOffset", movingPartObject.transform.localPosition);
             }
 
             protected override void UpdateOffset()
             {
-                currentOffset = movingPartObject.transform.localPosition - initialOffset;
+                currentOffset = localToVesselSpace.Inverse() * (movingPartObject.transform.localPosition - initialOffset);
             }
         }
 
@@ -354,35 +368,12 @@ namespace KSPCommunityFixes.BugFixes
             public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, Quaternion movingPartObjectRotation) : base(baseServo, movingPartObject)
             {
                 initialOffset = movingPartObjectRotation;
-                //initialOffset = PristineMovingPartObject.transform.localRotation;
-                //initialOffset = movingPartObject.transform.localRotation;
-            }
-
-            //public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, ConfigNode node) : base(baseServo, movingPartObject)
-            //{
-            //    if (!node.TryGetValue("KSPCFOffset", ref initialOffset))
-            //        initialOffset = PristineMovingPartObject.transform.localRotation;
-            //}
-
-            public override void OnSave(ConfigNode node)
-            {
-                //node.AddValue("KSPCFOffset", initialOffset.Inverse() * movingPartObject.transform.localRotation);
-                node.AddValue("KSPCFOffset", movingPartObject.transform.localRotation);
             }
 
             protected override void UpdateOffset()
             {
                 currentOffset = initialOffset.Inverse() * movingPartObject.transform.localRotation;
             }
-
-            //protected override void GetOffset(PartPosition partPosition, ref Vector3 posOffset, ref Quaternion rotOffset)
-            //{
-            //    Vector3 initialPartOffset = partPosition.orgPos + posOffset - baseServo.part.orgPos;
-            //    Vector3 rotationInducedPosOffset = (currentOffset * initialPartOffset) - initialPartOffset;
-            //    posOffset += rotationInducedPosOffset;
-
-            //    rotOffset = currentOffset * rotOffset;
-            //}
         }
 
 
