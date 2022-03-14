@@ -63,7 +63,7 @@ namespace KSPCommunityFixes
             {
                 lastVessel = vessel;
                 // is vessel altitude minus its largest possible dimension less than 10m above sea level :
-                lastVesselIsCloseToSeaLevel = vessel.altitude * vessel.altitude - vessel.vesselSize.sqrMagnitude < CutoffThresholdSquared;
+                lastVesselIsCloseToSeaLevel = vessel.altitude < 0.0 || vessel.altitude * vessel.altitude - vessel.vesselSize.sqrMagnitude < CutoffThresholdSquared;
             }
 
             return lastVesselIsCloseToSeaLevel;

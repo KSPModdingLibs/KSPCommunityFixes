@@ -69,6 +69,7 @@ MIT
 - New bugfix : AutoStrutDrift, see [issue #21](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21). Thanks to @Lisias for [investigation efforts](https://github.com/net-lisias-ksp/KSP-Recall/issues/27#issuecomment-1022167916).
 - New bugfix : PartStartStability, see [issue #9](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9).
 - The FlightSceneLoadKraken patch is superseded by the PartStartStability patch, which is now disabled by default
+- Fixed a silly mistake with the OnDemandPartBuoyancy patch where it would prevent part buoyancy from running if the vessel is already below water at scene load. Thanks to @DRVeyl for catching that.
 
 ##### 1.7.0
 - New performance patch : OnDemandPartBuoyancy (thanks to @siimav)
