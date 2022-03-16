@@ -62,7 +62,6 @@
     <Compile Include="BugFixes\PartStartStability.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
     <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
-    <Compile Include="BugFixes\RoboticsDrift2.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
