@@ -58,7 +58,7 @@ namespace KSPCommunityFixes.BugFixes
             ServoInfo servoInfo;
             if (__instance is ModuleRoboticServoPiston)
             {
-                Vector3 movingPartObjectPos;
+                Vector3d movingPartObjectPos;
                 if (___servoTransformPosLoaded)
                     movingPartObjectPos = __instance.servoTransformPosition;
                 else
@@ -68,7 +68,7 @@ namespace KSPCommunityFixes.BugFixes
             }
             else
             {
-                Quaternion movingPartObjectRot;
+                QuaternionD movingPartObjectRot;
                 if (___servoTransformRotLoaded)
                     movingPartObjectRot = __instance.servoTransformRotation;
                 else
@@ -110,6 +110,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             protected readonly BaseServo baseServo;
             protected readonly GameObject movingPartObject;
+            protected readonly Vector3d mainAxis;
             protected bool isInverted;
             private bool isInitialized;
 
@@ -117,6 +118,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 this.baseServo = baseServo;
                 this.movingPartObject = movingPartObject;
+                mainAxis = baseServo.GetMainAxis();
                 isInitialized = false;
             }
 
@@ -154,33 +156,35 @@ namespace KSPCommunityFixes.BugFixes
 
             protected abstract void RecurseChildCoordsUpdate(Part part);
 
-            protected Quaternion GetLocalToVesselSpace()
+            protected QuaternionD GetLocalToVesselSpace()
             {
                 // for some reason not normalizing can end up with a quaternion with near infinity components 
                 // when it should be identity, leading to infinity and NaN down the line...
-                return (baseServo.part.orgRot.Inverse() * baseServo.part.vessel.rootPart.orgRot).normalized;
+                return (QuaternionD.Inverse(baseServo.part.orgRot) * (QuaternionD)baseServo.part.vessel.rootPart.orgRot).Normalize();
             }
         }
 
         private class TranslationServoInfo : ServoInfo
         {
-            private Vector3 lastLocalPosition;
-            private Vector3 posOffset;
+            private Vector3d lastLocalOffset;
+            private Vector3d posOffset;
 
-            public TranslationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3 movingPartObjectPosition) : base(baseServo, movingPartObject)
+            public TranslationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3d movingPartObjectPosition) : base(baseServo, movingPartObject)
             {
-                lastLocalPosition = movingPartObjectPosition;
+                lastLocalOffset = mainAxis * movingPartObjectPosition.magnitude;
             }
 
             protected override void UpdateOffset()
             {
                 Quaternion localToVesselSpace = GetLocalToVesselSpace();
 
+                Vector3d localOffset = mainAxis * movingPartObject.transform.localPosition.magnitude;
+
                 // get translation offset of the moving part since last update, and transform from the servo local space to the vessel space
-                posOffset = localToVesselSpace.Inverse() * (movingPartObject.transform.localPosition - lastLocalPosition);
+                posOffset = localToVesselSpace.Inverse() * (localOffset - lastLocalOffset);
 
                 // save the moving part position
-                lastLocalPosition = movingPartObject.transform.localPosition;
+                lastLocalOffset = localOffset;
 
                 // if servo is attached to its parent by its moving part, we need to :
                 // - invert the offset
@@ -205,61 +209,141 @@ namespace KSPCommunityFixes.BugFixes
 
         private class RotationServoInfo : ServoInfo
         {
-            private Quaternion lastLocalRotation;
-            private Quaternion rotOffset;
+            private QuaternionD lastLocalRotation;
+            private QuaternionD rotOffset;
+            private readonly int mainAxisAxisIndex;
+            private readonly int mainAxisAxisSign;
 
-            public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, Quaternion movingPartObjectRotation) : base(baseServo, movingPartObject)
+            public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, QuaternionD movingPartObjectRotation) : base(baseServo, movingPartObject)
             {
-                lastLocalRotation = movingPartObjectRotation;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (mainAxis[i] != 0.0)
+                    {
+                        mainAxisAxisIndex = i;
+                        mainAxisAxisSign = Math.Sign(mainAxis[i]);
+                        break;
+                    }
+                }
+
+                lastLocalRotation = GetLocalOffset(movingPartObjectRotation);
             }
 
             protected override void UpdateOffset()
             {
-                Quaternion localToVesselSpace = GetLocalToVesselSpace();
+                QuaternionD localToVesselSpace = GetLocalToVesselSpace();
+
+                QuaternionD localOffset = GetLocalOffset(movingPartObject.transform.localRotation);
 
                 // get rotation offset of the moving part since last update
-                rotOffset = lastLocalRotation.Inverse() * movingPartObject.transform.localRotation;
+                rotOffset = QuaternionD.Inverse(lastLocalRotation) * localOffset;
 
                 // transform offset from the servo local space to the vessel space
-                rotOffset = localToVesselSpace.Inverse() * rotOffset * localToVesselSpace;
+                rotOffset = QuaternionD.Inverse(localToVesselSpace) * rotOffset * localToVesselSpace;
 
                 // save the moving part rotation
-                lastLocalRotation = movingPartObject.transform.localRotation;
+                lastLocalRotation = localOffset;
 
                 // if servo is attached to its parent by its moving part, we need to :
                 // - invert the offset
                 // - rotate the servo part itself
                 if (isInverted)
                 {
-                    rotOffset = rotOffset.Inverse();
-                    baseServo.part.orgRot = rotOffset * baseServo.part.orgRot;
+                    rotOffset = QuaternionD.Inverse(rotOffset);
+                    baseServo.part.orgRot = rotOffset * (QuaternionD)baseServo.part.orgRot;
                 }
+            }
+
+            private QuaternionD GetLocalOffset(QuaternionD movingPartObjectRotation)
+            {
+                QuaternionExtensions.ToAngleAxis(movingPartObjectRotation, out Vector3d axis, out double angle);
+#if DEBUG
+                Quaternion qf = movingPartObjectRotation;
+                qf.ToAngleAxis(out float angleF, out Vector3 axisF);
+
+                if (angleF != (float)angle || axisF != (Vector3)axis)
+                {
+                    Debug.LogWarning($"[RoboticsDrift] Angle={angle:R}(D)/{angleF:R}(F) - Axis={axis:R}(D)/{axisF:R}(F)");
+                }
+#endif
+
+                if (Math.Sign(axis[mainAxisAxisIndex]) != mainAxisAxisSign)
+                    angle *= -1.0;
+
+                return QuaternionD.AngleAxis(angle, mainAxis);
             }
 
             protected override void RecurseChildCoordsUpdate(Part part)
             {
-                RecurseChildCoordsUpdate(part, Vector3.zero);
+                RecurseChildCoordsUpdate(part, Vector3d.zero);
             }
 
-            private void RecurseChildCoordsUpdate(Part part, Vector3 posOffset)
+            private void RecurseChildCoordsUpdate(Part part, Vector3d posOffset)
             {
                 // get position offset between this part and its parent
-                Vector3 orgPosOffset = part.orgPos - part.parent.orgPos;
+                Vector3d orgPosOffset = part.orgPos - part.parent.orgPos;
                 // add the upstream position offset (from all parents), then rotate the result
                 orgPosOffset = rotOffset * (orgPosOffset + posOffset);
                 // get the new position for this part
-                Vector3 newOrgPos = part.parent.orgPos + orgPosOffset;
+                Vector3d newOrgPos = part.parent.orgPos + orgPosOffset;
                 // update the total offset that will be applied downstream to childrens
                 posOffset = newOrgPos - part.orgPos;
                 // apply the new position
                 part.orgPos = newOrgPos;
 
                 // apply the rotation
-                part.orgRot = rotOffset * part.orgRot;
+                part.orgRot = rotOffset * (QuaternionD)part.orgRot;
 
                 // propagate to childrens
                 for (int i = 0; i < part.children.Count; i++)
                     RecurseChildCoordsUpdate(part.children[i], posOffset);
+            }
+        }
+    }
+
+    public static class QuaternionExtensions
+    {
+        private const double Rad2Deg = 180.0 / Math.PI;
+
+        public static QuaternionD Normalize(this QuaternionD q)
+        {
+            double ls = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+            double invNorm = 1.0 / Math.Sqrt(ls);
+            return new QuaternionD(q.x * invNorm, q.y * invNorm, q.z * invNorm, q.w * invNorm);
+        }
+
+        public static void ToAngleAxis(this QuaternionD q, out Vector3d axis, out double angle)
+        {
+            if (Math.Abs(q.w) > 1.0)
+                q = q.Normalize();
+
+            if (Math.Abs(q.w) < 0.99)
+            {
+                angle = 2.0 * Math.Acos(q.w) * Rad2Deg;
+                if (angle == 0.0)
+                {
+                    axis = Vector3d.up;
+                }
+                else
+                {
+                    double invDen = 1.0 / Math.Sqrt(1.0 - q.w * q.w);
+                    axis = new Vector3d(q.x * invDen, q.y * invDen, q.z * invDen);
+                }
+            }
+            else
+            {
+                axis = new Vector3d(q.x, q.y, q.z);
+                double len = axis.magnitude;
+                if (len == 0.0)
+                {
+                    angle = 0.0;
+                    axis = Vector3d.up;
+                }
+                else
+                {
+                    angle = 2.0 * Math.Asin(len) * Math.Sign(q.w) * Rad2Deg;
+                    axis *= 1.0 / len;
+                }
             }
         }
     }
