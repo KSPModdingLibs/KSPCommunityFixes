@@ -55,6 +55,11 @@ namespace KSPCommunityFixes.BugFixes
                 AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
+                this));
+
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }
 
@@ -189,22 +194,42 @@ namespace KSPCommunityFixes.BugFixes
             }
         }
 
-        private static void BaseServo_OnPartPack_Prefix(BaseServo __instance)
+        private static void BaseServo_OnPartPack_Prefix(BaseServo __instance, out ServoInfo __state)
         {
             if (__instance.servoInitComplete && HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
-                if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
+                if (!servoInfos.TryGetValue(__instance.part, out __state))
                 {
                     Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
                     return;
                 }
 
-                servoInfo.RestoreMovingPartPristineCoords();
+                __state.RestoreMovingPartPristineCoords();
+            }
+            else
+            {
+                __state = null;
+            }
+
+
+        }
+
+        // When packing a vessel (docking, timewarping, getting out of physics range...), KSP update the parts transform position
+        // based on Part.orgPos, but it doesn't update the transform rotation based on Part.orgRot. The rotation stays to whatever
+        // it was in physics. This probably can be qualified as a bug, but fixing that globally might have side issues, so instead
+        // of patching Part.Pack(), we only do it for child of robotic parts.
+        private static void BaseServo_OnPartPack_Postfix(ServoInfo __state)
+        {
+            if (__state != null)
+            {
+                __state.UpdatePartsRotation();
             }
         }
 
         private abstract class ServoInfo
         {
+            private static Queue<Part> partQueue = new Queue<Part>();
+
             protected readonly BaseServo servo;
             protected readonly GameObject movingPart;
             protected readonly Vector3d mainAxis;
@@ -254,6 +279,23 @@ namespace KSPCommunityFixes.BugFixes
                 GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
                 movingPart.transform.localPosition = localPos;
                 movingPart.transform.localRotation = localRot;
+            }
+
+            public void UpdatePartsRotation()
+            {
+                Quaternion vesselRotation = servo.vessel.vesselTransform.rotation;
+
+                partQueue.Clear();
+                partQueue.Enqueue(servo.part);
+
+                while (partQueue.TryDequeue(out Part part))
+                {
+                    int childCount = part.children.Count;
+                    for (int i = 0; i < childCount; i++)
+                        partQueue.Enqueue(part.children[i]);
+
+                    part.transform.rotation = vesselRotation * part.orgRot;
+                }
             }
 
             public abstract void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
