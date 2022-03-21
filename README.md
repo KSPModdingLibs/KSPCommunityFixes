@@ -30,7 +30,6 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 #### Bugfixes
 
 - **RefundingOnRecovery** [KSP 1.11.0 - 1.12.3]<br/>Vessel recovery funds properly account for modules implementing IPartCostModifier. This bug affect stock fairings, cargo parts and many modules from various mods (part switchers and procedural parts mods, USI, Kerbalism, Tweakscale, etc).
-- **DockingPortDrift** [KSP 1.12.2]<br/>Prevent part position drift of vessels having docking ports, as long as the "Rotation locked" advanced tweakables PAW option is enabled (it is by default). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
 - **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.3]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurences of that issue.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **KerbalInventoryPersistence** [KSP 1.12.2 - 1.12.3]<br/>Fix the whole kerbal inventory persistence system being inactive in KSP 1.12.2+. This cause multiple issues, like being able to bypass kerbal inventories mass/volume limits, and various cargo part duplication / disappearance issues when EVAing / boarding.
@@ -39,9 +38,12 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.3]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 - **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
-- **[RoboticsDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13)** [KSP 1.8.0 - 1.12.3]<br/>Prevent unrecoverable part position drift over time for children parts of Breaking Grounds DLC robotic parts.
-- **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improve the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
+- **[RoboticsDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13)** [KSP 1.8.0 - 1.12.3]<br/>Prevent unrecoverable part position drift of Breaking Grounds DLC robotic parts and their chidren parts.
+- **DockingPortDrift** [KSP 1.12.2]<br/>Prevent persistent part position drift of children parts of docking ports, when the "Rotation locked" advanced tweakable PAW UI toggle is enabled (it is enabled by default). Only applies to KSP 1.12.2, an equivalent feature was added to stock in KSP 1.12.3. This patch doesn't prevent position drift if the rotation feature is used (if "Rotation locked" is manually disabled). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
+- **DockingPortLocking** [KSP 1.12.3]<br/> Fix some user-facing inconsistencies with the docking port rotation locking feature and hide irrelevant PAW items when the docking port is locked.
+- **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.3]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
+
 #### Quality of Life tweaks 
 
 - **PAWCollapsedInventories** [KSP 1.11.0 - 1.12.3]<br/>Part Action Window inventory UI widgets in a collapsed group by default, group title show slots usage and cargo mass. Applied to part and kerbal inventories.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWCollapsedInventories.gif" width="300"/>
@@ -57,7 +59,8 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 
 #### Mod API
-- **MultipleModuleInPartAPI**<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
+- **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
+- **DockingPortLockedEvents** [KSP 1.12.2 - 1.12.3]<br/>Fire GameEvents onRoboticPartLockChanging/onRoboticPartLockChanged respectively before/after calls to ModuleDockingNode.ModifyLocked(), following a modification of the ModuleDockingNode.nodeIsLocked field. Disabled by default.
 
 ### License
 
@@ -67,6 +70,10 @@ MIT
 
 ##### 1.9.0
 - New bugfix : RoboticsDrift, see [issue #13](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13).
+- New mod API patch : DockingPortLockedEvents (added for KJR, see [related issue](https://github.com/KSP-RO/Kerbal-Joint-Reinforcement-Continued/issues/9))
+- New bugfix : DockingPortLocking
+- PAWCollapsedInventories : Fixed mass/volume info not updating correctly in the group title.
+- Now using [Krafs.Publicizer](https://github.com/krafs/Publicizer) for cleaner/faster access to KSP internals. 
 
 ##### 1.8.0
 - New bugfix : AutoStrutDrift, see [issue #21](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21). Thanks to @Lisias for [investigation efforts](https://github.com/net-lisias-ksp/KSP-Recall/issues/27#issuecomment-1022167916).

@@ -32,12 +32,27 @@ namespace KSPCommunityFixes.BugFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), "OnDestroy"),
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnDestroy)),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), "RecurseCoordUpdate"),
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.RecurseCoordUpdate)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnSave)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.ModifyLocked)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
                 this));
 
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
@@ -56,26 +71,23 @@ namespace KSPCommunityFixes.BugFixes
                 return;
 
             ServoInfo servoInfo;
-            if (__instance is ModuleRoboticServoPiston)
-            {
-                Vector3d movingPartObjectPos;
-                if (___servoTransformPosLoaded)
-                    movingPartObjectPos = __instance.servoTransformPosition;
-                else
-                    movingPartObjectPos = ___movingPartObject.transform.localPosition;
+            Vector3d movingPartObjectPos;
+            QuaternionD movingPartObjectRot;
 
-                servoInfo = new TranslationServoInfo(__instance, ___movingPartObject, movingPartObjectPos);
-            }
+            if (___servoTransformPosLoaded)
+                movingPartObjectPos = __instance.servoTransformPosition;
             else
-            {
-                QuaternionD movingPartObjectRot;
-                if (___servoTransformRotLoaded)
-                    movingPartObjectRot = __instance.servoTransformRotation;
-                else
-                    movingPartObjectRot = ___movingPartObject.transform.localRotation;
+                movingPartObjectPos = ___movingPartObject.transform.localPosition;
 
-                servoInfo = new RotationServoInfo(__instance, ___movingPartObject, movingPartObjectRot);
-            }
+            if (___servoTransformRotLoaded)
+                movingPartObjectRot = __instance.servoTransformRotation;
+            else
+                movingPartObjectRot = ___movingPartObject.transform.localRotation;
+
+            if (__instance is ModuleRoboticServoPiston)
+                servoInfo = new TranslationServoInfo(__instance, ___movingPartObject, movingPartObjectPos, movingPartObjectRot);
+            else
+                servoInfo = new RotationServoInfo(__instance, ___movingPartObject, movingPartObjectPos, movingPartObjectRot);
 
             servoInfos.Add(__instance.part, servoInfo);
         }
@@ -88,12 +100,17 @@ namespace KSPCommunityFixes.BugFixes
 
         private static bool BaseServo_RecurseCoordUpdate_Prefix(BaseServo __instance, Part p, ConfigurableJoint ___servoJoint, GameObject ___movingPartObject)
         {
-            // ignore our custome logic when :
-            // - in the editor => ReferenceEquals(___servoJoint, null)
-            // - called from OnStart() => ___movingPartObject == null
-            // - called from OnStartBeforePartAttachJoint() => p.attachJoint == null
-            if (ReferenceEquals(___servoJoint, null) || p == null || ___movingPartObject == null || p.attachJoint == null)
+            if (HighLogic.LoadedScene == GameScenes.EDITOR)
                 return true;
+
+            // don't update when called from OnStart() / OnStartBeforePartAttachJoint()
+            // we need the joint to exist to know where child parts are attached, and we don't want
+            // the stock logic to alter orgPos/orgRot. I con't find a reason why updating
+            // coords at this point could be useful anyway, at least in flight. It might be necessary
+            // in the editor, since parts are parented and the initial position of the moving object
+            // might have been modified.
+            if (p.attachJoint == null)
+                return false;
 
             if (!servoInfos.TryGetValue(p, out ServoInfo servoInfo))
             {
@@ -106,19 +123,99 @@ namespace KSPCommunityFixes.BugFixes
             return false;
         }
 
+        private static bool BaseServo_OnSave_Prefix(BaseServo __instance, ConfigNode node)
+        {
+            if (!__instance.servoInitComplete)
+                return false;
+
+            if (__instance.movingPartObject != null)
+            {
+                if (HighLogic.LoadedScene == GameScenes.EDITOR)
+                {
+                    __instance.ApplyCoordsUpdate();
+                    __instance.servoTransformPosition = __instance.movingPartObject.transform.localPosition;
+                    __instance.servoTransformRotation = __instance.movingPartObject.transform.localRotation;
+                }
+                else
+                {
+                    if (__instance.vessel == null || !__instance.vessel.loaded)
+                        return false;
+
+                    __instance.ApplyCoordsUpdate();
+
+                    if (!__instance.servoIsLocked)
+                    {
+                        if (servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
+                        {
+                            servoInfo.GetMovingPartPristineCoords(out Vector3d position, out QuaternionD rotation);
+                            __instance.servoTransformPosition = position;
+                            __instance.servoTransformRotation = rotation;
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                            __instance.servoTransformPosition = __instance.movingPartObject.transform.localPosition;
+                            __instance.servoTransformRotation = __instance.movingPartObject.transform.localRotation;
+                        }
+                    }
+                }
+
+                node.SetValue("servoTransformPosition", __instance.servoTransformPosition);
+                node.SetValue("servoTransformRotation", __instance.servoTransformRotation);
+            }
+
+            // note : "jointParent" is unused in stock parts, and I'm unsure what its purpose is. It seem to be
+            // an extra configuration option for a more complicated part model setup / hierarchy. It is likely
+            // that using that option will cause weird things when our patch is used anyway.
+            if (__instance.jointParent != null)
+            {
+                node.SetValue("jointParentRotation", __instance.jointParent.localRotation);
+            }
+
+            return false;
+        }
+
+        private static void BaseServo_ModifyLocked_Prefix(BaseServo __instance)
+        {
+            if (__instance.servoIsLocked && !__instance.prevServoIsLocked)
+            {
+                if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
+                {
+                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                    return;
+                }
+
+                servoInfo.RestoreMovingPartPristineCoords();
+            }
+        }
+
+        private static void BaseServo_OnPartPack_Prefix(BaseServo __instance)
+        {
+            if (__instance.servoInitComplete && HighLogic.LoadedScene == GameScenes.FLIGHT)
+            {
+                if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
+                {
+                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                    return;
+                }
+
+                servoInfo.RestoreMovingPartPristineCoords();
+            }
+        }
+
         private abstract class ServoInfo
         {
-            protected readonly BaseServo baseServo;
-            protected readonly GameObject movingPartObject;
+            protected readonly BaseServo servo;
+            protected readonly GameObject movingPart;
             protected readonly Vector3d mainAxis;
             protected bool isInverted;
             private bool isInitialized;
 
-            public ServoInfo(BaseServo baseServo, GameObject movingPartObject)
+            public ServoInfo(BaseServo servo, GameObject movingPartObject)
             {
-                this.baseServo = baseServo;
-                this.movingPartObject = movingPartObject;
-                mainAxis = baseServo.GetMainAxis();
+                this.servo = servo;
+                movingPart = movingPartObject;
+                mainAxis = servo.GetMainAxis();
                 isInitialized = false;
             }
 
@@ -126,19 +223,19 @@ namespace KSPCommunityFixes.BugFixes
             {
                 if (!isInitialized)
                 {
-                    isInverted = baseServo.part.attachJoint.Joint.gameObject == movingPartObject;
+                    isInverted = servo.part.attachJoint.Joint.gameObject == movingPart;
                     isInitialized = true;
                 }
 
                 UpdateOffset();
 
-                Part p = baseServo.part;
+                Part p = servo.part;
                 for (int i = 0; i < p.children.Count; i++)
                 {
                     // Dont move the child if :
                     // - child is attached the servo moving part, and servo is attached to its parent by its moving part
                     // - child is attached to the servo non-moving part, and servo is attached to its parent by its non-moving part
-                    if (p.children[i].attachJoint.Joint.connectedBody.gameObject == movingPartObject)
+                    if (p.children[i].attachJoint.Joint.connectedBody.gameObject == movingPart)
                     {
                         if (isInverted)
                             continue;
@@ -152,6 +249,15 @@ namespace KSPCommunityFixes.BugFixes
                 }
             }
 
+            public void RestoreMovingPartPristineCoords()
+            {
+                GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
+                movingPart.transform.localPosition = localPos;
+                movingPart.transform.localRotation = localRot;
+            }
+
+            public abstract void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
+
             protected abstract void UpdateOffset();
 
             protected abstract void RecurseChildCoordsUpdate(Part part);
@@ -160,25 +266,30 @@ namespace KSPCommunityFixes.BugFixes
             {
                 // for some reason not normalizing can end up with a quaternion with near infinity components 
                 // when it should be identity, leading to infinity and NaN down the line...
-                return (QuaternionD.Inverse(baseServo.part.orgRot) * (QuaternionD)baseServo.part.vessel.rootPart.orgRot).Normalize();
+                return (QuaternionD.Inverse(servo.part.orgRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
         }
 
         private class TranslationServoInfo : ServoInfo
         {
+            private readonly Quaternion movingPartPristineLocalRot;
             private Vector3d lastLocalOffset;
             private Vector3d posOffset;
 
-            public TranslationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3d movingPartObjectPosition) : base(baseServo, movingPartObject)
+            public TranslationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3d movingPartLocalPos, Quaternion movingPartLocalRot) : base(baseServo, movingPartObject)
             {
-                lastLocalOffset = mainAxis * movingPartObjectPosition.magnitude;
+                movingPartPristineLocalRot = movingPartLocalRot;
+                lastLocalOffset = mainAxis * movingPartLocalPos.magnitude;
             }
 
             protected override void UpdateOffset()
             {
                 Quaternion localToVesselSpace = GetLocalToVesselSpace();
 
-                Vector3d localOffset = mainAxis * movingPartObject.transform.localPosition.magnitude;
+                // using the magnitude *feels* like what we should be doing. But this isn't what stock is doing, it only get the component
+                // on the translation axis. I can't detect a visible difference after a 8 servos setup "torture test" moving during ~10 hours,
+                // so I guess it doesn't really matter
+                Vector3d localOffset = mainAxis * ((Vector3d)movingPart.transform.localPosition).magnitude;
 
                 // get translation offset of the moving part since last update, and transform from the servo local space to the vessel space
                 posOffset = localToVesselSpace.Inverse() * (localOffset - lastLocalOffset);
@@ -192,57 +303,60 @@ namespace KSPCommunityFixes.BugFixes
                 if (isInverted)
                 {
                     posOffset = -posOffset;
-                    baseServo.part.orgPos += posOffset;
+                    servo.part.orgPos += posOffset;
                 }
             }
 
             protected override void RecurseChildCoordsUpdate(Part part)
             {
-                // apply the offset to the orignial position
+                // apply the offset to the original position
                 part.orgPos += posOffset;
 
                 // propagate to childrens
                 for (int i = 0; i < part.children.Count; i++)
                     RecurseChildCoordsUpdate(part.children[i]);
             }
+
+            public override void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot)
+            {
+                localPos = mainAxis * ((Vector3d)movingPart.transform.localPosition).magnitude;
+                localRot = movingPartPristineLocalRot;
+            }
         }
 
         private class RotationServoInfo : ServoInfo
         {
-            private QuaternionD lastLocalRotation;
+            private readonly int mainAxisIndex;
+            private readonly Vector3d movingPartPristineLocalPos;
             private QuaternionD rotOffset;
-            private readonly int mainAxisAxisIndex;
-            private readonly int mainAxisAxisSign;
 
-            public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, QuaternionD movingPartObjectRotation) : base(baseServo, movingPartObject)
+            private double lastRotAngle;
+
+            public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3d movingPartLocalPos, Quaternion movingPartLocalRot) : base(baseServo, movingPartObject)
             {
-                for (int i = 0; i < 3; i++)
+                switch (baseServo.mainAxis)
                 {
-                    if (mainAxis[i] != 0.0)
-                    {
-                        mainAxisAxisIndex = i;
-                        mainAxisAxisSign = Math.Sign(mainAxis[i]);
-                        break;
-                    }
+                    case "X": mainAxisIndex = 0; break;
+                    case "Y": mainAxisIndex = 1; break;
+                    case "Z": mainAxisIndex = 2; break;
                 }
 
-                lastLocalRotation = GetLocalOffset(movingPartObjectRotation);
+                movingPartPristineLocalPos = movingPartLocalPos;
+                lastRotAngle = CurrentAngle(movingPartLocalRot);
             }
 
             protected override void UpdateOffset()
             {
                 QuaternionD localToVesselSpace = GetLocalToVesselSpace();
 
-                QuaternionD localOffset = GetLocalOffset(movingPartObject.transform.localRotation);
-
                 // get rotation offset of the moving part since last update
-                rotOffset = QuaternionD.Inverse(lastLocalRotation) * localOffset;
+                double rotAngle = CurrentAngle(movingPart.transform.localRotation);
+                double angleOffset = rotAngle - lastRotAngle;
+                lastRotAngle = rotAngle;
+                rotOffset = QuaternionD.AngleAxis(angleOffset, mainAxis);
 
                 // transform offset from the servo local space to the vessel space
                 rotOffset = QuaternionD.Inverse(localToVesselSpace) * rotOffset * localToVesselSpace;
-
-                // save the moving part rotation
-                lastLocalRotation = localOffset;
 
                 // if servo is attached to its parent by its moving part, we need to :
                 // - invert the offset
@@ -250,27 +364,24 @@ namespace KSPCommunityFixes.BugFixes
                 if (isInverted)
                 {
                     rotOffset = QuaternionD.Inverse(rotOffset);
-                    baseServo.part.orgRot = rotOffset * (QuaternionD)baseServo.part.orgRot;
+                    servo.part.orgRot = rotOffset * (QuaternionD)servo.part.orgRot;
                 }
             }
 
-            private QuaternionD GetLocalOffset(QuaternionD movingPartObjectRotation)
+            // Getting the euler angle along the servo axis is what is used by stock code to get the current angle.
+            // This seems to be as accurate as using more complicated methods where we attempt to first get
+            // the in-physics axis to account for the servo internal deformation. I guess all that matters is that
+            // the resulting offset stays consistent over time.
+            private double CurrentAngle(Quaternion movingObjectLocalRotation)
             {
-                QuaternionExtensions.ToAngleAxis(movingPartObjectRotation, out Vector3d axis, out double angle);
-#if DEBUG
-                Quaternion qf = movingPartObjectRotation;
-                qf.ToAngleAxis(out float angleF, out Vector3 axisF);
+                return movingObjectLocalRotation.eulerAngles[mainAxisIndex];
+            }
 
-                if (angleF != (float)angle || axisF != (Vector3)axis)
-                {
-                    Debug.LogWarning($"[RoboticsDrift] Angle={angle:R}(D)/{angleF:R}(F) - Axis={axis:R}(D)/{axisF:R}(F)");
-                }
-#endif
-
-                if (Math.Sign(axis[mainAxisAxisIndex]) != mainAxisAxisSign)
-                    angle *= -1.0;
-
-                return QuaternionD.AngleAxis(angle, mainAxis);
+            public override void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot)
+            {
+                localPos = movingPartPristineLocalPos;
+                double rotAngle = CurrentAngle(movingPart.transform.localRotation);
+                localRot = QuaternionD.AngleAxis(rotAngle, mainAxis);
             }
 
             protected override void RecurseChildCoordsUpdate(Part part)
@@ -303,48 +414,11 @@ namespace KSPCommunityFixes.BugFixes
 
     public static class QuaternionExtensions
     {
-        private const double Rad2Deg = 180.0 / Math.PI;
-
         public static QuaternionD Normalize(this QuaternionD q)
         {
             double ls = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
             double invNorm = 1.0 / Math.Sqrt(ls);
             return new QuaternionD(q.x * invNorm, q.y * invNorm, q.z * invNorm, q.w * invNorm);
-        }
-
-        public static void ToAngleAxis(this QuaternionD q, out Vector3d axis, out double angle)
-        {
-            if (Math.Abs(q.w) > 1.0)
-                q = q.Normalize();
-
-            if (Math.Abs(q.w) < 0.99)
-            {
-                angle = 2.0 * Math.Acos(q.w) * Rad2Deg;
-                if (angle == 0.0)
-                {
-                    axis = Vector3d.up;
-                }
-                else
-                {
-                    double invDen = 1.0 / Math.Sqrt(1.0 - q.w * q.w);
-                    axis = new Vector3d(q.x * invDen, q.y * invDen, q.z * invDen);
-                }
-            }
-            else
-            {
-                axis = new Vector3d(q.x, q.y, q.z);
-                double len = axis.magnitude;
-                if (len == 0.0)
-                {
-                    angle = 0.0;
-                    axis = Vector3d.up;
-                }
-                else
-                {
-                    angle = 2.0 * Math.Asin(len) * Math.Sign(q.w) * Rad2Deg;
-                    axis *= 1.0 / len;
-                }
-            }
         }
     }
 }

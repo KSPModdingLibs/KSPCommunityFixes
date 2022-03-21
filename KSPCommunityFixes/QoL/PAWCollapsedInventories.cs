@@ -1,15 +1,13 @@
-﻿using System;
+﻿using HarmonyLib;
+using KSP.Localization;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
-using HarmonyLib;
-using KSP.Localization;
-using TMPro;
 
 namespace KSPCommunityFixes.UI
 {
-    
     class PAWCollapsedInventories : BasePatch
     {
         private static StringBuilder sb = new StringBuilder();
@@ -25,7 +23,7 @@ namespace KSPCommunityFixes.UI
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionInventory), "UpdateSlot"),
+                AccessTools.Method(typeof(ModuleInventoryPart), "UpdateMassVolumeDisplay"),
                 this));
 
             patches.Add(new PatchInfo(
@@ -67,15 +65,13 @@ namespace KSPCommunityFixes.UI
                 sb.Append(Localizer.Format("#autoLOC_8320000"));
             }
 
+            if (inventory.storedParts.Count == 0)
+                return sb.ToString();
+
             sb.Append(" (");
-            sb.Append(inventory.storedParts.Count);
-            sb.Append("/");
-            sb.Append(inventory.InventorySlots);
-            if (inventory.storedParts.Count > 0)
-            {
-                sb.Append(", ");
-                sb.Append(inventory.massCapacity.ToString("0.### t"));
-            }
+            sb.Append(inventory.volumeOccupied.ToString("0.# L"));
+            sb.Append(" - ");
+            sb.Append(inventory.massOccupied.ToString("0.### t"));
             sb.Append(")");
 
             return sb.ToString();
@@ -87,21 +83,34 @@ namespace KSPCommunityFixes.UI
             __instance.Fields["InventorySlots"].group = new BasePAWGroup(GetGroupName(__instance), GetGroupTitle(__instance), true);
         }
 
-        static void UIPartActionInventory_UpdateSlot_Postfix(UIPartActionInventory __instance)
+        static void ModuleInventoryPart_UpdateMassVolumeDisplay_Postfix(ModuleInventoryPart __instance)
         {
-            BasePAWGroup group = __instance.inventoryPartModule.Fields["InventorySlots"].group;
-            if (__instance.Window == null || !__instance.Window.parameterGroups.TryGetValue(GetGroupName(__instance.inventoryPartModule), out UIPartActionGroup uiGroup))
+            UIPartActionWindow paw;
+            if (__instance.kerbalMode)
             {
-                return;
+                if (__instance.grid?.pawInventory == null || __instance.grid.pawInventory.Window == null)
+                    return;
+
+                paw = __instance.grid.pawInventory.Window;
+            }
+            else
+            {
+                if (__instance.part.PartActionWindow == null)
+                    return;
+
+                paw = __instance.part.PartActionWindow;
             }
 
-            TextMeshProUGUI groupHeader = (TextMeshProUGUI)AccessTools.Field(typeof(UIPartActionGroup), "groupHeader")?.GetValue(uiGroup);
+            if (!paw.parameterGroups.TryGetValue(GetGroupName(__instance), out UIPartActionGroup uiGroup))
+                return;
 
-            if (groupHeader != null)
+            BasePAWGroup group = __instance.Fields["InventorySlots"].group;
+
+            if (uiGroup.groupHeader != null)
             {
-                string title = GetGroupTitle(__instance.inventoryPartModule);
+                string title = GetGroupTitle(__instance);
                 group.displayName = title;
-                groupHeader.text = title;
+                uiGroup.groupHeader.text = title;
             }
         }
 
@@ -150,12 +159,10 @@ namespace KSPCommunityFixes.UI
                 return;
             }
 
-            TextMeshProUGUI groupHeader = (TextMeshProUGUI)AccessTools.Field(typeof(UIPartActionGroup), "groupHeader")?.GetValue(uiGroup);
-
-            if (crewMember.KerbalInventoryModule != null && groupHeader != null)
+            if (crewMember.KerbalInventoryModule != null && uiGroup.groupHeader != null)
             {
                 string title = GetGroupTitle(crewMember.KerbalInventoryModule);
-                groupHeader.text = title;
+                uiGroup.groupHeader.text = title;
             }
 
         }
