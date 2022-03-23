@@ -182,6 +182,9 @@ namespace KSPCommunityFixes.BugFixes
 
         private static void BaseServo_ModifyLocked_Prefix(BaseServo __instance)
         {
+            if (HighLogic.LoadedScene == GameScenes.EDITOR)
+                return;
+
             if (__instance.servoIsLocked && !__instance.prevServoIsLocked)
             {
                 if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
@@ -210,8 +213,6 @@ namespace KSPCommunityFixes.BugFixes
             {
                 __state = null;
             }
-
-
         }
 
         // When packing a vessel (docking, timewarping, getting out of physics range...), KSP update the parts transform position
