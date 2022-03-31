@@ -84,6 +84,7 @@ namespace KSPCommunityFixes
             public PatchMethodType patchType;
             public MethodBase patchedMethod;
             public MethodInfo patchMethod;
+            public int patchPriority;
 
             /// <summary>
             /// Define a harmony patch
@@ -92,13 +93,14 @@ namespace KSPCommunityFixes
             /// <param name="patchedMethod">Method to be patched</param>
             /// <param name="patchClass">Class where the patch method is implemented. Usually "this"</param>
             /// <param name="patchMethodName">if null, will default to a method with the name "ClassToPatch_MethodToPatch_PatchType"</param>
-            public PatchInfo(PatchMethodType patchType, MethodBase patchedMethod, BasePatch patchClass, string patchMethodName = null)
+            public PatchInfo(PatchMethodType patchType, MethodBase patchedMethod, BasePatch patchClass, string patchMethodName = null, int patchPriority = Priority.Normal)
             {
                 if (patchedMethod == null)
                     throw new Exception($"{patchType} target method not found in {patchClass}");
 
                 this.patchType = patchType;
                 this.patchedMethod = patchedMethod;
+                this.patchPriority = patchPriority;
 
                 if (patchMethodName == null)
                     patchMethodName = this.patchedMethod.DeclaringType.Name + "_" + this.patchedMethod.Name + "_" + this.patchType;
@@ -138,11 +140,11 @@ namespace KSPCommunityFixes
             {
                 switch (patch.patchType)
                 {
-                    case PatchMethodType.Prefix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Postfix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Transpiler: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.Finalizer: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, null, new HarmonyMethod(patch.patchMethod)); break;
-                    case PatchMethodType.ReversePatch: KSPCommunityFixes.Harmony.CreateReversePatcher(patch.patchedMethod, new HarmonyMethod(patch.patchMethod)); break;
+                    case PatchMethodType.Prefix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, new HarmonyMethod(patch.patchMethod, patch.patchPriority)); break;
+                    case PatchMethodType.Postfix: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority)); break;
+                    case PatchMethodType.Transpiler: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority)); break;
+                    case PatchMethodType.Finalizer: KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority)); break;
+                    case PatchMethodType.ReversePatch: KSPCommunityFixes.Harmony.CreateReversePatcher(patch.patchedMethod, new HarmonyMethod(patch.patchMethod, patch.patchPriority)); break;
                 }
             }
         }

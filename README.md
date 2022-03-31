@@ -39,12 +39,14 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 - **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
 - **[RoboticsDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13)** [KSP 1.8.0 - 1.12.3]<br/>Prevent unrecoverable part position drift of Breaking Grounds DLC robotic parts and their chidren parts.
-- **DockingPortRotationDriftAndFixes** [KSP 1.12.3]<br/>
-  - Avoid unrecoverable position drift of children parts of docking ports (even if "rotation locked" is disabled).
+- **DockingPortRotationDriftAndFixes** [KSP 1.12.3]<br/>Make the stock docking port rotation feature actually useable :
+  - Completely prevent unrecoverable position drift of children parts of docking ports.
+  - The "rotation locked" tweakable now only matter for allowing autostruts to get through.
   - Fix joint failure and phantom forces when a docking port pair is set to opposite extreme angles.
-  - Hide and disallow using the rotation sliders while the ports are locked
-  - Fix locked state inconsistencies resulting in rotation not being propagated to the internal state
-  - Avoid possible order of initialization issues resulting in a corrupt internal rotation state
+  - Allow tweaking the rotation in the editor and while not docked in flight.
+  - Rotation can now be properly used in a robotic controller.
+  - Remove the -86°/86° hardcoded limitation of `hardMinMaxLimits`, it is now -180°/180°.
+  - Fix many issues and state inconsistencies.
 - **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
 - **PackedPartsRotation** [KSP 1.8.0 - 1.12.3]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.3]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.

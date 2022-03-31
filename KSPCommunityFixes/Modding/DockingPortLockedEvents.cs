@@ -10,10 +10,11 @@ namespace KSPCommunityFixes.Modding
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
+            // Priority.First because we have an overriding prefix in the DockingPortRotationDriftAndFixes patch
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked"),
-                this));
+                this, null, Priority.First));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
