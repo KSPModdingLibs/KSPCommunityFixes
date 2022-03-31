@@ -2,9 +2,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
+
+// Remaining issues :
+// - there is a visual glitch where the rotating part becomes misaligned when both ports are rotating at the same time
+//   not sure why this happen and how to fix this properly
+//   in any case this is visual and "fixes itself" once the rotation is complete, but this will cause a persistent desync
+//   if the vessel is saved while this happen (quite unlikely, but still...)
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -17,6 +22,11 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnSave)),
                 this));
 
             patches.Add(new PatchInfo(
@@ -88,6 +98,32 @@ namespace KSPCommunityFixes.BugFixes
             }
 
             return code;
+        }
+
+        // If a vessel is saved while rotating, the reloaded vessel will have its part in the mid-rotated state but the moving part will
+        // snap to the target rotation, resulting in a permanent offset. To prevent this, we update the persisted targetAngle to the current
+        // angle if a rotation is ongoing.
+        static void ModuleDockingNode_OnSave_Postfix(ModuleDockingNode __instance, ConfigNode node)
+        {
+            if (__instance.canRotate && __instance.rotationInitComplete && __instance.IsRotating)
+            {
+                ConfigurableJoint rotationJoint = __instance.RotationJoint;
+
+                // this is the reverse of the VisualTargetAngle property
+                float currentTargetAngle = __instance.visualTargetAngle;
+                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.Joint)
+                {
+                    if (!__instance.inverted)
+                        currentTargetAngle *= -1f;
+                }
+                else
+                {
+                    if (__instance.inverted)
+                        currentTargetAngle *= -1f;
+                }
+
+                node.SetValue(nameof(ModuleDockingNode.targetAngle), currentTargetAngle);
+            }
         }
 
         // stock tries to set ConfigurableJointMotion.Limited with angle limits corresponding to the
