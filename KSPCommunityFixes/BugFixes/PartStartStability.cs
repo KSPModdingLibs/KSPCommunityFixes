@@ -89,6 +89,11 @@ namespace KSPCommunityFixes
                 AccessTools.Method(partStartEnumerator, "MoveNext"),
                 this,
                 nameof(Part_StartEnumerator_MoveNext_Transpiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Update)),
+                this));
         }
 
         static IEnumerable<CodeInstruction> Part_StartEnumerator_MoveNext_Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -105,6 +110,29 @@ namespace KSPCommunityFixes
             }
 
             return code;
+        }
+
+        // FlightIntegrator.Update() seems to be used to spread some computations over multiple frames.
+        // FlightIntegrator.FixedUpdate() does everything that Update() does in case Update() didn't run everything needed.
+        // On vessel load, both methods are waiting for Part.started to become true on the root part before calling FI.Setup()
+        // The code seems structured so it shouldn't matter which on runs first, but in practice Update() will crash if it
+        // is the one running FI.Setup(). The issue manifest itself by an ArgumentOutOfRangeException in UpdateOcclusionXXX()
+        // (called from Update()) when trying to access some unpopulated list at an index of -1 :P). 
+        // Since our patch change Part.started from being set from Update() to being set in FixedUpdate(), FI.Update() will be the
+        // first to "see" it, trigering that FI issue.
+        // The issue is likely harmless, as FI.Update() will fail to execute relatively early, but it still execute a few things
+        // partially and there is a risk things are left in a bad state.
+        // To fix that, we abort FI.Update() when FI.firstFrame is true. That bool is initally set to true, and set to false once
+        // FI.FixedUpdate() has run fully once.
+        // Overall, I think the change should be relatively safe, and even beneficial, as it makes the FI first "functional"
+        // FixedUpdate() deterministic (should always be the fourth FU after the vessel has been loaded), instead of having a
+        // random amount of "non initialized" FixedUpdate() happening. 
+
+        // Note on ModularFlightIntegrator : as of writing MFI doesn't override nor provide a way to override FI.Update(), so this
+        // patch should be safe with MFI.
+        static bool FlightIntegrator_Update_Prefix(FlightIntegrator __instance)
+        {
+            return !__instance.firstFrame;
         }
     }
 }

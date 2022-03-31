@@ -1,10 +1,9 @@
-﻿using System;
+﻿using HarmonyLib;
+using MultipleModuleInPartAPI;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
-using Expansions.Missions.Flow;
-using HarmonyLib;
-using MultipleModuleInPartAPI;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -58,9 +57,13 @@ namespace KSPCommunityFixes
 
             Type partModuleType = typeof(PartModule);
             Type multiModuleType = typeof(IMultipleModuleInPart);
-            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+
+            // note : do not use AppDomain.CurrentDomain.GetAssemblies(), as in case some plugin was missing
+            // a reference, that missing reference assembly will be included even though it is invalid, leading
+            // to a ReflectionTypeLoadException when doing anything with it such as calling GetTypes()
+            foreach (AssemblyLoader.LoadedAssembly loadedAssembly in AssemblyLoader.loadedAssemblies)
             {
-                foreach (Type type in assembly.GetTypes())
+                foreach (Type type in loadedAssembly.assembly.GetTypes())
                 {
                     if (multiModuleType.IsAssignableFrom(type) && partModuleType.IsAssignableFrom(type))
                     {

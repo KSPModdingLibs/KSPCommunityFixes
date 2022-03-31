@@ -23,7 +23,7 @@ Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 ### Features
 
-Individual patches can be enabled or disabled by editing the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
+Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
 
 In-game options are available from the KSP settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.png"/>
 
@@ -39,9 +39,14 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 - **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
 - **[RoboticsDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13)** [KSP 1.8.0 - 1.12.3]<br/>Prevent unrecoverable part position drift of Breaking Grounds DLC robotic parts and their chidren parts.
-- **DockingPortDrift** [KSP 1.12.2]<br/>Prevent persistent part position drift of children parts of docking ports, when the "Rotation locked" advanced tweakable PAW UI toggle is enabled (it is enabled by default). Only applies to KSP 1.12.2, an equivalent feature was added to stock in KSP 1.12.3. This patch doesn't prevent position drift if the rotation feature is used (if "Rotation locked" is manually disabled). Credit to [JPLRepo for the fix](https://forum.kerbalspaceprogram.com/index.php?/topic/204248-*).
-- **DockingPortLocking** [KSP 1.12.3]<br/> Fix some user-facing inconsistencies with the docking port rotation locking feature and hide irrelevant PAW items when the docking port is locked.
+- **DockingPortRotationDriftAndFixes** [KSP 1.12.3]<br/>
+  - Avoid unrecoverable position drift of children parts of docking ports (even if "rotation locked" is disabled).
+  - Fix joint failure and phantom forces when a docking port pair is set to opposite extreme angles.
+  - Hide and disallow using the rotation sliders while the ports are locked
+  - Fix locked state inconsistencies resulting in rotation not being propagated to the internal state
+  - Avoid possible order of initialization issues resulting in a corrupt internal rotation state
 - **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
+- **PackedPartsRotation** [KSP 1.8.0 - 1.12.3]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.3]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Quality of Life tweaks 
@@ -52,21 +57,34 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **[TweakableWheelsAutostrut](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)** [KSP 1.8.0 - 1.12.3]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.3]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
 - **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the stock maneuver tool in the in-game settings menu (it can cause severe lag/stutter, especially with Kopernicus modified systems)
+- **FairingMouseOverPersistence** [KSP 1.8.0 - 1.12.3]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
 
 #### Performance tweaks 
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.3]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 
-#### Mod API
+#### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
-- **DockingPortLockedEvents** [KSP 1.12.2 - 1.12.3]<br/>Fire GameEvents onRoboticPartLockChanging/onRoboticPartLockChanged respectively before/after calls to ModuleDockingNode.ModifyLocked(), following a modification of the ModuleDockingNode.nodeIsLocked field. Disabled by default.
+- **DockingPortLockedEvents** [KSP 1.12.2 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Fire GameEvents onRoboticPartLockChanging/onRoboticPartLockChanged respectively before/after calls to ModuleDockingNode.ModifyLocked(), following a modification of the ModuleDockingNode.nodeIsLocked field.
+- **OnSymmetryFieldChanged** [KSP 1.8.0 - 1.12.3]<br/> Change the `UI_Control.onSymmetryFieldChanged` callback to behave identically to the `UI_Control.onFieldChanged` callback :
+  - The callback will only be called when the field value has actually been modified.
+  - The "object" argument will contain the previous field value (instead of the new value).
 
 ### License
 
 MIT
 
 ### Changelog
+
+##### 1.10.0
+- New bugfix : DockingPortRotationDriftAndFixes. This patch contain several docking port fixes, and supersede the DockingPortLocking and DockingPortDrift patches, those patches have been removed.
+- New bugfix : PackedPartsRotation. This patch is a generalization of a fix previously implemented in RoboticsDrift, and now cover all occurences of that issue.
+- New QoL patch : FairingMouseOverPersistence (suggested by forum user @dok_377)
+- New mod API iptional patch : OnSymmetryFieldChanged (thanks to @DRVeyl)
+- PartStartStability : fixed the patch causing an `ArgumentOutOfRangeException` on scene/vessel load in `FlightIntegrator.Update()`. As a side effect, this patch now make the FI first "valid" execution deterministic (will always be on the fourth `FixedUpdate()` cycle).
+- RoboticsDrift : fixed incorrect handling when a robotic part is the vessel root part
+- Prevent some patches failing with a `ReflectionTypeLoadException` when another plugin assembly fail to load (ex : the Sandcastle/EL integration assembly)
 
 ##### 1.9.1
 - RoboticsDrift : fixed (harmless) `[RoboticsDrift] Servo info not found...` log spam when toggling the locked state of a robotic part in the editor

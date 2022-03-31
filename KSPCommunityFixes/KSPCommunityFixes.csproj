@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props" Condition="Exists('..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props')" />
+  <Import Project="..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.props" Condition="Exists('..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Condition="Exists('$(SolutionDir)\KSPDevPath.xml')" Project="$(SolutionDir)\KSPDevPath.xml" />
   <PropertyGroup>
@@ -18,6 +18,7 @@
     <StartAction>Program</StartAction>
     <StartProgram>$(KSPInstallPath)\KSP_x64.exe</StartProgram>
     <StartWorkingDirectory>$(KSPInstallPath)</StartWorkingDirectory>
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
   </PropertyGroup>
@@ -61,23 +62,28 @@
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
   </ItemGroup>
+  <PropertyGroup>
+    <PublicizeCompilerGenerated>false</PublicizeCompilerGenerated>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
-    <Compile Include="BugFixes\DockingPortLocking.cs" />
+    <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
     <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
+    <Compile Include="BugFixes\PackedPartsRotation.cs" />
     <Compile Include="BugFixes\PartStartStability.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
     <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
+    <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
+    <Compile Include="QoL\FairingMouseOverPersistence.cs" />
     <Compile Include="QoL\TweakableWheelsAutostrut.cs" />
-    <Compile Include="BugFixes\DockingPortDrift.cs" />
     <Compile Include="BugFixes\FlightSceneLoadKraken.cs" />
     <Compile Include="BugFixes\KerbalInventoryPersistence.cs" />
     <Compile Include="BugFixes\ModuleIndexingMismatch.cs" />
@@ -136,8 +142,8 @@
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props'))" />
-    <Error Condition="!Exists('..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.targets'))" />
+    <Error Condition="!Exists('..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.props'))" />
+    <Error Condition="!Exists('..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.targets'))" />
   </Target>
-  <Import Project="..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.targets" Condition="Exists('..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.targets')" />
+  <Import Project="..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.targets" Condition="Exists('..\packages\Krafs.Publicizer.1.0.3\build\Krafs.Publicizer.targets')" />
 </Project>

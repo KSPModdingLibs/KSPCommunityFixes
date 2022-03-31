@@ -94,6 +94,9 @@ namespace KSPCommunityFixes
             /// <param name="patchMethodName">if null, will default to a method with the name "ClassToPatch_MethodToPatch_PatchType"</param>
             public PatchInfo(PatchMethodType patchType, MethodBase patchedMethod, BasePatch patchClass, string patchMethodName = null)
             {
+                if (patchedMethod == null)
+                    throw new Exception($"{patchType} target method not found in {patchClass}");
+
                 this.patchType = patchType;
                 this.patchedMethod = patchedMethod;
 
@@ -101,6 +104,9 @@ namespace KSPCommunityFixes
                     patchMethodName = this.patchedMethod.DeclaringType.Name + "_" + this.patchedMethod.Name + "_" + this.patchType;
 
                 patchMethod = AccessTools.Method(patchClass.GetType(), patchMethodName);
+
+                if (patchMethod == null)
+                    throw new Exception($"{patchMethodName} implementation method not found in {patchClass}");
             }
         }
 

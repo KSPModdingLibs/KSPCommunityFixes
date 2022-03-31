@@ -55,10 +55,10 @@ namespace KSPCommunityFixes.BugFixes
                 AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
                 this));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
-                this));
+            //patches.Add(new PatchInfo(
+            //    PatchMethodType.Postfix,
+            //    AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
+            //    this));
 
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }
@@ -114,7 +114,7 @@ namespace KSPCommunityFixes.BugFixes
             // coords at this point could be useful anyway, at least in flight. It might be necessary
             // in the editor, since parts are parented and the initial position of the moving object
             // might have been modified.
-            if (p.attachJoint == null)
+            if (!p.started)
                 return false;
 
             if (!servoInfos.TryGetValue(p, out ServoInfo servoInfo))
@@ -219,13 +219,13 @@ namespace KSPCommunityFixes.BugFixes
         // based on Part.orgPos, but it doesn't update the transform rotation based on Part.orgRot. The rotation stays to whatever
         // it was in physics. This probably can be qualified as a bug, but fixing that globally might have side issues, so instead
         // of patching Part.Pack(), we only do it for child of robotic parts.
-        private static void BaseServo_OnPartPack_Postfix(ServoInfo __state)
-        {
-            if (__state != null)
-            {
-                __state.UpdatePartsRotation();
-            }
-        }
+        //private static void BaseServo_OnPartPack_Postfix(ServoInfo __state)
+        //{
+        //    if (__state != null)
+        //    {
+        //        __state.UpdatePartsRotation();
+        //    }
+        //}
 
         private abstract class ServoInfo
         {
@@ -234,6 +234,7 @@ namespace KSPCommunityFixes.BugFixes
             protected readonly BaseServo servo;
             protected readonly GameObject movingPart;
             protected readonly Vector3d mainAxis;
+            protected readonly bool isRootPart;
             protected bool isInverted;
             private bool isInitialized;
 
@@ -242,7 +243,16 @@ namespace KSPCommunityFixes.BugFixes
                 this.servo = servo;
                 movingPart = movingPartObject;
                 mainAxis = servo.GetMainAxis();
-                isInitialized = false;
+                isRootPart = servo.part == servo.vessel.rootPart;
+                if (isRootPart)
+                {
+                    isInitialized = true;
+                    isInverted = false;
+                }
+                else
+                {
+                    isInitialized = false;
+                }
             }
 
             public void PristineCoordsUpdate()
@@ -282,22 +292,22 @@ namespace KSPCommunityFixes.BugFixes
                 movingPart.transform.localRotation = localRot;
             }
 
-            public void UpdatePartsRotation()
-            {
-                Quaternion vesselRotation = servo.vessel.vesselTransform.rotation;
+            //public void UpdatePartsRotation()
+            //{
+            //    Quaternion vesselRotation = servo.vessel.vesselTransform.rotation;
 
-                partQueue.Clear();
-                partQueue.Enqueue(servo.part);
+            //    partQueue.Clear();
+            //    partQueue.Enqueue(servo.part);
 
-                while (partQueue.TryDequeue(out Part part))
-                {
-                    int childCount = part.children.Count;
-                    for (int i = 0; i < childCount; i++)
-                        partQueue.Enqueue(part.children[i]);
+            //    while (partQueue.TryDequeue(out Part part))
+            //    {
+            //        int childCount = part.children.Count;
+            //        for (int i = 0; i < childCount; i++)
+            //            partQueue.Enqueue(part.children[i]);
 
-                    part.transform.rotation = vesselRotation * part.orgRot;
-                }
-            }
+            //        part.transform.rotation = vesselRotation * part.orgRot;
+            //    }
+            //}
 
             public abstract void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
 
