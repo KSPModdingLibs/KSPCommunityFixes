@@ -5,12 +5,6 @@ using System.Collections.Generic;
 using System.Reflection.Emit;
 using UnityEngine;
 
-// Remaining issues :
-// - there is a visual glitch where the rotating part becomes misaligned when both ports are rotating at the same time
-//   not sure why this happen and how to fix this properly
-//   in any case this is visual and "fixes itself" once the rotation is complete, but this will cause a persistent desync
-//   if the vessel is saved while this happen (quite unlikely, but still...)
-
 namespace KSPCommunityFixes.BugFixes
 {
     class DockingPortRotationDriftAndFixes : BasePatch
@@ -376,8 +370,8 @@ namespace KSPCommunityFixes.BugFixes
                         jointAnglePerFrame = 0f;
                 }
 
-                // FIXME : there is still some desynchronization happening when both are moving and when reaching the "inversion point"
-                // I guess the angle deltas should be clamped to the lowest result, but I'm unsure how to do that
+                // FIXME : there is still some (tiny) desynchronization happening when both are moving and when reaching the "inversion point"
+                // I guess the angle deltas should be clamped to the lowest result, but I'm unsure how to do that and the error is unlikely to ever matter
 
                 // if we are rotating, apply the rotation to the moving transform
                 if (isRotatingSelf)
@@ -565,6 +559,8 @@ namespace KSPCommunityFixes.BugFixes
 
             internal void OnTargetAngleModified(object newValue)
             {
+                // prevent changing targetAngle when rotation init isn't done (which would result in a borked initial rotation)
+                // can happen on vessel load when targetAngle is driven by a robotic controller left playing
                 if (!dockingNode.rotationInitComplete)
                 {
                     dockingNode.targetAngle = initialTargetAngle;
