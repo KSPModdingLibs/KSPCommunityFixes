@@ -39,6 +39,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
   - Rotation can now be properly used in a robotic controller.
   - Remove the -86°/86° hardcoded limitation of `hardMinMaxLimits`, it is now -180°/180°.
   - Fix many issues and state inconsistencies.
+  - An optional `DockingPortExtendedRotation.cfg.extra` MM patch extending rotation range to 360° is available in the `Extras` folder. Copy it to your `GameData` folder and remove the `.extra` extension to use it.
 - **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
 - **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.3]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurrences of that issue.
 - **PackedPartsRotation** [KSP 1.8.0 - 1.12.3]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
@@ -70,9 +71,10 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
 - **DockingPortLockedEvents** [KSP 1.12.2 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Fire GameEvents onRoboticPartLockChanging/onRoboticPartLockChanged respectively before/after calls to ModuleDockingNode.ModifyLocked(), following a modification of the ModuleDockingNode.nodeIsLocked field.
-- **OnSymmetryFieldChanged** [KSP 1.8.0 - 1.12.3]<br/> Change the `UI_Control.onSymmetryFieldChanged` callback to behave identically to the `UI_Control.onFieldChanged` callback :
+- **OnSymmetryFieldChanged** [KSP 1.8.0 - 1.12.3]<br/> Disabled by default, you can enable it with a MM patch. Change the `UI_Control.onSymmetryFieldChanged` callback to behave identically to the `UI_Control.onFieldChanged` callback :
   - The callback will only be called when the field value has actually been modified.
   - The "object" argument will contain the previous field value (instead of the new value).
+- **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods.
 
 ### License
 
@@ -85,6 +87,7 @@ MIT
 - New bugfix : PackedPartsRotation. This patch is a generalization of a fix previously implemented in RoboticsDrift, and now cover all occurrences of that issue.
 - New QoL patch : FairingMouseOverPersistence (suggested by forum user @dok_377)
 - New mod API optional patch : OnSymmetryFieldChanged (thanks to @DRVeyl)
+- New mod API optional patch : PersistentIConfigNode (thanks to @NathanKell)
 - PartStartStability : fixed the patch causing an `ArgumentOutOfRangeException` on scene/vessel load in `FlightIntegrator.Update()`. As a side effect, this patch now make the FI first "valid" execution deterministic (will always be on the fourth `FixedUpdate()` cycle).
 - RoboticsDrift : fixed incorrect handling when a robotic part is the vessel root part
 - Prevent some patches failing with a `ReflectionTypeLoadException` when another plugin assembly fail to load (ex : the Sandcastle/EL integration assembly)

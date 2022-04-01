@@ -141,7 +141,7 @@ namespace KSPCommunityFixes
                     insertionIndex = i;
                     for (int j = i; j < code.Count - 1; j++)
                     {
-                        if (code[j].opcode == OpCodes.Stfld && code[j].operand == isContentCollapsed)
+                        if (code[j].opcode == OpCodes.Stfld && ReferenceEquals(code[j].operand, isContentCollapsed))
                         {
                             code[j + 1].labels.Add(jump);
                             break;

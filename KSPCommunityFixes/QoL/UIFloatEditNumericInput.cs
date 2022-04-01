@@ -161,7 +161,7 @@ namespace KSPCommunityFixes
             }
         }
 
-        private float IntervalBase(float value, float increment)
+        private new float IntervalBase(float value, float increment)
         {
             float num = Mathf.Floor((value + floatControl.incrementSlide / 2f) / increment) * increment;
             if (num > floatControl.maxValue - increment)
@@ -184,7 +184,7 @@ namespace KSPCommunityFixes
             RemoveInputfieldLock();
         }
 
-        private float GetFieldValue()
+        private new float GetFieldValue()
         {
             return field.GetValue<float>(field.host);
         }

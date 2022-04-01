@@ -63,7 +63,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 if (code[i - 1].opcode == OpCodes.Ldc_I4_5 
                     && code[i].opcode == OpCodes.Stfld
-                    && code[i].operand == Part_autoStrutMode)
+                    && ReferenceEquals(code[i].operand, Part_autoStrutMode))
                 {
                     for (int j = i; j >= i - 10; j--)
                     {

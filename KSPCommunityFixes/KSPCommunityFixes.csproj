@@ -40,8 +40,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\System.dll">
+      <Name>System (KSP/Mono)</Name>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\mscorlib.dll">
+      <Name>System.Core (KSP/Mono)</Name>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\UnityEngine*.dll">
       <Name>UnityEngine</Name>
       <Private>False</Private>
@@ -76,6 +82,7 @@
     <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
+    <Compile Include="Modding\PersistentIConfigNode.cs" />
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />

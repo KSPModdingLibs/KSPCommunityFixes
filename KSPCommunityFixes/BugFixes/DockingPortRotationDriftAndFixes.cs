@@ -319,7 +319,7 @@ namespace KSPCommunityFixes.BugFixes
             else if (joint == __instance.part.attachJoint.Joint)
             {
                 // rotation while docked
-                // everything is handled from the "child" docking port side (the joint owner)
+                // everything is handled from the "child" docking port side (the joint owner), the other docking port dosn't do anything by itself
 
                 // get the joint desired angle (combination of both docking port targetAngle fields)
                 float jointFinalTargetAngle = __instance.JointTargetAngle;
@@ -561,7 +561,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 // prevent changing targetAngle when rotation init isn't done (which would result in a borked initial rotation)
                 // can happen on vessel load when targetAngle is driven by a robotic controller left playing
-                if (!dockingNode.rotationInitComplete)
+                if (HighLogic.LoadedScene == GameScenes.FLIGHT && !dockingNode.rotationInitComplete)
                 {
                     dockingNode.targetAngle = initialTargetAngle;
                     return;

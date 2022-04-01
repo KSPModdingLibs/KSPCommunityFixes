@@ -58,11 +58,11 @@ namespace KSPCommunityFixes
             for (int i = 0; i < code.Count - 5; i++)
             {
                 if (code[i].opcode == OpCodes.Call
-                    && code[i].operand == HighLogic_CurrentGame
+                    && ReferenceEquals(code[i].operand, HighLogic_CurrentGame)
                     && code[i + 1].opcode == OpCodes.Dup // thanks obfuscation
                     && code[i + 2].opcode == OpCodes.Pop // thanks obfuscation
                     && code[i + 3].opcode == OpCodes.Ldfld
-                    && code[i + 3].operand == Game_Mode
+                    && ReferenceEquals(code[i + 3].operand, Game_Mode)
                     && code[i + 4].opcode == OpCodes.Ldc_I4_2
                     && code[i + 5].opcode == OpCodes.Beq_S)
                 {
@@ -78,11 +78,11 @@ namespace KSPCommunityFixes
                 }
 
                 if (code[i].opcode == OpCodes.Call
-                    && code[i].operand == HighLogic_CurrentGame
+                    && ReferenceEquals(code[i].operand, HighLogic_CurrentGame)
                     && code[i + 1].opcode == OpCodes.Dup // thanks obfuscation
                     && code[i + 2].opcode == OpCodes.Pop // thanks obfuscation
                     && code[i + 3].opcode == OpCodes.Ldfld
-                    && code[i + 3].operand == Game_Mode
+                    && ReferenceEquals(code[i + 3].operand, Game_Mode)
                     && code[i + 4].opcode == OpCodes.Ldc_I4_3
                     && code[i + 5].opcode == OpCodes.Bne_Un_S)
                 {

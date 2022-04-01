@@ -35,8 +35,14 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\System.dll">
+      <Name>System (KSP/Mono)</Name>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\mscorlib.dll">
+      <Name>System.Core (KSP/Mono)</Name>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IMultipleModuleInPart.cs" />

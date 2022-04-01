@@ -132,7 +132,7 @@ namespace KSPCommunityFixes
 
             for (int i = 0; i < code.Count - 4; i++)
             {
-                if (code[i].opcode == OpCodes.Callvirt && code[i].operand == Part_OnLoad && code[i + 1].opcode == OpCodes.Ldc_I4_0)
+                if (code[i].opcode == OpCodes.Callvirt && ReferenceEquals(code[i].operand, Part_OnLoad) && code[i + 1].opcode == OpCodes.Ldc_I4_0)
                 {
                     code[i + 1].opcode = OpCodes.Ldarg_0;
                     code.Insert(i + 2, new CodeInstruction(OpCodes.Ldarg_0));
@@ -147,7 +147,7 @@ namespace KSPCommunityFixes
                             end = true;
 
                         // safety check : if this match we are way too far and something is very wrong
-                        if (code[j].operand == ProtoPartSnapshot_resources)
+                        if (ReferenceEquals(code[j].operand, ProtoPartSnapshot_resources))
                             return instructions;
 
                         code[j].opcode = OpCodes.Nop;
@@ -175,7 +175,7 @@ namespace KSPCommunityFixes
 
             for (int i = 0; i < code.Count - 4; i++)
             {
-                if (code[i].opcode == OpCodes.Callvirt && code[i].operand == Part_OnLoad && code[i + 1].opcode == OpCodes.Ldc_I4_0)
+                if (code[i].opcode == OpCodes.Callvirt && ReferenceEquals(code[i].operand, Part_OnLoad) && code[i + 1].opcode == OpCodes.Ldc_I4_0)
                 {
                     code[i + 1].opcode = OpCodes.Ldarg_0;
                     code.Insert(i + 2, new CodeInstruction(OpCodes.Ldarg_2));
@@ -189,7 +189,7 @@ namespace KSPCommunityFixes
                             end = true;
 
                         // safety check : if this match we are way too far and something is very wrong
-                        if (code[j].operand == ProtoPartSnapshot_resources)
+                        if (ReferenceEquals(code[j].operand, ProtoPartSnapshot_resources))
                             return instructions;
 
                         code[j].opcode = OpCodes.Nop;
@@ -365,7 +365,7 @@ namespace KSPCommunityFixes
                 if (code[i].opcode == OpCodes.Ldloc_S
                     && code[i + 1].opcode == OpCodes.Ldloc_3
                     && code[i + 2].opcode == OpCodes.Ldloca_S
-                    && code[i + 3].opcode == OpCodes.Callvirt && code[i + 3].operand == Part_LoadModule
+                    && code[i + 3].opcode == OpCodes.Callvirt && ReferenceEquals(code[i + 3].operand, Part_LoadModule)
                     && code[i + 4].opcode == OpCodes.Dup
                     && code[i + 5].opcode == OpCodes.Pop
                     && code[i + 6].opcode == OpCodes.Pop)
@@ -407,7 +407,7 @@ namespace KSPCommunityFixes
                 && code[i + 2].opcode == OpCodes.Ldc_I4_0
                 && code[i + 3].opcode == OpCodes.Stloc_S
                 && code[i + 4].opcode == OpCodes.Ldloc_2
-                && code[i + 5].opcode == OpCodes.Callvirt && code[i + 5].operand == ConfigNode_get_nodes)
+                && code[i + 5].opcode == OpCodes.Callvirt && ReferenceEquals(code[i + 5].operand, ConfigNode_get_nodes))
                 {
                     code.Insert(i, new CodeInstruction(OpCodes.Ldloc_S, 6)); // ldloc.s 6 is the Part local variable
                     code.Insert(i + 1, new CodeInstruction(OpCodes.Ldloc_2)); // Ldloc_2 is the part ConfigNode variable

@@ -64,7 +64,7 @@ namespace KSPCommunityFixes
 
             for (int i = 1; i < code.Count; i++)
             {
-                if (code[i].opcode == OpCodes.Callvirt && code[i].operand == ConfigNode_Save)
+                if (code[i].opcode == OpCodes.Callvirt && ReferenceEquals(code[i].operand, ConfigNode_Save))
                 {
                     int k = i;
                     code.Insert(k++, new CodeInstruction(OpCodes.Stloc_1));
@@ -96,7 +96,7 @@ namespace KSPCommunityFixes
 
             for (int i = 0; i < code.Count; i++)
             {
-                if (code[i].opcode == OpCodes.Call && code[i].operand == GamePersistence_LoadSFSFile)
+                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, GamePersistence_LoadSFSFile))
                 {
                     code[i].operand = LoadSFSFileCached;
                     break;
