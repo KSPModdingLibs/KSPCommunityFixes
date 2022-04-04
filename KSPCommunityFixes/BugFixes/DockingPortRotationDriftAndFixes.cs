@@ -528,7 +528,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 __instance.driveTargetAngle = Mathf.MoveTowards(__instance.driveTargetAngle, jointFinalTargetAngle, jointAnglePerFrame);
                 otherNode.driveTargetAngle = __instance.driveTargetAngle; // not necessary but this replicate stock behavior
-                Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
+                Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, __instance.GetRotationAxis());
                 rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
                 __instance.ApplyCoordsUpdate();
             }
