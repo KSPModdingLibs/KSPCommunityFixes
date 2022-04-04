@@ -67,6 +67,7 @@
   </ItemGroup>
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
+    <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
   </ItemGroup>
   <PropertyGroup>
     <PublicizeCompilerGenerated>false</PublicizeCompilerGenerated>
@@ -103,6 +104,7 @@
     <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
     <Compile Include="QoL\PAWStockGroups.cs" />
     <Compile Include="QoL\UIFloatEditNumericInput.cs" />
+    <Compile Include="Utility.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MultipleModuleInPartAPI\MultipleModuleInPartAPI.csproj">

@@ -40,6 +40,21 @@ namespace KSPCommunityFixes.BugFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
+                AccessTools.PropertyGetter(typeof(ModuleDockingNode), nameof(ModuleDockingNode.RotationJoint)),
+                this, nameof(ModuleDockingNode_RotationJoint_Prefix)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.PropertyGetter(typeof(ModuleDockingNode), nameof(ModuleDockingNode.VisualTargetAngle)),
+                this, nameof(ModuleDockingNode_VisualTargetAngle_Prefix)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnPartUnpack)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.UpdatePAWUI)),
                 this));
 
@@ -101,11 +116,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             if (__instance.canRotate && __instance.rotationInitComplete && __instance.IsRotating)
             {
-                ConfigurableJoint rotationJoint = __instance.RotationJoint;
+                ConfigurableJoint rotationJoint = GetRotationJoint(__instance);
 
                 // this is the reverse of the VisualTargetAngle property
                 float currentTargetAngle = __instance.visualTargetAngle;
-                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.Joint)
+                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
                 {
                     if (!__instance.inverted)
                         currentTargetAngle *= -1f;
@@ -134,11 +149,14 @@ namespace KSPCommunityFixes.BugFixes
         // solve the issue and doesn't seem to affect the joint behavior.
         static bool ModuleDockingNode_SetJointHighLowLimits_Prefix(ModuleDockingNode __instance)
         {
-            ConfigurableJoint joint = __instance.RotationJoint;
-            if (joint != null)
-                joint.angularXMotion = ConfigurableJointMotion.Free;
-
+            UnlockRotationJoint(GetRotationJoint(__instance));
             return false;
+        }
+
+        static void UnlockRotationJoint(ConfigurableJoint rotationJoint)
+        {
+            if (rotationJoint != null)
+                rotationJoint.angularXMotion = ConfigurableJointMotion.Free;
         }
 
         static void ModuleDockingNode_OnStart_Postfix(ModuleDockingNode __instance)
@@ -205,7 +223,7 @@ namespace KSPCommunityFixes.BugFixes
 
         private static IEnumerator OnStartFinishedDelayed(ModuleDockingNode mdn, PartModule.StartState state)
         {
-            while (mdn.fsm == null || mdn.fsm.CurrentState == null)
+            while (mdn.vessel.packed || mdn.fsm == null || mdn.fsm.CurrentState == null)
                 yield return null;
 
             if (mdn.otherNode != null && (mdn.otherNode.fsm == null || mdn.fsm.CurrentState == null))
@@ -224,22 +242,23 @@ namespace KSPCommunityFixes.BugFixes
                 yield break;
             }
 
-            if (mdn.RotationJoint == null || mdn.part.attachJoint == null || mdn.rotationTransform == null)
+            ConfigurableJoint rotationJoint = GetRotationJoint(mdn);
+
+            if (rotationJoint == null || mdn.rotationTransform == null)
                 yield break;
 
-            ConfigurableJoint joint = mdn.RotationJoint;
-            float visualTargetAngle = mdn.VisualTargetAngle;
+            float visualTargetAngle = GetVisualTargetAngle(mdn, rotationJoint);
 
-            joint.angularXMotion = ConfigurableJointMotion.Limited;
+            rotationJoint.angularXMotion = ConfigurableJointMotion.Limited;
 
             mdn.driveTargetAngle = jointTargetAngle;
             mdn.cachedInitialAngle = jointTargetAngle;
             mdn.initialRotation = mdn.rotationTransform.localRotation.eulerAngles;
 
-            if (joint == mdn.part.attachJoint.Joint)
+            if (rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
             {
                 Quaternion targetLocalRotation = mdn.SetTargetRotation(Quaternion.identity, jointTargetAngle - mdn.cachedInitialAngle, true, Vector3.up);
-                joint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
+                rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
                 mdn.targetRotation = mdn.SetTargetRotation(Quaternion.Euler(mdn.initialRotation), visualTargetAngle, false);
             }
             else
@@ -264,6 +283,91 @@ namespace KSPCommunityFixes.BugFixes
                 dockingNodeInfos.Remove(__instance.part);
             }
         }
+
+        static bool ModuleDockingNode_RotationJoint_Prefix(ModuleDockingNode __instance, out ConfigurableJoint __result)
+        {
+            __result = GetRotationJoint(__instance);
+            return false;
+        }
+
+        static ConfigurableJoint GetRotationJoint(ModuleDockingNode mdn)
+        {
+            if (IsDocked(mdn))
+            {
+                if (mdn.sameVesselDockJoint != null)
+                    return null;
+
+                if (mdn.part.parent == mdn.otherNode.part)
+                    return mdn.part.attachJoint.AsNull()?.Joint;
+                else
+                    return mdn.otherNode.part.attachJoint.AsNull()?.Joint;
+            }
+
+            if (mdn.referenceNode?.attachedPart != null && mdn.referenceNode.attachedPart.parent == mdn.part)
+                return mdn.referenceNode.attachedPart.attachJoint.AsNull()?.Joint;
+
+            return null;
+        }
+
+        static bool IsDocked(ModuleDockingNode mdn)
+        {
+            if (!mdn.fsm.fsmStarted)
+                return false;
+
+            return mdn.otherNode != null 
+                   && (mdn.fsm.currentState == mdn.st_docked_docker 
+                       || mdn.fsm.currentState == mdn.st_docked_dockee 
+                       || mdn.fsm.currentState == mdn.st_preattached);
+        }
+
+        static bool ModuleDockingNode_VisualTargetAngle_Prefix(ModuleDockingNode __instance, out float __result)
+        {
+            __result = GetVisualTargetAngle(__instance, GetRotationJoint(__instance));
+            return false;
+        }
+
+        static float GetVisualTargetAngle(ModuleDockingNode mdn, ConfigurableJoint rotationJoint)
+        {
+            if (rotationJoint != null && rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
+            {
+                if (mdn.inverted)
+                    return mdn.targetAngle;
+                else
+                    return mdn.targetAngle * -1f;
+            }
+            else
+            {
+                if (mdn.inverted)
+                    return mdn.targetAngle * -1f;
+                else
+                    return mdn.targetAngle;
+            }
+        }
+
+        static bool ModuleDockingNode_OnPartUnpack_Prefix(ModuleDockingNode __instance)
+        {
+            if (!__instance.canRotate || !__instance.rotationInitComplete)
+                return false;
+
+            ConfigurableJoint rotationJoint = GetRotationJoint(__instance);
+            UnlockRotationJoint(rotationJoint);
+
+            if (!__instance.IsRotating)
+            {
+                __instance.driveTargetAngle = __instance.JointTargetAngle;
+                __instance.visualTargetAngle = GetVisualTargetAngle(__instance, rotationJoint);
+                
+                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
+                {
+                    Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
+                    rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
+                }
+            }
+
+            return false;
+        }
+
+        
 
         static bool ModuleDockingNode_UpdatePAWUI_Prefix(ModuleDockingNode __instance)
         {
@@ -293,73 +397,97 @@ namespace KSPCommunityFixes.BugFixes
         // - The stock implementation doesn't work when both docking port are moving at the same time
         static bool ModuleDockingNode_UpdateAlignmentRotation_Prefix(ModuleDockingNode __instance)
         {
-            if (!(__instance.canRotate && __instance.hasEnoughResources && __instance.rotationInitComplete 
-                  && __instance.targetAngle >= __instance.hardMinMaxLimits.x && __instance.targetAngle <= __instance.hardMinMaxLimits.y)
-                && __instance.sameVesselDockJoint == null)
+            if (!__instance.hasEnoughResources || !__instance.rotationInitComplete || __instance.sameVesselDockJoint != null)
                 return false;
 
-            ConfigurableJoint joint = __instance.RotationJoint;
-            __instance.maxAnglePerFrame = __instance.traverseVelocity * Time.fixedDeltaTime;
-            float visualFinalTargetAngle = __instance.VisualTargetAngle;
+            __instance.targetAngle = Mathf.Clamp(__instance.targetAngle, __instance.hardMinMaxLimits.x, __instance.hardMinMaxLimits.y);
 
-            
-            if (joint == null)
+            // handle rotation while not docked
+            // we only need to update the moving transform rotation
+            if (!IsDocked(__instance))
             {
-                // rotation while not docked
-                // we only need to update the moving transform rotation
-                __instance.IsRotating = __instance.visualTargetAngle != visualFinalTargetAngle;
+                float finalTargetAngle = GetVisualTargetAngle(__instance, null);
+                __instance.IsRotating = __instance.visualTargetAngle != finalTargetAngle;
 
                 if (__instance.IsRotating)
                 {
-                    __instance.visualTargetAngle = Mathf.MoveTowards(__instance.visualTargetAngle, visualFinalTargetAngle, __instance.maxAnglePerFrame);
+                    __instance.maxAnglePerFrame = __instance.traverseVelocity * Time.fixedDeltaTime;
+                    __instance.visualTargetAngle = Mathf.MoveTowards(__instance.visualTargetAngle, finalTargetAngle, __instance.maxAnglePerFrame);
                     __instance.targetRotation = __instance.SetTargetRotation(Quaternion.Euler(__instance.initialRotation), 0f - __instance.visualTargetAngle, false);
                     __instance.rotationTransform.localRotation = __instance.targetRotation;
                 }
+
+                return false;
             }
-            else if (joint == __instance.part.attachJoint.Joint)
+
+            // handle rotation while docked
+
+            ConfigurableJoint rotationJoint = GetRotationJoint(__instance);
+            bool isJointOwner = rotationJoint == __instance.part.attachJoint.AsNull()?.Joint;
+
+            // If both ports can rotate, both ports are handled from the "child" docking port side (the joint owner)
+            // This is needed because when both ports are rotating at the same time, we need to know each port rotation direction
+            // to adjust the rotation speed of the joint.
+            // Note that if one port can rotate and not the other, the rotation is handled by the port that rotate, no matter if
+            // it's the joint owner or not.
+            // So if we are executing from the "parent" port (not the joint owner), and both ports can rotate, abort.
+            if (!isJointOwner && __instance.otherNode.canRotate)
+                return false;
+
+            // get the joint desired angle (combination of both docking port targetAngle fields)
+            float jointFinalTargetAngle = __instance.JointTargetAngle;
+
+            // if the joint desired angle isn't reached, we need to rotate
+            bool isJointRotating = __instance.driveTargetAngle != jointFinalTargetAngle;
+
+            // handle state changes, and abort if not rotating
+            if (isJointRotating)
             {
-                // rotation while docked
-                // everything is handled from the "child" docking port side (the joint owner), the other docking port dosn't do anything by itself
-
-                // get the joint desired angle (combination of both docking port targetAngle fields)
-                float jointFinalTargetAngle = __instance.JointTargetAngle;
-
-                // if the joint desired angle isn't reached, we need to rotate
-                bool isRotating = __instance.driveTargetAngle != jointFinalTargetAngle;
-
-                // handle state changes
-                if (isRotating && !__instance.IsRotating)
+                if (!__instance.IsRotating)
                 {
                     __instance.IsRotating = true;
-                    joint.angularXMotion = ConfigurableJointMotion.Free;
-                    joint.breakTorque *= 10f;
-                    joint.breakForce *= 10f;
+                    rotationJoint.angularXMotion = ConfigurableJointMotion.Free;
+                    rotationJoint.breakTorque *= 10f;
+                    rotationJoint.breakForce *= 10f;
                     __instance.partJointUnbreakable = true; // useless but lets be consistent with stock state
                 }
-                else if (!isRotating && __instance.IsRotating)
+            }
+            else
+            {
+                if (__instance.IsRotating)
                 {
                     __instance.IsRotating = false;
-                    joint.breakTorque /= 10f;
-                    joint.breakForce /= 10f;
+                    rotationJoint.breakTorque /= 10f;
+                    rotationJoint.breakForce /= 10f;
                     __instance.partJointUnbreakable = false; // useless but lets be consistent with stock state
                 }
 
-                // IsRotating will be true if any of the two docking ports are rotating.
-                // FIXME: this will (wrongly) double the EC consumption, but well... 
-                // We need to know if the current docking port (__instance) is really rotating.
-                bool isRotatingSelf = __instance.visualTargetAngle != visualFinalTargetAngle;
+                return false;
+            }
 
+            // isJointRotating is true if any of the two docking ports are rotating.
+            // We also need to know if the current docking port (__instance) is really rotating.
+            // FIXME: this will (wrongly) double the EC consumption, but well... 
+            float visualFinalTargetAngle = GetVisualTargetAngle(__instance, rotationJoint);
+            bool isRotatingSelf = __instance.visualTargetAngle != visualFinalTargetAngle;
+
+            __instance.maxAnglePerFrame = __instance.traverseVelocity * Time.fixedDeltaTime;
+            float jointAnglePerFrame = __instance.maxAnglePerFrame;
+            ModuleDockingNode otherNode = __instance.otherNode;
+
+            // we only need to handle the other node if __instance is the joint owner and if both ports can rotate
+            if (isJointOwner && otherNode.canRotate)
+            {
                 // Do the same for the other node
                 // The other node IsRotating property will be true only if it is actually rotating
-                ModuleDockingNode otherNode = __instance.otherNode;
-                float otherNodeVisualFinalTargetAngle = otherNode.VisualTargetAngle;
+                float otherNodeVisualFinalTargetAngle = GetVisualTargetAngle(otherNode, rotationJoint);
                 otherNode.IsRotating = otherNode.visualTargetAngle != otherNodeVisualFinalTargetAngle;
 
                 // before we move the joint, we need to handle the case where the two docking ports are rotating at the same time
                 // If they are rotating in :
                 // - the same direction => the joint rotation speed is doubled
                 // - opposite direcions => the joint doesn't rotate
-                float jointAnglePerFrame = __instance.maxAnglePerFrame;
+
                 if (isRotatingSelf && otherNode.IsRotating)
                 {
                     bool angleIsIncreasing = __instance.visualTargetAngle < visualFinalTargetAngle;
@@ -370,17 +498,6 @@ namespace KSPCommunityFixes.BugFixes
                         jointAnglePerFrame = 0f;
                 }
 
-                // FIXME : there is still some (tiny) desynchronization happening when both are moving and when reaching the "inversion point"
-                // I guess the angle deltas should be clamped to the lowest result, but I'm unsure how to do that and the error is unlikely to ever matter
-
-                // if we are rotating, apply the rotation to the moving transform
-                if (isRotatingSelf)
-                {
-                    __instance.visualTargetAngle = Mathf.MoveTowards(__instance.visualTargetAngle, visualFinalTargetAngle, __instance.maxAnglePerFrame);
-                    __instance.targetRotation = __instance.SetTargetRotation(Quaternion.Euler(__instance.initialRotation), __instance.visualTargetAngle, false);
-                    __instance.rotationTransform.localRotation = __instance.targetRotation;
-                }
-
                 // if the other node is rotating, apply the rotation to the moving transform
                 if (otherNode.IsRotating)
                 {
@@ -388,16 +505,32 @@ namespace KSPCommunityFixes.BugFixes
                     otherNode.targetRotation = otherNode.SetTargetRotation(Quaternion.Euler(otherNode.initialRotation), 0f - otherNode.visualTargetAngle, false);
                     otherNode.rotationTransform.localRotation = otherNode.targetRotation;
                 }
+            }
 
-                // apply the joint rotation
-                if (jointAnglePerFrame > 0f)
-                {
-                    __instance.driveTargetAngle = Mathf.MoveTowards(__instance.driveTargetAngle, jointFinalTargetAngle, jointAnglePerFrame);
-                    otherNode.driveTargetAngle = __instance.driveTargetAngle; // not necessary but this replicate stock behavior
-                    Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
-                    joint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
-                    __instance.ApplyCoordsUpdate();
-                }
+            // FIXME : there is still some (tiny) desynchronization happening when both ports are moving and when reaching the "inversion point"
+            // I guess the angle deltas should be clamped to the lowest result, but I'm unsure how to do that and the error is unlikely to ever matter
+
+            // if we are rotating, apply the rotation to the moving transform
+            if (isRotatingSelf)
+            {
+                __instance.visualTargetAngle = Mathf.MoveTowards(__instance.visualTargetAngle, visualFinalTargetAngle, __instance.maxAnglePerFrame);
+
+                float visualTargetAngle = __instance.visualTargetAngle;
+                if (!isJointOwner && !otherNode.canRotate)
+                    visualTargetAngle *= -1f;
+
+                __instance.targetRotation = __instance.SetTargetRotation(Quaternion.Euler(__instance.initialRotation), visualTargetAngle, false);
+                __instance.rotationTransform.localRotation = __instance.targetRotation;
+            }
+
+            // apply the joint rotation
+            if (jointAnglePerFrame > 0f)
+            {
+                __instance.driveTargetAngle = Mathf.MoveTowards(__instance.driveTargetAngle, jointFinalTargetAngle, jointAnglePerFrame);
+                otherNode.driveTargetAngle = __instance.driveTargetAngle; // not necessary but this replicate stock behavior
+                Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
+                rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
+                __instance.ApplyCoordsUpdate();
             }
 
             return false;
@@ -458,7 +591,6 @@ namespace KSPCommunityFixes.BugFixes
             private readonly ModuleDockingNode dockingNode;
             private readonly float initialTargetAngle;
             private readonly Vector3d mainAxis;
-            private bool isJointOwner;
             private double lastRotAngle;
             private QuaternionD rotOffset;
 
@@ -471,7 +603,6 @@ namespace KSPCommunityFixes.BugFixes
 
             public void FlightSetup(double initialRotAngle)
             {
-                isJointOwner = dockingNode.RotationJoint == dockingNode.part.attachJoint?.Joint;
                 lastRotAngle = initialRotAngle;
             }
 
@@ -515,15 +646,20 @@ namespace KSPCommunityFixes.BugFixes
                 // if docking node is the joint owner
                 // - invert the offset
                 // - rotate the docking node part itself
-                if (isJointOwner)
+                // - recursively rotate all childs
+                // else
+                // - recursively rotate the child docking port, and all its childs
+                if (GetRotationJoint(dockingNode) == dockingNode.part.attachJoint.AsNull()?.Joint)
                 {
                     rotOffset = QuaternionD.Inverse(rotOffset);
                     dockingNode.part.orgRot = rotOffset * (QuaternionD)dockingNode.part.orgRot;
-                }
 
-                for (int i = 0; i < dockingNode.part.children.Count; i++)
+                    for (int i = 0; i < dockingNode.part.children.Count; i++)
+                        RecurseChildCoordsUpdate(dockingNode.part.children[i], Vector3d.zero);
+                }
+                else
                 {
-                    RecurseChildCoordsUpdate(dockingNode.part.children[i], Vector3d.zero);
+                    RecurseChildCoordsUpdate(dockingNode.otherNode.part, Vector3d.zero);
                 }
 
                 return true;
@@ -604,7 +740,7 @@ namespace KSPCommunityFixes.BugFixes
                     // but since AttachNode is serializable, the field will still be populated with an useless instance
                     // So we always acquire the AttachNode instance from the part.
                     AttachNode attachNode = dockingNode.part.FindAttachNode(dockingNode.referenceAttachNode);
-                    if (attachNode != null && attachNode.attachedPart != null)
+                    if (attachNode?.attachedPart != null && attachNode.attachedPart.HasModuleImplementing<ModuleDockingNode>())
                     {
                         Part rotatingPart;
                         // if the docking port is the child of the docking port pair, rotate itself, else rotate the child docking port
@@ -636,4 +772,6 @@ namespace KSPCommunityFixes.BugFixes
             }
         }
     }
+
+
 }

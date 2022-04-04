@@ -198,8 +198,8 @@ namespace KSPCommunityFixes.Modding
                     }
                 }
             }
-            IPersistenceLoad persistenceLoad = obj as IPersistenceLoad;
-            if (persistenceLoad != null)
+
+            if (obj is IPersistenceLoad persistenceLoad)
             {
                 iPersistentLoaders.Add(persistenceLoad);
             }
