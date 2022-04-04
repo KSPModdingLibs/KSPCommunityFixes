@@ -82,6 +82,15 @@ MIT
 
 ### Changelog
 
+##### 1.10.1
+DockingPortRotationDriftAndFixes refinements :
+- Fixed the stock implementation being unable to handle a rotating docking ports when it is the root part (was throwing exceptions and generally wasn't working correctly)
+- Fixed another stock bug : having a `rotationAxis` other than "Y" result in the docking port still rotating around the Y axis. This bug affect the 2 "inline" stock docking port parts.
+- Fixed KSPCF bug : parent port not being able to rotate after re-docking
+- Fixed KSPCF bug : things were not working as expected when using a rotating + non-rotating docking port pair
+- Fixed KSPCF bug : prevent rotation being available when about to dock or after undocking when the other docking port is "acquired" but not docked.
+- Various performance optimizations
+
 ##### 1.10.0
 - New bugfix : DockingPortRotationDriftAndFixes. This patch contain several docking port fixes, and supersede the DockingPortLocking and DockingPortDrift patches, those patches have been removed.
 - New bugfix : PackedPartsRotation. This patch is a generalization of a fix previously implemented in RoboticsDrift, and now cover all occurrences of that issue.
