@@ -67,6 +67,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.3]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
+- **TextureLoaderOptimizations** [KSP 1.10.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some system memory. Note that this patch is always enabled and has no corresponding toggle in `settings.cfg`.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
