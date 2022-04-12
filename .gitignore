@@ -346,7 +346,3 @@ KSPDevPath.xml
 
 # Binaries
 GameData/KSPCommunityFixes/Plugins/*
-
-# We are using a custom build of Krafs.Publicizer
-!**/[Pp]ackages/Krafs.Publicizer.1.0.3/
-!**/[Pp]ackages/Krafs.Publicizer.1.0.3/Krafs.Publicizer.1.0.3.nupkg
