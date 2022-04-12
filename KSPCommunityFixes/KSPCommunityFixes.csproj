@@ -74,6 +74,7 @@
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
     <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
+    <Compile Include="BugFixes\ExtendedDeployableParts.cs" />
     <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
     <Compile Include="BugFixes\PackedPartsRotation.cs" />
     <Compile Include="BugFixes\PartStartStability.cs" />

@@ -52,6 +52,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 - **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
+- **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.3]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
 
 #### Quality of Life tweaks 
 
@@ -82,6 +83,10 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 MIT
 
 ### Changelog
+
+##### 1.11.0
+- New bugfix : ExtendedDeployableParts
+- New performance tweak : TextureLoaderOptimizations
 
 ##### 1.10.1
 DockingPortRotationDriftAndFixes refinements :
