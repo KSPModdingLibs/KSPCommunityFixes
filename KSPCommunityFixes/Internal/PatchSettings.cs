@@ -38,6 +38,9 @@ namespace KSPCommunityFixes
 
             if (maneuverToolPatch != null)
                 entryCount++;
+
+            if (TextureLoaderOptimizations.IsPatchEnabled)
+                entryCount++;
         }
 
         static void GameplaySettingsScreen_DrawMiniSettings_Postfix(GameplaySettingsScreen __instance, ref DialogGUIBase[] __result)
@@ -72,6 +75,14 @@ namespace KSPCommunityFixes
                         AltimeterHorizontalPosition.altimeterPosition = f;
                         AltimeterHorizontalPosition.SetTopFramePosition();
                     }), new DialogGUIFlexibleSpace());
+                count++;
+            }
+
+            if (TextureLoaderOptimizations.IsPatchEnabled)
+            {
+                modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
+                    new DialogGUILabel(() => Localizer.Format("Texture caching optimization"), 150f),
+                    new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled, () => (TextureLoaderOptimizations.textureCacheEnabled) ? "Enabled" : "Disabled", TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f), new DialogGUIFlexibleSpace());
                 count++;
             }
 
