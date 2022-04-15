@@ -44,10 +44,9 @@ namespace KSPCommunityFixes
         
         void Awake()
         {
-            // DatabaseLoaderTexture_PNG has been modified quite a bit between 1.8, 1.9 and 1.10
-            // We only support the latest revision
+            // We rely on Texture2D.SetPixelData(), which doesn't exists before Unity 2019.4, so we only support KSP 1.12
             Version kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
-            Version minVersion = new Version(1, 10, 0);
+            Version minVersion = new Version(1, 12, 0);
 
             IsPatchEnabled = kspVersion >= minVersion;
 

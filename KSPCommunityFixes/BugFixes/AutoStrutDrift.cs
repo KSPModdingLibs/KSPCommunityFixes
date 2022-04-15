@@ -24,6 +24,9 @@ namespace KSPCommunityFixes
             if (HighLogic.LoadedScene != GameScenes.FLIGHT)
                 return;
 
+            if (__result == null || __result.joints.Count == 0)
+                return;
+
             ConfigurableJoint joint = __result.Joint;
 
             // We only correct autostruts directly connected to the main rigidbody of the part.
