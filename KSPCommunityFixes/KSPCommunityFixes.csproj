@@ -82,6 +82,7 @@
     <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
+    <Compile Include="BugFixes\StockAlarmDescPreserveLineBreak.cs" />
     <Compile Include="Modding\PersistentIConfigNode.cs" />
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
@@ -89,6 +90,7 @@
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="Performance\TextureLoaderOptimizations.cs" />
+    <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
     <Compile Include="QoL\FairingMouseOverPersistence.cs" />
     <Compile Include="QoL\TweakableWheelsAutostrut.cs" />

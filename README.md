@@ -52,6 +52,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.3]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
 - **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.3]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
+- **[StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)** [KSP 1.12.0 - 1.12.3]<br/>Stock alarm preserve line breaks (and tabs) in the description field.
 - **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.3]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
 
 #### Quality of Life tweaks 
@@ -64,6 +65,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the stock maneuver tool in the in-game settings menu (it can cause severe lag/stutter, especially with Kopernicus modified systems)
 - **FairingMouseOverPersistence** [KSP 1.8.0 - 1.12.3]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
 - **HidePartUpgradeExtendedInfo** [KSP 1.8.0 - 1.12.3]<br/>Hides irrelevant extended info on the part tooltip for PartUpgrades in the RnD screen.
+- [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.3]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
 
 #### Performance tweaks 
 
@@ -84,6 +86,10 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 MIT
 
 ### Changelog
+
+##### 1.12.0
+- New QoL patch : [AutoSavedCraftNameAtLaunch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30)
+- New KSP bugfix : [StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)
 
 ##### 1.11.2
 - TextureLoaderOptimizations : restored compatibility with KSP 1.10 and 1.11
