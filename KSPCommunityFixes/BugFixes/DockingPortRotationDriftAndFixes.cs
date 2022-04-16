@@ -78,6 +78,11 @@ namespace KSPCommunityFixes.BugFixes
                 AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.ModifyLocked)),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.IsJointUnlocked)),
+                this));
+
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }
 
@@ -580,6 +585,16 @@ namespace KSPCommunityFixes.BugFixes
 
                 __instance.vessel.CycleAllAutoStrut();
             }
+
+            return false;
+        }
+
+        static bool ModuleDockingNode_IsJointUnlocked_Prefix(ModuleDockingNode __instance, out bool __result)
+        {
+            if (IsDocked(__instance) && (__instance.canRotate || __instance.otherNode.canRotate))
+                __result = !__instance.nodeIsLocked || !__instance.otherNode.nodeIsLocked;
+            else
+                __result = false;
 
             return false;
         }
