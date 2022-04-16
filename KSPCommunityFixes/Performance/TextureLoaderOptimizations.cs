@@ -22,6 +22,7 @@ namespace KSPCommunityFixes
         public static bool IsPatchEnabled { get; private set; }
         public static bool textureCacheEnabled;
         private static string configPath;
+        private static bool isSetPixelDataSupported;
 
         private Stopwatch cacheLoadingWatch = new Stopwatch();
 
@@ -37,18 +38,15 @@ namespace KSPCommunityFixes
         private bool cacheUpdated = false;
         private int loadedTexturesCount = 0;
 
-#if DEBUG
-        private static Stopwatch swizzleStockWatch = new Stopwatch();
-        private static Stopwatch swizzleFastWatch = new Stopwatch();
-#endif
-        
         void Awake()
         {
             // We rely on Texture2D.SetPixelData(), which doesn't exists before Unity 2019.4, so we only support KSP 1.12
             Version kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
-            Version minVersion = new Version(1, 12, 0);
+            Version minVersion = new Version(1, 10, 0);
+            Version unity2019_4Version = new Version(1, 12, 0);
 
             IsPatchEnabled = kspVersion >= minVersion;
+            isSetPixelDataSupported = kspVersion >= unity2019_4Version;
 
             if (!IsPatchEnabled)
             {
@@ -185,10 +183,6 @@ namespace KSPCommunityFixes
             }
 
             Destroy(this);
-
-#if DEBUG
-            Debug.Log($"[KSPCF:TextureLoaderOptimizations] Normal swizzle : stock={swizzleStockWatch.Elapsed.TotalSeconds:F3}s, fast={swizzleFastWatch.Elapsed.TotalSeconds:F3}s");
-#endif
         }
 
         void OnDestroy()
@@ -323,8 +317,15 @@ namespace KSPCommunityFixes
             if (Path.GetFileNameWithoutExtension(file.Name).EndsWith("NRM"))
             {
                 Texture2D content = DownloadHandlerTexture.GetContent(imageWWW);
+                Texture2D normal;
+                bool normalIsCompressed;
 
-                if (BitmapToCompressedNormalMapFast(content, !textureCacheEnabled, out Texture2D normal) && textureCacheEnabled)
+                if (isSetPixelDataSupported)
+                    normalIsCompressed = BitmapToCompressedNormalMapFast(content, !textureCacheEnabled, out normal);
+                else
+                    normalIsCompressed = BitmapToCompressedNormalMapFast_Legacy(content, !textureCacheEnabled, out normal);
+
+                if (normalIsCompressed && textureCacheEnabled)
                 {
                     if (normal.graphicsFormat == GraphicsFormat.RGBA_DXT5_UNorm)
                     {
@@ -407,14 +408,11 @@ namespace KSPCommunityFixes
                 return false;
             }
 
-#if DEBUG
-            //swizzleStockWatch.Start();
-            //GameDatabase.BitmapToUnityNormalMap(tex);
-            //swizzleStockWatch.Stop();
-            swizzleFastWatch.Start();
-#endif
+            normal = new Texture2D(original.width, original.height, TextureFormat.RGBA32, true);
+            normal.wrapMode = TextureWrapMode.Repeat;
             NativeArray<byte> rawData = original.GetRawTextureData<byte>();
             int size = rawData.Length;
+
             byte[] swizzledData = new byte[size];
             byte g;
 
@@ -446,26 +444,77 @@ namespace KSPCommunityFixes
                     break;
             }
 
+            normal.SetPixelData(swizzledData, 0);
+
+                if (normal.width % 4 == 0 && normal.height % 4 == 0)
+            {
+                normal.Apply(true, false);
+                normal.Compress(false);
+                normal.Apply(true, makeNoLongerReadable);
+                Destroy(original);
+                return true;
+            }
+
+            normal.Apply(true, true);
+            Destroy(original);
+            return false;
+        }
+
+        public static bool BitmapToCompressedNormalMapFast_Legacy(Texture2D original, bool makeNoLongerReadable, out Texture2D normal)
+        {
+            if (original.format != TextureFormat.RGBA32 && original.format != TextureFormat.ARGB32)
+            {
+                normal = GameDatabase.BitmapToUnityNormalMap(original);
+                return false;
+            }
+
             normal = new Texture2D(original.width, original.height, TextureFormat.RGBA32, true);
             normal.wrapMode = TextureWrapMode.Repeat;
-            normal.SetPixelData(swizzledData, 0);
+            NativeArray<byte> rawData = original.GetRawTextureData<byte>();
+            int size = rawData.Length;
+
+            int colorSize = size / 4;
+            Color32[] swizzledData = new Color32[colorSize];
+            byte g;
+            int j = 0;
+
+            switch (original.format)
+            {
+                case TextureFormat.RGBA32:
+                    // from (r, g, b, a)
+                    // to   (g, g, g, r);
+                    for (int i = 0; i < size; i += 4)
+                    {
+                        g = rawData[i + 1];
+                        swizzledData[j] = new Color32(g, g, g, rawData[i]);
+                        j++;
+                    }
+                    break;
+                case TextureFormat.ARGB32:
+                    // from (a, r, g, b)
+                    // to   (g, g, g, r);
+                    for (int i = 0; i < size; i += 4)
+                    {
+                        g = rawData[i + 2];
+                        swizzledData[j] = new Color32(g, g, g, rawData[i + 1]);
+                        j++;
+                    }
+                    break;
+            }
+
+            normal.SetPixels32(swizzledData, 0);
+
             if (normal.width % 4 == 0 && normal.height % 4 == 0)
             {
                 normal.Apply(true, false);
                 normal.Compress(false);
                 normal.Apply(true, makeNoLongerReadable);
                 Destroy(original);
-#if DEBUG
-                swizzleFastWatch.Stop();
-#endif
                 return true;
             }
 
             normal.Apply(true, true);
             Destroy(original);
-#if DEBUG
-            swizzleFastWatch.Stop();
-#endif
             return false;
         }
 

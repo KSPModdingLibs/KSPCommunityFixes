@@ -69,7 +69,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.3]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
-- **TextureLoaderOptimizations** [KSP 1.12.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some RAM. This patch has no entry in `settings.cfg`, but is opt-in (a popup is shown on first KSP launch) and can be disabled latter in the in-game settings menu.
+- **TextureLoaderOptimizations** [KSP 1.10.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some RAM. This patch has no entry in `settings.cfg`, but is opt-in (a popup is shown on first KSP launch) and can be disabled latter in the in-game settings menu.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -84,6 +84,10 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 MIT
 
 ### Changelog
+
+##### 1.11.2
+- TextureLoaderOptimizations : restored compatibility with KSP 1.10 and 1.11
+- DockingPortRotationDriftAndFixes : fixed autostruts crossing docking ports not being disabled if only one of the port pair is rotation-unlocked.
 
 ##### 1.11.1
 - TextureLoaderOptimizations hotfix : was causing loading to hang on KSP 1.10 and 1.11 due to using an Unity method only available since KSP 1.12. Will restore compatbility latter, for now the patch is disabled for all versions below 1.12.
