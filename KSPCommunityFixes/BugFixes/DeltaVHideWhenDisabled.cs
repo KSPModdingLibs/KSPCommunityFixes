@@ -10,8 +10,6 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected static bool extendedBurntimeCache;
-
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
@@ -58,7 +56,7 @@ namespace KSPCommunityFixes
             }
         }
 
-        static void StageManager_Awake_Postfix(StageManager __instance)
+        static void StageManager_Awake_Postfix()
         {
             if (GameSettings.DELTAV_APP_ENABLED == false && GameSettings.DELTAV_CALCULATIONS_ENABLED == false)
             {
@@ -67,10 +65,12 @@ namespace KSPCommunityFixes
                 // is non-null during Awake.
                 StageManager.Instance.DisableDeltaVTotal();
                 StageManager.Instance.deltaVTotalButton.gameObject.SetActive(false);
+                // hiding instead of disabling because stock re-enable it from a bunch of places :
+                StageManager.Instance.deltaVTotalSection.preferredHeight = 0f; 
             }
         }
 
-        static bool StageGroup_ToggleInfoPanel_Prefix(ref bool showPanel, StageGroup __instance)
+        static bool StageGroup_ToggleInfoPanel_Prefix(ref bool showPanel)
         {
             // If we don't have delta V enabled, just short-circuit any attempt to toggle the info panel.
             if (showPanel && GameSettings.DELTAV_APP_ENABLED == false && GameSettings.DELTAV_CALCULATIONS_ENABLED == false)
@@ -80,34 +80,30 @@ namespace KSPCommunityFixes
             return true;
         }
 
-        static bool NavBallBurnVector_onGameSettingsApplied_Prefix(NavBallBurnVector __instance)
+        static void NavBallBurnVector_onGameSettingsApplied_Prefix(out bool __state)
         {
-            extendedBurntimeCache = GameSettings.EXTENDED_BURNTIME;
+            __state = GameSettings.EXTENDED_BURNTIME;
 
             if (GameSettings.DELTAV_APP_ENABLED == false && GameSettings.DELTAV_CALCULATIONS_ENABLED == false)
                 GameSettings.EXTENDED_BURNTIME = false;
-
-            return true;
         }
 
-        static void NavBallBurnVector_onGameSettingsApplied_Postfix(NavBallBurnVector __instance)
+        static void NavBallBurnVector_onGameSettingsApplied_Postfix(bool __state)
         {
-            GameSettings.EXTENDED_BURNTIME = extendedBurntimeCache;
+            GameSettings.EXTENDED_BURNTIME = __state;
         }
 
-        static bool NavBallBurnVector_LateUpdate_Prefix(NavBallBurnVector __instance)
+        static void NavBallBurnVector_LateUpdate_Prefix(out bool __state)
         {
-            extendedBurntimeCache = GameSettings.EXTENDED_BURNTIME;
+            __state = GameSettings.EXTENDED_BURNTIME;
 
             if (GameSettings.DELTAV_APP_ENABLED == false && GameSettings.DELTAV_CALCULATIONS_ENABLED == false)
                 GameSettings.EXTENDED_BURNTIME = false;
-
-            return true;
         }
 
-        static void NavBallBurnVector_LateUpdate_Postfix(NavBallBurnVector __instance)
+        static void NavBallBurnVector_LateUpdate_Postfix(bool __state)
         {
-            GameSettings.EXTENDED_BURNTIME = extendedBurntimeCache;
+            GameSettings.EXTENDED_BURNTIME = __state;
         }
     }
 }

@@ -54,6 +54,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.3]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **[StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)** [KSP 1.12.0 - 1.12.3]<br/>Stock alarm preserve line breaks (and tabs) in the description field.
 - **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.3]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
+- **[DeltaVHideWhenDisabled](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/31)** [KSP 1.12.0 - 1.12.3]<br/>Hide the stock stage delta-v UI elements and navball extended burn info when `DELTAV_CALCULATIONS_ENABLED` and `DELTAV_APP_ENABLED` are disabled by another mod or in the KSP `settings.cfg` file.
 
 #### Quality of Life tweaks 
 
@@ -90,6 +91,7 @@ MIT
 ##### 1.12.0
 - New QoL patch : [AutoSavedCraftNameAtLaunch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30)
 - New KSP bugfix : [StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)
+- New KSP bugfix : [DeltaVHideWhenDisabled](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/31)
 
 ##### 1.11.2
 - TextureLoaderOptimizations : restored compatibility with KSP 1.10 and 1.11
