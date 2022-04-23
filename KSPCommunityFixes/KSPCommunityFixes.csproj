@@ -196,9 +196,11 @@
     <Copy SourceFiles="@(BinariesToCopy)" DestinationFolder="$(PublishBinariesPath)" />
     <Copy SourceFiles="$(RepoRootPath)\README.md" DestinationFolder="$(PublishPluginRootPath)" />
     <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
-      <Output PropertyName="AVCFullVersion" TaskParameter="FullVersion" />
+      <Output PropertyName="AVCVersionMajor" TaskParameter="Major" />
+      <Output PropertyName="AVCVersionMinor" TaskParameter="Minor" />
+      <Output PropertyName="AVCVersionPatch" TaskParameter="Patch" />
     </GetAVCVersion>
-    <ZipDirectory SourceDirectory="$(PublishTempFolderPath)" DestinationFile="$(PublishFolder)\$(AssemblyName)_V$(AVCFullVersion).zip" Overwrite="true" />
+    <ZipDirectory SourceDirectory="$(PublishTempFolderPath)" DestinationFile="$(PublishFolder)\$(AssemblyName)_$(AVCVersionMajor).$(AVCVersionMinor).$(AVCVersionPatch).zip" Overwrite="true" />
   </Target>
   <UsingTask TaskName="GetAVCVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
     <ParameterGroup>
