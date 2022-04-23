@@ -112,6 +112,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.12.1
+- HidePartUpgradeExtendedInfo : fixed wouldn't show extended info sometimes for regular parts. 
+
 ##### 1.12.0
 - New QoL patch : [AutoSavedCraftNameAtLaunch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30)
 - New KSP bugfix : [StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)
