@@ -14,20 +14,18 @@ namespace KSPCommunityFixes
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "DisplayExtendedInfo"),
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(PartListTooltipController), "CreateTooltip"),
                 this));
         }
 
-        static bool PartListTooltip_DisplayExtendedInfo_Prefix(PartListTooltip __instance)
+        static void PartListTooltipController_CreateTooltip_Postfix(ref PartListTooltip tooltip, ref KSP.UI.Screens.EditorPartIcon partIcon, PartListTooltipController __instance)
         {
-            if (__instance.upgrade != null && __instance.HasExtendedInfo)
+            if (!partIcon.isPart)
             {
-                __instance.panelExtended.SetActive(false);
-                return false;
+                tooltip.hasExtendedInfo = false;
+                tooltip.DisplayExtendedInfo(false, __instance.GetTooltipHintText(tooltip));
             }
-
-            return true;
         }
     }
 }
