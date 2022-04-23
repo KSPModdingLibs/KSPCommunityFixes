@@ -7,6 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KSPCommunityFixes", "KSPCom
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3795CD6A-BBEE-4827-B716-DD274135EEF3}"
 	ProjectSection(SolutionItems) = preProject
+		KSPCommunityFixes\KSPCommunityFixes.csproj.user = KSPCommunityFixes\KSPCommunityFixes.csproj.user
 		GameData\KSPCommunityFixes\KSPCommunityFixes.version = GameData\KSPCommunityFixes\KSPCommunityFixes.version
 		README.md = README.md
 		GameData\KSPCommunityFixes\Settings.cfg = GameData\KSPCommunityFixes\Settings.cfg

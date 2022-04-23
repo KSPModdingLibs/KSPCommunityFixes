@@ -86,6 +86,30 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 
 MIT
 
+### Building
+
+After loading the solution in your IDE, add a `ReferencePath` pointing to the root of your KSP install :
+
+For Visual Studio, right-click on the `KSPCommunityFixes` project > `Properties` > `Reference Paths`, add the path to your KSP install and save the changes. Closing and re-opening the solution might be needed for the changes to propagate.
+
+Alternatively, you can do that manually by creating a `KSPCommunityFixes.csproj.user` file next to the `KSPCommunityFixes.csproj` file, with the following content :
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ReferencePath>Absolute\Path\To\Your\KSP\Install\Folder</ReferencePath>
+  </PropertyGroup>
+</Project>
+```
+Then close / re-open the solution.
+
+Building in the `Debug` configuration will update the `GameData` folder in your KSP install, building in the `Release` configuration will additionally create a zipped release in the `Releases` repository root folder.
+
+For incrementing the version, edit the `KSPCommunityFixes.version` KSP-AVC file, changes will be propagated to `AssemblyInfo.cs` when building in the `Release` configuration.
+
+The `Start` action of the IDE will trigger a build, update the `GameData` files in the KSP install and launch KSP.
+If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
+
 ### Changelog
 
 ##### 1.12.0
