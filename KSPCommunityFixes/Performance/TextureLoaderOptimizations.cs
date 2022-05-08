@@ -78,6 +78,11 @@ namespace KSPCommunityFixes
                     userOptInChoiceDone = false;
             }
 
+#if DEBUG
+            userOptInChoiceDone = true;
+            textureCacheEnabled = false;
+#endif
+
             if (userOptInChoiceDone)
             {
                 if (textureCacheEnabled)

@@ -55,11 +55,6 @@ namespace KSPCommunityFixes.BugFixes
                 AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
                 this));
 
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Postfix,
-            //    AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
-            //    this));
-
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }
 
@@ -215,22 +210,8 @@ namespace KSPCommunityFixes.BugFixes
             }
         }
 
-        // When packing a vessel (docking, timewarping, getting out of physics range...), KSP update the parts transform position
-        // based on Part.orgPos, but it doesn't update the transform rotation based on Part.orgRot. The rotation stays to whatever
-        // it was in physics. This probably can be qualified as a bug, but fixing that globally might have side issues, so instead
-        // of patching Part.Pack(), we only do it for child of robotic parts.
-        //private static void BaseServo_OnPartPack_Postfix(ServoInfo __state)
-        //{
-        //    if (__state != null)
-        //    {
-        //        __state.UpdatePartsRotation();
-        //    }
-        //}
-
         private abstract class ServoInfo
         {
-            private static Queue<Part> partQueue = new Queue<Part>();
-
             protected readonly BaseServo servo;
             protected readonly GameObject movingPart;
             protected readonly Vector3d mainAxis;
@@ -271,7 +252,7 @@ namespace KSPCommunityFixes.BugFixes
                     // Dont move the child if :
                     // - child is attached the servo moving part, and servo is attached to its parent by its moving part
                     // - child is attached to the servo non-moving part, and servo is attached to its parent by its non-moving part
-                    if (p.children[i].attachJoint.AsNull()?.Joint.connectedBody.gameObject == movingPart)
+                    if (p.children[i].attachJoint.AsNull()?.Joint.AsNull()?.connectedBody.gameObject == movingPart)
                     {
                         if (isInverted)
                             continue;
@@ -281,7 +262,7 @@ namespace KSPCommunityFixes.BugFixes
                         continue;
                     }
 
-                    RecurseChildCoordsUpdate(p.children[i]);
+                    UpdateServoChildCoords(p.children[i]);
                 }
             }
 
@@ -292,34 +273,19 @@ namespace KSPCommunityFixes.BugFixes
                 movingPart.transform.localRotation = localRot;
             }
 
-            //public void UpdatePartsRotation()
-            //{
-            //    Quaternion vesselRotation = servo.vessel.vesselTransform.rotation;
-
-            //    partQueue.Clear();
-            //    partQueue.Enqueue(servo.part);
-
-            //    while (partQueue.TryDequeue(out Part part))
-            //    {
-            //        int childCount = part.children.Count;
-            //        for (int i = 0; i < childCount; i++)
-            //            partQueue.Enqueue(part.children[i]);
-
-            //        part.transform.rotation = vesselRotation * part.orgRot;
-            //    }
-            //}
-
             public abstract void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot);
 
             protected abstract void UpdateOffset();
 
-            protected abstract void RecurseChildCoordsUpdate(Part part);
+            protected abstract void UpdateServoChildCoords(Part servoChild);
 
-            protected QuaternionD GetLocalToVesselSpace()
+            protected QuaternionD GetVesselToLocalSpace()
             {
+                QuaternionD movingPartLocalRot = QuaternionD.Inverse(movingPart.transform.rotation) * (QuaternionD)servo.part.transform.rotation;
+
                 // for some reason not normalizing can end up with a quaternion with near infinity components 
                 // when it should be identity, leading to infinity and NaN down the line...
-                return (QuaternionD.Inverse(servo.part.orgRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
+                return (QuaternionD.Inverse((QuaternionD)servo.part.orgRot * movingPartLocalRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
         }
 
@@ -337,7 +303,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected override void UpdateOffset()
             {
-                Quaternion localToVesselSpace = GetLocalToVesselSpace();
+                Quaternion vesselToLocal = GetVesselToLocalSpace();
 
                 // using the magnitude *feels* like what we should be doing. But this isn't what stock is doing, it only get the component
                 // on the translation axis. I can't detect a visible difference after a 8 servos setup "torture test" moving during ~10 hours,
@@ -345,7 +311,7 @@ namespace KSPCommunityFixes.BugFixes
                 Vector3d localOffset = mainAxis * ((Vector3d)movingPart.transform.localPosition).magnitude;
 
                 // get translation offset of the moving part since last update, and transform from the servo local space to the vessel space
-                posOffset = localToVesselSpace.Inverse() * (localOffset - lastLocalOffset);
+                posOffset = vesselToLocal.Inverse() * (localOffset - lastLocalOffset);
 
                 // save the moving part position
                 lastLocalOffset = localOffset;
@@ -360,14 +326,14 @@ namespace KSPCommunityFixes.BugFixes
                 }
             }
 
-            protected override void RecurseChildCoordsUpdate(Part part)
+            protected override void UpdateServoChildCoords(Part part)
             {
                 // apply the offset to the original position
                 part.orgPos += posOffset;
 
                 // propagate to childrens
                 for (int i = 0; i < part.children.Count; i++)
-                    RecurseChildCoordsUpdate(part.children[i]);
+                    UpdateServoChildCoords(part.children[i]);
             }
 
             public override void GetMovingPartPristineCoords(out Vector3d localPos, out QuaternionD localRot)
@@ -381,6 +347,9 @@ namespace KSPCommunityFixes.BugFixes
         {
             private readonly int mainAxisIndex;
             private readonly Vector3d movingPartPristineLocalPos;
+            private Vector3d movingPartOffset;
+            private bool hasMovingPartOffset;
+            private Vector3d servoPosOffset;
             private QuaternionD rotOffset;
 
             private double lastRotAngle;
@@ -400,7 +369,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected override void UpdateOffset()
             {
-                QuaternionD localToVesselSpace = GetLocalToVesselSpace();
+                QuaternionD localToVesselSpace = GetVesselToLocalSpace();
 
                 // get rotation offset of the moving part since last update
                 double rotAngle = CurrentAngle(movingPart.transform.localRotation);
@@ -411,13 +380,45 @@ namespace KSPCommunityFixes.BugFixes
                 // transform offset from the servo local space to the vessel space
                 rotOffset = QuaternionD.Inverse(localToVesselSpace) * rotOffset * localToVesselSpace;
 
-                // if servo is attached to its parent by its moving part, we need to :
-                // - invert the offset
-                // - rotate the servo part itself
+                // get the distance between the part orgin and the rotation pivot
+                // we could probably get this once and keep it, but better safe than sorry
+                movingPartOffset = servo.part.transform.InverseTransformPoint(movingPart.transform.position);
+                hasMovingPartOffset = movingPartOffset != Vector3d.zero;
+
+                // if servo part is attached to its parent by its moving part, we need to move and rotate
+                // the servo part itself :
                 if (isInverted)
                 {
+                    // translate the servo part if the rotation pivot isn't aligned with the part origin
+                    // avoid manipulating orgPos unless necessary to limit FP precision issues
+                    if (hasMovingPartOffset)
+                    {
+                        // transform in vessel space (but reversed)
+                        movingPartOffset = servo.part.orgRot * movingPartOffset;
+                        Vector3d parentToPivot = servo.part.orgPos - servo.part.parent.orgPos - movingPartOffset;
+                        Vector3d pivotToServo = rotOffset * movingPartOffset;
+                        Vector3d newOrgPos = parentToPivot + pivotToServo;
+                        // update the offset that will be applied downstream to childrens
+                        servoPosOffset = newOrgPos - servo.part.orgPos;
+                        // apply the new position
+                        servo.part.orgPos = newOrgPos;
+                    }
+                    else
+                    {
+                        servoPosOffset = Vector3d.zero;
+                    }
+
+                    // invert the offset
                     rotOffset = QuaternionD.Inverse(rotOffset);
+
+                    // rotate the servo part itself
                     servo.part.orgRot = rotOffset * (QuaternionD)servo.part.orgRot;
+                }
+                else
+                {
+                    // transform in vessel space
+                    movingPartOffset = servo.part.orgRot.Inverse() * movingPartOffset;
+                    servoPosOffset = Vector3d.zero;
                 }
             }
 
@@ -437,9 +438,42 @@ namespace KSPCommunityFixes.BugFixes
                 localRot = QuaternionD.AngleAxis(rotAngle, mainAxis);
             }
 
-            protected override void RecurseChildCoordsUpdate(Part part)
+            protected override void UpdateServoChildCoords(Part part)
             {
-                RecurseChildCoordsUpdate(part, Vector3d.zero);
+                if (isInverted)
+                {
+                    // if servo part is attached to its parent by its moving part, we can move the
+                    // childs directly using the eventual position offset of the servo part.
+                    RecurseChildCoordsUpdate(part, servoPosOffset);
+                }
+                else if (hasMovingPartOffset)
+                {
+                    // otherwise, we need to correct the position of the servo direct childs while
+                    // taking into account the eventual offset between the servo moving part and its
+                    // the origin
+
+                    // get position offset between this part and the servo part
+                    Vector3d orgPosOffset = part.orgPos - part.parent.orgPos;
+                    // substract the "non-rotating" length of the servo part, then rotate the result
+                    Vector3d rotatingPosOffset = rotOffset * (orgPosOffset - movingPartOffset);
+                    // get the resulting position of the child
+                    Vector3d newOrgPos = part.parent.orgPos + movingPartOffset + rotatingPosOffset;
+                    // update the total offset that will be applied downstream to childrens
+                    Vector3d posOffset = newOrgPos - part.orgPos;
+                    // apply the new position
+                    part.orgPos = newOrgPos;
+
+                    // apply the rotation
+                    part.orgRot = rotOffset * (QuaternionD)part.orgRot;
+
+                    // propagate to childrens
+                    for (int i = 0; i < part.children.Count; i++)
+                        RecurseChildCoordsUpdate(part.children[i], posOffset);
+                }
+                else
+                {
+                    RecurseChildCoordsUpdate(part, Vector3d.zero);
+                }
             }
 
             private void RecurseChildCoordsUpdate(Part part, Vector3d posOffset)
