@@ -49,7 +49,7 @@ namespace KSPCommunityFixes.QoL
                     {
                         // Success! Splice around the date.
                         __instance.contractText.text = __instance.contractText.text.Substring(0, insertionIdx + 2)
-                            + KSPRichTextUtil.TextDate(Localizer.Format("#autoLOC_266539"), contract.DateFinished)
+                            + KSPRichTextUtil.TextDate(Localizer.Format("#autoLOC_266539"), contract.DateAccepted)
                             + KSPRichTextUtil.TextDate(Localizer.Format(stateStr), contract.DateFinished)
                             + __instance.contractText.text.Substring(insertionIdx + 2);
                     }
