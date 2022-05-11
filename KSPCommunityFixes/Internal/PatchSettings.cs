@@ -3,6 +3,7 @@ using KSP.Localization;
 using KSPCommunityFixes.QoL;
 using System;
 using System.Collections.Generic;
+using KSPCommunityFixes.Performance;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -31,16 +32,18 @@ namespace KSPCommunityFixes
                 this));
 
             altimeterPatch = KSPCommunityFixes.GetPatchInstance<AltimeterHorizontalPosition>();
-            maneuverToolPatch = KSPCommunityFixes.GetPatchInstance<DisableManeuverTool>();
-
             if (altimeterPatch != null)
                 entryCount++;
 
+            maneuverToolPatch = KSPCommunityFixes.GetPatchInstance<DisableManeuverTool>();
             if (maneuverToolPatch != null)
                 entryCount++;
 
             if (TextureLoaderOptimizations.IsPatchEnabled)
                 entryCount++;
+
+            // NoIVA is always enabled
+            entryCount++;
         }
 
         static void GameplaySettingsScreen_DrawMiniSettings_Postfix(GameplaySettingsScreen __instance, ref DialogGUIBase[] __result)
@@ -60,31 +63,57 @@ namespace KSPCommunityFixes
 
             if (maneuverToolPatch != null)
             {
+                DialogGUIToggle toggle = new DialogGUIToggle(DisableManeuverTool.enableManeuverTool,
+                    () => (!DisableManeuverTool.enableManeuverTool) ? Localizer.Format("#autoLOC_6001071") : Localizer.Format("#autoLOC_6001072"), DisableManeuverTool.OnToggleApp, 150f);
+                toggle.tooltipText = "The stock maneuver tool can cause severe lag and stutter issues," +
+                                     "\nespecially with Kopernicus modified systems." +
+                                     "\nThis option allow to disable it entirely";
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f),
-                    new DialogGUIToggle(DisableManeuverTool.enableManeuverTool, () => (!DisableManeuverTool.enableManeuverTool) ? Localizer.Format("#autoLOC_6001071") : Localizer.Format("#autoLOC_6001072"), DisableManeuverTool.OnToggleApp, 150f), new DialogGUIFlexibleSpace());
+                    toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
 
             if (altimeterPatch != null)
             {
+                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate(float f)
+                {
+                    AltimeterHorizontalPosition.altimeterPosition = f;
+                    AltimeterHorizontalPosition.SetTopFramePosition();
+                });
+                slider.tooltipText = "Set the horizontal position of the flight scene altimeter widget";
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => Localizer.Format("Altimeter pos (Left<->Right)"), 150f),
-                    new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate (float f)
-                    {
-                        AltimeterHorizontalPosition.altimeterPosition = f;
-                        AltimeterHorizontalPosition.SetTopFramePosition();
-                    }), new DialogGUIFlexibleSpace());
+                    slider, new DialogGUIFlexibleSpace());
                 count++;
             }
 
             if (TextureLoaderOptimizations.IsPatchEnabled)
             {
+                DialogGUIToggle toggle = new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled,
+                    () => (TextureLoaderOptimizations.textureCacheEnabled) ? "Enabled" : "Disabled", TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f);
+                toggle.tooltipText = "Cache PNG textures on disk instead of converting them on every KSP launch." +
+                                     "\nSpeedup loading time but increase disk space usage." +
+                                     "\n<i>Changes will take effect after relaunching KSP</i>";
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => Localizer.Format("Texture caching optimization"), 150f),
-                    new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled, () => (TextureLoaderOptimizations.textureCacheEnabled) ? "Enabled" : "Disabled", TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f), new DialogGUIFlexibleSpace());
+                    toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
+
+            DialogGUISlider noIVAslider = new DialogGUISlider(NoIVA.PatchStateToFloat, 0f, 2f, true, 100f, 20f, NoIVA.SwitchPatchState);
+            noIVAslider.tooltipText = "Disable IVA functionality: speed-up loading, reduce RAM/VRAM usage and increase FPS." +
+                                      "\n-Disable all : disable IVA" +
+                                      "\n-Use placeholder : disable IVA but keep crew portraits" +
+                                      "\n<i>Changes will take effect after relaunching KSP</i>";
+            DialogGUILabel valueLabel = new DialogGUILabel(NoIVA.PatchStateTitle);
+
+            modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
+                new DialogGUILabel("IVA (interior view)", 150f), noIVAslider, valueLabel, new DialogGUIFlexibleSpace());
+            count++;
 
             __result = modifiedResult;
         }
@@ -105,6 +134,7 @@ namespace KSPCommunityFixes
                 SaveData<AltimeterHorizontalPosition>(node);
             }
 
+            NoIVA.SaveSettings();
         }
     }
 }

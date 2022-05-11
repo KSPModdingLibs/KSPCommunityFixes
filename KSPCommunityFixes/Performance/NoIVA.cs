@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using HarmonyLib;
+using KSP.UI.Screens.Flight;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -10,12 +12,82 @@ namespace KSPCommunityFixes.Performance
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class NoIVA : MonoBehaviour
     {
+        public enum PatchState {disabled, noIVA, usePlaceholder}
+
         private static char[] textureSplitChars = new char[3] {':', ',', ';'};
+
+        public static PatchState patchState;
 
         private Stopwatch watch = new Stopwatch();
 
+        public static void SwitchPatchState(float f)
+        {
+            switch (Mathf.Round(Mathf.Clamp(f, 0f, 2f)))
+            {
+                case 0f: patchState = PatchState.disabled; break;
+                case 1f: patchState = PatchState.noIVA; break;
+                case 2f: patchState = PatchState.usePlaceholder; break;
+            }
+        }
+
+        public static float PatchStateToFloat()
+        {
+            switch (patchState)
+            {
+                case PatchState.disabled: return 0f;
+                case PatchState.noIVA: return 1f;
+                case PatchState.usePlaceholder: return 2f;
+                default: return 0f;
+            }
+        }
+
+        public static string PatchStateTitle()
+        {
+            switch (patchState)
+            {
+                case PatchState.disabled: return "Keep all";
+                case PatchState.noIVA: return "Disable all";
+                case PatchState.usePlaceholder: return "Use placeholder";
+                default: return string.Empty;
+            }
+        }
+
+        public static void SaveSettings()
+        {
+            string pluginDataPath = Path.Combine(KSPCommunityFixes.ModPath, BasePatch.pluginData);
+
+            if (!Directory.Exists(pluginDataPath))
+                Directory.CreateDirectory(pluginDataPath);
+
+            ConfigNode patchNode = new ConfigNode(nameof(NoIVA));
+            patchNode.AddValue(nameof(patchState), patchState.ToString());
+            ConfigNode topNode = new ConfigNode();
+            topNode.AddNode(patchNode);
+            topNode.Save(Path.Combine(pluginDataPath, nameof(NoIVA) + ".cfg"));
+        }
+
         private void Start()
         {
+            patchState = PatchState.disabled;
+#if DEBUG
+            patchState = PatchState.usePlaceholder;
+#endif
+            string path = Path.Combine(KSPCommunityFixes.ModPath, BasePatch.pluginData, nameof(NoIVA) + ".cfg");
+
+            if (File.Exists(path))
+            {
+                ConfigNode node = ConfigNode.Load(path);
+                if (node?.nodes[0] != null)
+                    if (!node.nodes[0].TryGetEnum(nameof(patchState), ref patchState, PatchState.disabled))
+                        patchState = PatchState.disabled;
+            }
+
+            if (patchState == PatchState.disabled)
+            {
+                Destroy(this);
+                return;
+            }
+
             watch.Start();
             HashSet<string> modelUrls = new HashSet<string>(200);
             HashSet<UrlDir.UrlFile> modelFiles = new HashSet<UrlDir.UrlFile>(200);
@@ -25,9 +97,12 @@ namespace KSPCommunityFixes.Performance
             {
                 if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
                 {
-                    string name = urlConfig.config.GetValue("name");
-                    if (name == "Placeholder")
-                        continue;
+                    if (patchState == PatchState.usePlaceholder)
+                    {
+                        string name = urlConfig.config.GetValue("name");
+                        if (name == "Placeholder")
+                            continue;
+                    }
 
                     bool hasModelNode = false;
                     foreach (ConfigNode modelNode in urlConfig.config.GetNodes("MODEL"))
@@ -90,32 +165,114 @@ namespace KSPCommunityFixes.Performance
             }
 
             watch.Stop();
-            Debug.Log($"[NOIVA] Assets stripped in {watch.ElapsedMilliseconds/1000.0}s");
+            Debug.Log($"[KSPCF:NoIVA] IVA assets stripped in {watch.ElapsedMilliseconds / 1000.0}s");
         }
 
         public void ModuleManagerPostLoad()
         {
-            watch.Restart();
-            foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
+            if (patchState == PatchState.usePlaceholder)
             {
-                if (urlConfig.type == "PART")
+                UrlDir.UrlConfig placeholderBase = null;
+                foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
                 {
-                    ConfigNode internalNode = urlConfig.config.GetNode("INTERNAL");
-                    if (internalNode != null)
-                        internalNode.SetValue("name", "Placeholder", true);
-                }
-                else if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
-                {
-                    string name = urlConfig.config.GetValue("name");
-                    if (name == "Placeholder")
-                        continue;
+                    if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
+                    {
+                        string name = urlConfig.config.GetValue("name");
+                        if (name == "Placeholder")
+                        {
+                            placeholderBase = urlConfig;
+                            continue;
+                        }
 
-                    urlConfig._type = "DISABLED_IVA";
+                        urlConfig._type = "DISABLED_IVA";
+                    }
+                }
+
+                UrlDir placeholderDir = placeholderBase.parent.parent;
+                FileInfo fileInfo = new FileInfo(placeholderBase.parent.fullPath);
+                UrlDir.UrlFile[] placeholders = new UrlDir.UrlFile[16];
+                for (int i = 1; i <= 16; i++)
+                {
+                    UrlDir.UrlFile p = new UrlDir.UrlFile(placeholderDir, fileInfo);
+                    if (i != 16)
+                        p.configs[0].config._nodes.nodes.RemoveRange(i, 16 - i);
+
+                    p.configs[0].config.SetValue("name", "PlaceholderS" + i, true);
+                    placeholders[i - 1] = p;
+                    placeholderDir._files.Add(p);
+                }
+
+                foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
+                {
+                    if (urlConfig.type == "PART")
+                    {
+                        ConfigNode internalNode = urlConfig.config.GetNode("INTERNAL");
+                        if (internalNode != null)
+                        {
+                            float crewCapacity = 0;
+                            if (!urlConfig.config.TryGetValue("CrewCapacity", ref crewCapacity) || crewCapacity < 1 || crewCapacity > 16)
+                            {
+                                internalNode.SetValue("name", "Placeholder", true);
+                                continue;
+                            }
+
+                            internalNode.SetValue("name", "PlaceholderS" + crewCapacity, true);
+                        }
+                    }
+                }
+
+                KSPCommunityFixes.Harmony.Patch(
+                    AccessTools.Method(typeof(KerbalPortrait), nameof(KerbalPortrait.Setup), new Type[] { typeof(Kerbal), typeof(KerbalEVA), typeof(RectTransform) }),
+                    null, new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(KerbalPortrait_Setup_Postfix))));
+
+                KSPCommunityFixes.Harmony.Patch(
+                    AccessTools.Method(typeof(KerbalPortraitGallery), nameof(KerbalPortraitGallery.UIControlsUpdate)),
+                    null, new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(KerbalPortraitGallery_UIControlsUpdate_Postfix))));
+            }
+            else if (patchState == PatchState.noIVA)
+            {
+                foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
+                {
+                    if (urlConfig.type == "PART")
+                    {
+                        urlConfig.config.RemoveNodes("INTERNAL");
+                    }
+                    else if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
+                    {
+                        urlConfig._type = "DISABLED_IVA";
+                    }
                 }
             }
-            watch.Stop();
-            Debug.Log($"[NOIVA] Parts patched in {watch.ElapsedMilliseconds / 1000.0}s");
+
+            if (patchState != PatchState.disabled)
+            {
+                KSPCommunityFixes.Harmony.Patch(
+                    AccessTools.Method(typeof(CameraManager), nameof(CameraManager.SetCameraIVA), new Type[] {typeof(Kerbal), typeof(bool)}),
+                    new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(CameraManager_SetCameraIVA_Prefix))));
+            }
+
             Destroy(this);
+        }
+
+        static bool CameraManager_SetCameraIVA_Prefix(out bool __result)
+        {
+            __result = false;
+            return false;
+        }
+
+        static void KerbalPortrait_Setup_Postfix(KerbalPortrait __instance)
+        {
+            if (__instance.eventSetupDone)
+            {
+                __instance.ivaButton.gameObject.SetActive(false);
+                __instance.evaButton.transform.localPosition = __instance.ivaButton.transform.localPosition;
+                __instance.ivaTooltip.continuousUpdate = false;
+            }
+        }
+
+        static void KerbalPortraitGallery_UIControlsUpdate_Postfix(KerbalPortraitGallery __instance)
+        {
+            __instance.IVAOverlayButton.gameObject.SetActive(false);
         }
     }
 
@@ -123,34 +280,37 @@ namespace KSPCommunityFixes.Performance
     {
         private static int currentMuFileVersion;
 
-        public static List<string> GetModelTextures(string modelFilePath)
+        public static IEnumerable<string> GetModelTextures(string modelFilePath)
         {
             BinaryReader binaryReader = new BinaryReader(File.Open(modelFilePath, FileMode.Open));
             if (binaryReader == null)
             {
                 Debug.LogError("File error");
-                return null;
+                yield break;
             }
 
             if (binaryReader.ReadInt32() != 76543)
             {
                 Debug.LogError($"File '{modelFilePath}' is an incorrect type.");
                 binaryReader.Close();
-                return null;
+                yield break;
             }
 
-            currentMuFileVersion = binaryReader.ReadInt32();
-            binaryReader.SkipString();
+            try
+            {
+                currentMuFileVersion = binaryReader.ReadInt32();
+                binaryReader.SkipString();
 
-            List<string> textures = new List<string>();
-
-            GetModelTexturesRecursive(binaryReader, textures);
-            binaryReader.Close();
-
-            return textures;
+                foreach (string texture in GetModelTexturesRecursive(binaryReader))
+                    yield return texture;
+            }
+            finally
+            {
+                binaryReader.Close();
+            }
         }
 
-        private static void GetModelTexturesRecursive(BinaryReader br, List<string> textures)
+        private static IEnumerable<string> GetModelTexturesRecursive(BinaryReader br)
         {
             br.SkipString();
             br.SkipSingle(10);
@@ -161,7 +321,8 @@ namespace KSPCommunityFixes.Performance
                 switch (switchInt)
                 {
                     case 0:
-                        GetModelTexturesRecursive(br, textures);
+                        foreach (string texture in GetModelTexturesRecursive(br))
+                            yield return texture;
                         break;
                     case 2: // ReadAnimation
                         int count = br.ReadInt32();
@@ -241,7 +402,7 @@ namespace KSPCommunityFixes.Performance
                             //TextureType textureType = (TextureType)br.ReadInt32();
                             //string url = file.parent.url + "/" + fileNameWithoutExtension;
                             //Texture2D texture = GameDatabase.Instance.GetTexture(url, textureType == TextureType.NormalMap);
-                            textures.Add(br.ReadString());
+                            yield return br.ReadString();
                             br.SkipInt32();
                         }
                         break;
@@ -298,7 +459,7 @@ namespace KSPCommunityFixes.Performance
                         br.SkipSingleOrInt32(3 + 5);
                         break;
                     case 1:
-                        return;
+                        yield break;
                 }
             }
         }
@@ -343,7 +504,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        public enum ShaderType
+        private enum ShaderType
         {
             Custom,
             Diffuse,
@@ -510,34 +671,30 @@ namespace KSPCommunityFixes.Performance
             br.SkipBytes(size);
         }
 
+        // note : incrementing Position is faster than using BaseStream.Seek()
         public static void SkipBytes(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count;
-            //br.BaseStream.Seek(count, SeekOrigin.Current);
         }
 
         public static void SkipInt32(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
-            //br.BaseStream.Seek(count * 4, SeekOrigin.Current);
         }
 
         public static void SkipSingle(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
-            //br.BaseStream.Seek(count * 4, SeekOrigin.Current);
         }
 
         public static void SkipSingleOrInt32(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
-            //br.BaseStream.Seek(count * 4, SeekOrigin.Current);
         }
 
         public static void SkipBoolean(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count;
-            //br.BaseStream.Seek(count, SeekOrigin.Current);
         }
     }
 

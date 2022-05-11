@@ -26,7 +26,7 @@ namespace KSPCommunityFixes
 
     public abstract class BasePatch
     {
-        private static readonly string pluginData = "PluginData";
+        public static readonly string pluginData = "PluginData";
         private static readonly Version versionMinDefault = new Version(1, 12, 0);
         private static readonly Version versionMaxDefault = new Version(1, 12, 99);
 
