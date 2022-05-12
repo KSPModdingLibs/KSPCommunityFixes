@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
+using KSP.Localization;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -10,14 +11,27 @@ namespace KSPCommunityFixes
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class KSPCommunityFixes : MonoBehaviour
     {
+        public static string LOC_KSPCF_Title = "KSP Community Fixes";
+
         public static Version KspVersion { get; private set; }
         public static Harmony Harmony { get; private set; }
-        public static string ModPath { get; private set; }
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
         public static Dictionary<Type, BasePatch> patchInstances = new Dictionary<Type, BasePatch>();
 
         public static KSPCommunityFixes Instance { get; private set; }
+
+        private static string modPath;
+        public static string ModPath
+        {
+            get
+            {
+                if (modPath == null)
+                    modPath = Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+
+                return modPath;
+            }
+        }
 
         public static T GetPatchInstance<T>() where T : BasePatch
         {
@@ -25,7 +39,6 @@ namespace KSPCommunityFixes
                 return null;
 
             return (T)instance;
-
         }
 
         void Start()
@@ -44,7 +57,8 @@ namespace KSPCommunityFixes
 
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
-            ModPath = Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+
+            LocalizationUtils.ParseLocalization();
 #if DEBUG
             Harmony.DEBUG = true;
 #endif

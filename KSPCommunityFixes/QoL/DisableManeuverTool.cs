@@ -8,6 +8,10 @@ namespace KSPCommunityFixes.QoL
 {
     class DisableManeuverTool : BasePatch
     {
+        public static string LOC_SettingsTooltip = 
+            "The stock maneuver tool can cause severe lag and stutter issues," +
+            "\nespecially with Kopernicus modified systems." +
+            "\nThis option allow to disable it entirely";
 
         protected override Version VersionMin => new Version(1, 12, 0);
 

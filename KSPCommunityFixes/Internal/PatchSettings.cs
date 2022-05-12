@@ -58,19 +58,20 @@ namespace KSPCommunityFixes
             for (int i = 0; i < count; i++)
                 modifiedResult[i] = __result[i];
 
-            modifiedResult[count] = new DialogGUIBox("KSP Community Fixes", -1f, 18f, null);
+            modifiedResult[count] = new DialogGUIBox(KSPCommunityFixes.LOC_KSPCF_Title, -1f, 18f, null);
             count++;
 
             if (maneuverToolPatch != null)
             {
                 DialogGUIToggle toggle = new DialogGUIToggle(DisableManeuverTool.enableManeuverTool,
-                    () => (!DisableManeuverTool.enableManeuverTool) ? Localizer.Format("#autoLOC_6001071") : Localizer.Format("#autoLOC_6001072"), DisableManeuverTool.OnToggleApp, 150f);
-                toggle.tooltipText = "The stock maneuver tool can cause severe lag and stutter issues," +
-                                     "\nespecially with Kopernicus modified systems." +
-                                     "\nThis option allow to disable it entirely";
+                    () => (!DisableManeuverTool.enableManeuverTool) 
+                        ? Localizer.Format("#autoLOC_6001071") //"Disabled"
+                        : Localizer.Format("#autoLOC_6001072"), //"Enabled"
+                    DisableManeuverTool.OnToggleApp, 150f);
+                toggle.tooltipText = DisableManeuverTool.LOC_SettingsTooltip;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f),
+                    new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f), //"Maneuver Tool"
                     toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
@@ -82,10 +83,10 @@ namespace KSPCommunityFixes
                     AltimeterHorizontalPosition.altimeterPosition = f;
                     AltimeterHorizontalPosition.SetTopFramePosition();
                 });
-                slider.tooltipText = "Set the horizontal position of the flight scene altimeter widget";
+                slider.tooltipText = AltimeterHorizontalPosition.LOC_SettingsTooltip;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("Altimeter pos (Left<->Right)"), 150f),
+                    new DialogGUILabel(AltimeterHorizontalPosition.LOC_SettingsTitle, 150f),
                     slider, new DialogGUIFlexibleSpace());
                 count++;
             }
@@ -93,26 +94,24 @@ namespace KSPCommunityFixes
             if (TextureLoaderOptimizations.IsPatchEnabled)
             {
                 DialogGUIToggle toggle = new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled,
-                    () => (TextureLoaderOptimizations.textureCacheEnabled) ? "Enabled" : "Disabled", TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f);
-                toggle.tooltipText = "Cache PNG textures on disk instead of converting them on every KSP launch." +
-                                     "\nSpeedup loading time but increase disk space usage." +
-                                     "\n<i>Changes will take effect after relaunching KSP</i>";
+                    () => (TextureLoaderOptimizations.textureCacheEnabled) 
+                        ? Localizer.Format("#autoLOC_900889") //"Enabled"
+                        : Localizer.Format("#autoLOC_900890"), //"Disabled"
+                    TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f);
+                toggle.tooltipText = TextureLoaderOptimizations.LOC_SettingsTooltip;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("Texture caching optimization"), 150f),
+                    new DialogGUILabel(() => TextureLoaderOptimizations.LOC_SettingsTitle, 150f),
                     toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
 
             DialogGUISlider noIVAslider = new DialogGUISlider(NoIVA.PatchStateToFloat, 0f, 2f, true, 100f, 20f, NoIVA.SwitchPatchState);
-            noIVAslider.tooltipText = "Disable IVA functionality: speed-up loading, reduce RAM/VRAM usage and increase FPS." +
-                                      "\n-Disable all : disable IVA" +
-                                      "\n-Use placeholder : disable IVA but keep crew portraits" +
-                                      "\n<i>Changes will take effect after relaunching KSP</i>";
+            noIVAslider.tooltipText = NoIVA.LOC_SettingsTooltip;
             DialogGUILabel valueLabel = new DialogGUILabel(NoIVA.PatchStateTitle);
 
             modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                new DialogGUILabel("IVA (interior view)", 150f), noIVAslider, valueLabel, new DialogGUIFlexibleSpace());
+                new DialogGUILabel(NoIVA.LOC_SettingsTitle, 150f), noIVAslider, valueLabel, new DialogGUIFlexibleSpace());
             count++;
 
             __result = modifiedResult;

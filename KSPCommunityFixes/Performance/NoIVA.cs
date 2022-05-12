@@ -12,11 +12,22 @@ namespace KSPCommunityFixes.Performance
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class NoIVA : MonoBehaviour
     {
+        public static string LOC_KeepAll = "Keep all";
+        public static string LOC_DisableAll = "Disable all";
+        public static string LOC_UsePlaceholder = "Use placeholder";
+        public static string LOC_SettingsTitle = "IVA (interior view)";
+        public static string LOC_SettingsTooltip =
+            "Disable IVA functionality: speed-up loading, reduce RAM/VRAM usage and increase FPS." +
+            "\n\t-Disable all : disable IVA" +
+            "\n\t-Use placeholder : disable IVA but keep crew portraits" +
+            "\n<i>Changes will take effect after relaunching KSP</i>";
+
         public enum PatchState {disabled, noIVA, usePlaceholder}
 
         private static char[] textureSplitChars = new char[3] {':', ',', ';'};
 
-        public static PatchState patchState;
+        public static PatchState patchState = PatchState.disabled;
+        private static bool debugPrunning = false;
 
         private Stopwatch watch = new Stopwatch();
 
@@ -45,9 +56,9 @@ namespace KSPCommunityFixes.Performance
         {
             switch (patchState)
             {
-                case PatchState.disabled: return "Keep all";
-                case PatchState.noIVA: return "Disable all";
-                case PatchState.usePlaceholder: return "Use placeholder";
+                case PatchState.disabled: return LOC_KeepAll;
+                case PatchState.noIVA: return LOC_DisableAll;
+                case PatchState.usePlaceholder: return LOC_UsePlaceholder;
                 default: return string.Empty;
             }
         }
@@ -71,6 +82,7 @@ namespace KSPCommunityFixes.Performance
             patchState = PatchState.disabled;
 #if DEBUG
             patchState = PatchState.usePlaceholder;
+            debugPrunning = true;
 #endif
             string path = Path.Combine(KSPCommunityFixes.ModPath, BasePatch.pluginData, nameof(NoIVA) + ".cfg");
 
@@ -78,8 +90,10 @@ namespace KSPCommunityFixes.Performance
             {
                 ConfigNode node = ConfigNode.Load(path);
                 if (node?.nodes[0] != null)
-                    if (!node.nodes[0].TryGetEnum(nameof(patchState), ref patchState, PatchState.disabled))
-                        patchState = PatchState.disabled;
+                {
+                    node.nodes[0].TryGetEnum(nameof(patchState), ref patchState, PatchState.disabled);
+                    node.nodes[0].TryGetValue(nameof(debugPrunning), ref debugPrunning);
+                }
             }
 
             if (patchState == PatchState.disabled)
@@ -92,7 +106,9 @@ namespace KSPCommunityFixes.Performance
             HashSet<string> modelUrls = new HashSet<string>(200);
             HashSet<UrlDir.UrlFile> modelFiles = new HashSet<UrlDir.UrlFile>(200);
             HashSet<string> textureUrls = new HashSet<string>(500);
-            
+            int prunedModelsCount = 0;
+            int prunedTexturesCount = 0;
+
             foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
             {
                 if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
@@ -131,6 +147,10 @@ namespace KSPCommunityFixes.Performance
                                 modelFiles.Add(urlFile);
                                 urlFile._fileExtension = "disabled";
                                 urlFile._fileType = UrlDir.FileType.Unknown;
+                                prunedModelsCount++;
+
+                                if (debugPrunning)
+                                    Debug.Log($"[KSPCF:NoIVA] Pruning model {urlFile.url}");
                             }
                         }
                     }
@@ -144,6 +164,10 @@ namespace KSPCommunityFixes.Performance
                     modelFiles.Add(urlFile);
                     urlFile._fileExtension = "disabled";
                     urlFile._fileType = UrlDir.FileType.Unknown;
+                    prunedModelsCount++;
+
+                    if (debugPrunning)
+                        Debug.Log($"[KSPCF:NoIVA] Pruning model {urlFile.url}");
                 }
             }
 
@@ -161,11 +185,15 @@ namespace KSPCommunityFixes.Performance
                 {
                     urlFile._fileExtension = "disabled";
                     urlFile._fileType = UrlDir.FileType.Unknown;
+                    prunedTexturesCount++;
+
+                    if (debugPrunning)
+                        Debug.Log($"[KSPCF:NoIVA] Pruning texture {urlFile.url}");
                 }
             }
 
             watch.Stop();
-            Debug.Log($"[KSPCF:NoIVA] IVA assets stripped in {watch.ElapsedMilliseconds / 1000.0}s");
+            Debug.Log($"[KSPCF:NoIVA] {prunedModelsCount} IVA models and {prunedTexturesCount} IVA textures pruned in {watch.ElapsedMilliseconds / 1000.0}s");
         }
 
         public void ModuleManagerPostLoad()
@@ -188,15 +216,16 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
 
+                // Create additional placeholder INTERNAL definitions for every seat count from 1 to 15.
+                // This is mainly to stop KSP complaining about IVA seat count not matching part crew capacity,
+                // I don't think this actually causes any issue.
                 UrlDir placeholderDir = placeholderBase.parent.parent;
                 FileInfo fileInfo = new FileInfo(placeholderBase.parent.fullPath);
-                UrlDir.UrlFile[] placeholders = new UrlDir.UrlFile[16];
-                for (int i = 1; i <= 16; i++)
+                UrlDir.UrlFile[] placeholders = new UrlDir.UrlFile[15];
+                for (int i = 1; i <= 15; i++)
                 {
                     UrlDir.UrlFile p = new UrlDir.UrlFile(placeholderDir, fileInfo);
-                    if (i != 16)
-                        p.configs[0].config._nodes.nodes.RemoveRange(i, 16 - i);
-
+                    p.configs[0].config._nodes.nodes.RemoveRange(i, 16 - i);
                     p.configs[0].config.SetValue("name", "PlaceholderS" + i, true);
                     placeholders[i - 1] = p;
                     placeholderDir._files.Add(p);
@@ -210,7 +239,7 @@ namespace KSPCommunityFixes.Performance
                         if (internalNode != null)
                         {
                             float crewCapacity = 0;
-                            if (!urlConfig.config.TryGetValue("CrewCapacity", ref crewCapacity) || crewCapacity < 1 || crewCapacity > 16)
+                            if (!urlConfig.config.TryGetValue("CrewCapacity", ref crewCapacity) || crewCapacity < 1 || crewCapacity > 15)
                             {
                                 internalNode.SetValue("name", "Placeholder", true);
                                 continue;
@@ -221,10 +250,12 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
 
+                // Disable the IVA button on the crew portrait
                 KSPCommunityFixes.Harmony.Patch(
                     AccessTools.Method(typeof(KerbalPortrait), nameof(KerbalPortrait.Setup), new Type[] { typeof(Kerbal), typeof(KerbalEVA), typeof(RectTransform) }),
                     null, new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(KerbalPortrait_Setup_Postfix))));
 
+                // Disable the IVA overlay toggle next to the crew portrait gallery
                 KSPCommunityFixes.Harmony.Patch(
                     AccessTools.Method(typeof(KerbalPortraitGallery), nameof(KerbalPortraitGallery.UIControlsUpdate)),
                     null, new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(KerbalPortraitGallery_UIControlsUpdate_Postfix))));
@@ -246,6 +277,7 @@ namespace KSPCommunityFixes.Performance
 
             if (patchState != PatchState.disabled)
             {
+                // prevent going to IVA mode at all.
                 KSPCommunityFixes.Harmony.Patch(
                     AccessTools.Method(typeof(CameraManager), nameof(CameraManager.SetCameraIVA), new Type[] {typeof(Kerbal), typeof(bool)}),
                     new HarmonyMethod(AccessTools.Method(typeof(NoIVA), nameof(CameraManager_SetCameraIVA_Prefix))));
