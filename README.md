@@ -81,6 +81,7 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
   - The callback will only be called when the field value has actually been modified.
   - The "object" argument will contain the previous field value (instead of the new value).
 - **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods.
+- **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch `Assembly.GetTypes()` to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such an event won't cause issues with other plugins. Those exceptions are still logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install.
 
 ### License
 

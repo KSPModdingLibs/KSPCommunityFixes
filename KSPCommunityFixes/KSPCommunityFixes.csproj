@@ -82,6 +82,7 @@
     <Publicize Include="Assembly-CSharp" />
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
+    <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
@@ -100,6 +101,7 @@
     <Compile Include="Modding\PersistentIConfigNode.cs" />
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
+    <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />
