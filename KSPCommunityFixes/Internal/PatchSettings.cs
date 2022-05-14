@@ -3,7 +3,6 @@ using KSP.Localization;
 using KSPCommunityFixes.QoL;
 using System;
 using System.Collections.Generic;
-using KSPCommunityFixes.Performance;
 using UnityEngine;
 
 namespace KSPCommunityFixes

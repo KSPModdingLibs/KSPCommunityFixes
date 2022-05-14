@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using KSP.Localization;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -13,6 +14,11 @@ namespace KSPCommunityFixes.Modding
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     class ReflectionTypeLoadExceptionHandler : MonoBehaviour
     {
+        private static string LOC_KSPCFWarning = "KSPCommunityFixes warning";
+        private static string LOC_PluginsLoadFailed = "The following plugin(s) failed to load :";
+        private static string LOC_F_PluginLoadFailed_name_in_location = "<<1>> in <<2>>";
+        private static string LOC_PluginLoadFailed_missingDep = "Load failed due to missing dependencies";
+
         private class FailedAssembly
         {
             public string errorMessage;
@@ -51,12 +57,12 @@ namespace KSPCommunityFixes.Modding
                 errorMessage = $"[KSPCF] A ReflectionTypeLoadException thrown by Assembly.GetTypes() has been handled by KSP Community Fixes." +
                                $"\nThis is usually harmless, but indicates that the \"{assemblyName}\" plugin failed to load (location: \"{assemblyLocation}\")";
 
-                guiMessage = $"<b><color=orange>{assemblyName}</color></b> in \"{assemblyLocation}\"";
+                guiMessage = Localizer.Format(LOC_F_PluginLoadFailed_name_in_location, $"<b><color=orange>{assemblyName}</color></b>", $"\"{assemblyLocation}\"");
 
                 if (missingDependencies.Count > 0)
                 {
                     errorMessage += $"\nIt happened because \"{assemblyName}\" is missing the following dependencies : ";
-                    guiMessage += "\nLoad failed due to missing dependencies : ";
+                    guiMessage += $"\n{LOC_PluginLoadFailed_missingDep} : ";
                     for (int i = 0; i < missingDependencies.Count; i++)
                     {
                         if (i > 0)
@@ -116,8 +122,8 @@ namespace KSPCommunityFixes.Modding
 
             GUILayout.BeginArea(new Rect(5, 0, 1000, 1000));
             GUILayout.BeginVertical();
-            GUILayout.Label("<b><color=orange>KSPCommunityFixes warning</color></b>", labelStyle);
-            GUILayout.Label("The following plugin(s) failed to load :", labelStyle);
+            GUILayout.Label($"<b><color=orange>{LOC_KSPCFWarning}</color></b>", labelStyle);
+            GUILayout.Label(LOC_PluginsLoadFailed, labelStyle);
 
             foreach (FailedAssembly assembly in failedAssemblies.Values)
                 GUILayout.Label(assembly.guiMessage, labelStyle);

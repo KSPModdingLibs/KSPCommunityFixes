@@ -102,7 +102,7 @@
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
-    <Compile Include="Performance\NoIVA.cs" />
+    <Compile Include="QoL\NoIVA.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />

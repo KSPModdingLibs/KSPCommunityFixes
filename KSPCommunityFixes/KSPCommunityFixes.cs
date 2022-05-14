@@ -11,6 +11,8 @@ namespace KSPCommunityFixes
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class KSPCommunityFixes : MonoBehaviour
     {
+        public const string CONFIGNODE_NAME = "KSP_COMMUNITY_FIXES";
+
         public static string LOC_KSPCF_Title = "KSP Community Fixes";
 
         public static Version KspVersion { get; private set; }
@@ -58,10 +60,11 @@ namespace KSPCommunityFixes
             KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
 
-            LocalizationUtils.ParseLocalization();
 #if DEBUG
             Harmony.DEBUG = true;
 #endif
+            LocalizationUtils.GenerateLocTemplateIfRequested();
+            LocalizationUtils.ParseLocalization();
         }
 
         public void ModuleManagerPostLoad()
@@ -69,10 +72,10 @@ namespace KSPCommunityFixes
             if (Instance == null || Instance != this)
                 return;
 
-            var featuresNodes = GameDatabase.Instance.GetConfigs("KSP_COMMUNITY_FIXES");
+            UrlDir.UrlConfig[] featuresNodes = GameDatabase.Instance.GetConfigs(CONFIGNODE_NAME);
 
             ConfigNode cfg;
-            if (featuresNodes.Length == 1)
+            if (featuresNodes != null && featuresNodes.Length == 1)
                 cfg = featuresNodes[0].config;
             else
                 cfg = new ConfigNode();

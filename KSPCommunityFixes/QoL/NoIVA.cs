@@ -7,7 +7,7 @@ using KSP.UI.Screens.Flight;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace KSPCommunityFixes.Performance
+namespace KSPCommunityFixes.QoL
 {
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class NoIVA : MonoBehaviour

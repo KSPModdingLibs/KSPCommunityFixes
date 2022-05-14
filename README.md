@@ -25,7 +25,7 @@ Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
 
-In-game options are available from the KSP settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.png"/>
+User options are available from the "ESC" in-game settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.png"/>
 
 #### Major bugfixes
 
@@ -67,6 +67,8 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
 - **FairingMouseOverPersistence** [KSP 1.8.0 - 1.12.3]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
 - **HidePartUpgradeExtendedInfo** [KSP 1.8.0 - 1.12.3]<br/>Hides irrelevant extended info on the part tooltip for PartUpgrades in the RnD screen.
 - [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.3]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
+- [**ShowContractFinishDates**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/36) [KSP 1.12.0 - 1.12.3]<br/>For archived contracts, show accepted/finished dates.
+- **NoIVA** [KSP 1.8.0 - 1.12.3]<br/>Allow to disable IVA functionality and prevent related assets from being loaded, which can speed-up loading, reduce RAM/VRAM usage and increase FPS. Has a "use placeholder IVA" option allowing to keep crew portraits. This patch is disabled by default and must be enabled from the KSP "ESC" settings menu. It has no entry in the `Settings.cfg` file and require a restart to take effect. Do not use this option alongside IVA mods like RPM or MAS.
 
 #### Performance tweaks 
 
@@ -81,11 +83,15 @@ In-game options are available from the KSP settings menu :<br/><img src="https:/
   - The callback will only be called when the field value has actually been modified.
   - The "object" argument will contain the previous field value (instead of the new value).
 - **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods.
-- **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch `Assembly.GetTypes()` to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such an event won't cause issues with other plugins. Those exceptions are still logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install.
+- **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such an situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 
 ### License
 
 MIT
+
+### Localization
+
+This mod supports localization. If you wish to contribute a localization file, you can have the mod generate or update a language template by editing the `Settings.cfg` (see instructions near the end of the file).
 
 ### Building
 
@@ -112,6 +118,13 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.13.0
+- New modding patch : ReflectionTypeLoadExceptionHandler
+- New QoL patch : ShowContractFinishDates, contributed by @NathanKell
+- New QoL patch : NoIVA
+- Added localization support
+- Added tooltips to in-game settings
 
 ##### 1.12.2
 - RoboticsDrift : fixed issue [#35](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/35), incorrect handling of non-stock servo parts having `MODEL{}` rotation/position offsets and/or a model hierarchy where the rotation transform has a position/rotation offset relative to the model root. Notably fixes incorrect behavior with the BDB [Hokulani OCO-RT90 Truss Structure](https://forum.kerbalspaceprogram.com/index.php?/topic/122020-1123-bluedog-design-bureau-stockalike-saturn-apollo-and-more-v1101-%D0%BB%D1%83%D0%BD%D0%B0-24apr2022/&do=findComment&comment=4128194).
