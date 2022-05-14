@@ -105,6 +105,7 @@
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="Performance\TextureLoaderOptimizations.cs" />
     <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
+    <Compile Include="QoL\ShowContractFinishDates.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
     <Compile Include="QoL\FairingMouseOverPersistence.cs" />
     <Compile Include="QoL\TweakableWheelsAutostrut.cs" />
