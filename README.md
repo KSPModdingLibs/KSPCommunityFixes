@@ -68,7 +68,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **HidePartUpgradeExtendedInfo** [KSP 1.8.0 - 1.12.3]<br/>Hides irrelevant extended info on the part tooltip for PartUpgrades in the RnD screen.
 - [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.3]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
 - [**ShowContractFinishDates**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/36) [KSP 1.12.0 - 1.12.3]<br/>For archived contracts, show accepted/finished dates.
-- **NoIVA** [KSP 1.8.0 - 1.12.3]<br/>Allow to disable IVA functionality and prevent related assets from being loaded, which can speed-up loading, reduce RAM/VRAM usage and increase FPS. Has a "use placeholder IVA" option allowing to keep crew portraits. This patch is disabled by default and must be enabled from the KSP "ESC" settings menu. It has no entry in the `Settings.cfg` file and require a restart to take effect. Do not use this option alongside IVA mods like RPM or MAS.
+- **NoIVA** [KSP 1.8.0 - 1.12.3]<br/>Allow to disable IVA functionality and prevent related assets from being loaded, reducing RAM/VRAM usage and slightly increasing performance in some cases. Has a "use placeholder IVA" option allowing to keep crew portraits. This patch is disabled by default and must be enabled from the KSP "ESC" settings menu. It has no entry in the `Settings.cfg` file and require a restart to take effect. Do not use this option alongside IVA mods like RPM or MAS.
 
 #### Performance tweaks 
 
@@ -118,6 +118,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.13.1
+- Fixed NoIVA patch causing missing part textures when the part reuse/share IVA textures (ex : SXT). Note that this change negate the loading time gains of the original patch, and might even cause a small increase (a few seconds) if KSP isn't running from a SSD.
 
 ##### 1.13.0
 - New modding patch : ReflectionTypeLoadExceptionHandler

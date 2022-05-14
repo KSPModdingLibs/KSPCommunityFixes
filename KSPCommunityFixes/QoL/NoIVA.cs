@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using KSP.UI.Screens.Flight;
 using UnityEngine;
@@ -17,7 +18,7 @@ namespace KSPCommunityFixes.QoL
         public static string LOC_UsePlaceholder = "Use placeholder";
         public static string LOC_SettingsTitle = "IVA (interior view)";
         public static string LOC_SettingsTooltip =
-            "Disable IVA functionality: speed-up loading, reduce RAM/VRAM usage and increase FPS." +
+            "Disable IVA functionality: reduce RAM/VRAM usage and increase FPS." +
             "\n\t-Disable all : disable IVA" +
             "\n\t-Use placeholder : disable IVA but keep crew portraits" +
             "\n<i>Changes will take effect after relaunching KSP</i>";
@@ -103,48 +104,68 @@ namespace KSPCommunityFixes.QoL
             }
 
             watch.Start();
-            HashSet<string> modelUrls = new HashSet<string>(200);
-            HashSet<UrlDir.UrlFile> modelFiles = new HashSet<UrlDir.UrlFile>(200);
-            HashSet<string> textureUrls = new HashSet<string>(500);
+            HashSet<string> prunedModelUrls = new HashSet<string>(200);
+            HashSet<string> whiteListedModelUrls = new HashSet<string>(1000);
+            HashSet<UrlDir.UrlFile> prunedModelFiles = new HashSet<UrlDir.UrlFile>(200);
+            HashSet<UrlDir.UrlFile> whiteListedModelFiles = new HashSet<UrlDir.UrlFile>(1000);
+            HashSet<string> prunedTextureUrls = new HashSet<string>(500);
+            HashSet<string> whiteListedTextureUrls = new HashSet<string>(2500);
             int prunedModelsCount = 0;
             int prunedTexturesCount = 0;
 
             foreach (UrlDir.UrlConfig urlConfig in GameDatabase.Instance.root.AllConfigs)
             {
-                if (urlConfig.type == "INTERNAL" || urlConfig.type == "PROP")
+                bool isInternal = urlConfig.type == "INTERNAL";
+                bool isPart = urlConfig.type == "PART";
+                bool isProp = urlConfig.type == "PROP";
+
+                if (!isInternal && !isPart && !isProp)
+                    continue;
+
+                if (isInternal && patchState == PatchState.usePlaceholder)
                 {
-                    if (patchState == PatchState.usePlaceholder)
+                    string name = urlConfig.config.GetValue("name");
+                    if (name == "Placeholder")
+                        continue;
+                }
+
+                bool hasModelNode = false;
+                foreach (ConfigNode modelNode in urlConfig.config.GetNodes("MODEL"))
+                {
+                    foreach (string modelPath in modelNode.GetValues("model"))
                     {
-                        string name = urlConfig.config.GetValue("name");
-                        if (name == "Placeholder")
+                        hasModelNode = true;
+                        if (isPart)
+                            whiteListedModelUrls.Add(modelPath);
+                        else
+                            prunedModelUrls.Add(modelPath);
+                    }
+                    foreach (string texturePath in modelNode.GetValues("texture"))
+                    {
+                        string[] array = texturePath.Split(textureSplitChars, StringSplitOptions.RemoveEmptyEntries);
+                        if (array.Length != 2)
                             continue;
+
+                        if (isPart)
+                            whiteListedTextureUrls.Add(array[1].Trim());
+                        else
+                            prunedTextureUrls.Add(array[1].Trim());
                     }
+                }
 
-                    bool hasModelNode = false;
-                    foreach (ConfigNode modelNode in urlConfig.config.GetNodes("MODEL"))
+                if (!hasModelNode)
+                {
+                    foreach (UrlDir.UrlFile urlFile in urlConfig.parent.parent.files)
                     {
-                        foreach (string modelPath in modelNode.GetValues("model"))
+                        if (urlFile.fileExtension == "mu")
                         {
-                            modelUrls.Add(modelPath);
-                            hasModelNode = true;
-                        }
-                        foreach (string texturePath in modelNode.GetValues("texture"))
-                        {
-                            string[] array = texturePath.Split(textureSplitChars, StringSplitOptions.RemoveEmptyEntries);
-                            if (array.Length != 2)
-                                continue;
-
-                            textureUrls.Add(array[1].Trim());
-                        }
-                    }
-
-                    if (!hasModelNode)
-                    {
-                        foreach (UrlDir.UrlFile urlFile in urlConfig.parent.parent.files)
-                        {
-                            if (urlFile.fileExtension == "mu")
+                            if (isPart)
                             {
-                                modelFiles.Add(urlFile);
+                                whiteListedModelFiles.Add(urlFile);
+                            }
+                            else
+                            {
+                                prunedModelFiles.Add(urlFile);
                                 urlFile._fileExtension = "disabled";
                                 urlFile._fileType = UrlDir.FileType.Unknown;
                                 prunedModelsCount++;
@@ -159,29 +180,46 @@ namespace KSPCommunityFixes.QoL
 
             foreach (UrlDir.UrlFile urlFile in GameDatabase.Instance.root.AllFiles)
             {
-                if (urlFile.fileType == UrlDir.FileType.Model && modelUrls.Contains(urlFile.url))
+                if (urlFile.fileType == UrlDir.FileType.Model)
                 {
-                    modelFiles.Add(urlFile);
-                    urlFile._fileExtension = "disabled";
-                    urlFile._fileType = UrlDir.FileType.Unknown;
-                    prunedModelsCount++;
+                    if (whiteListedModelUrls.Contains(urlFile.url))
+                    {
+                        whiteListedModelFiles.Add(urlFile);
+                        continue;
+                    }
 
-                    if (debugPrunning)
-                        Debug.Log($"[KSPCF:NoIVA] Pruning model {urlFile.url}");
+                    if (prunedModelUrls.Contains(urlFile.url))
+                    {
+                        prunedModelFiles.Add(urlFile);
+                        urlFile._fileExtension = "disabled";
+                        urlFile._fileType = UrlDir.FileType.Unknown;
+                        prunedModelsCount++;
+
+                        if (debugPrunning)
+                            Debug.Log($"[KSPCF:NoIVA] Pruning model {urlFile.url}");
+                    }
                 }
             }
 
-            foreach (UrlDir.UrlFile urlFile in modelFiles)
+            foreach (UrlDir.UrlFile urlFile in prunedModelFiles)
             {
                 foreach (string textureUrl in MuParser.GetModelTextures(urlFile.fullPath))
                 {
-                    textureUrls.Add(urlFile.parent.url + "/" + Path.GetFileNameWithoutExtension(textureUrl));
+                    prunedTextureUrls.Add(urlFile.parent.url + "/" + Path.GetFileNameWithoutExtension(textureUrl));
+                }
+            }
+
+            foreach (UrlDir.UrlFile urlFile in whiteListedModelFiles)
+            {
+                foreach (string textureUrl in MuParser.GetModelTextures(urlFile.fullPath))
+                {
+                    prunedTextureUrls.Remove(urlFile.parent.url + "/" + Path.GetFileNameWithoutExtension(textureUrl));
                 }
             }
 
             foreach (UrlDir.UrlFile urlFile in GameDatabase.Instance.root.AllFiles)
             {
-                if (urlFile.fileType == UrlDir.FileType.Texture && textureUrls.Contains(urlFile.url))
+                if (urlFile.fileType == UrlDir.FileType.Texture && prunedTextureUrls.Contains(urlFile.url))
                 {
                     urlFile._fileExtension = "disabled";
                     urlFile._fileType = UrlDir.FileType.Unknown;
@@ -218,7 +256,7 @@ namespace KSPCommunityFixes.QoL
 
                 // Create additional placeholder INTERNAL definitions for every seat count from 1 to 15.
                 // This is mainly to stop KSP complaining about IVA seat count not matching part crew capacity,
-                // I don't think this actually causes any issue.
+                // I don't think not doing it would actually causes any issue.
                 UrlDir placeholderDir = placeholderBase.parent.parent;
                 FileInfo fileInfo = new FileInfo(placeholderBase.parent.fullPath);
                 UrlDir.UrlFile[] placeholders = new UrlDir.UrlFile[15];
@@ -704,26 +742,31 @@ namespace KSPCommunityFixes.QoL
         }
 
         // note : incrementing Position is faster than using BaseStream.Seek()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SkipBytes(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SkipInt32(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SkipSingle(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SkipSingleOrInt32(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count * 4;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SkipBoolean(this BinaryReader br, int count = 1)
         {
             br.BaseStream.Position += count;
