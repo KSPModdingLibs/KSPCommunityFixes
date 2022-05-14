@@ -1,4 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using KSP.Localization;
 
 namespace KSPCommunityFixes
 {
@@ -19,6 +23,74 @@ namespace KSPCommunityFixes
                 return null;
 
             return unityObject;
+        }
+    }
+
+    static class LocalizationUtils
+    {
+        public static void ParseLocalization()
+        {
+            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+            {
+                foreach (FieldInfo staticField in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (staticField.Name.StartsWith("LOC_", StringComparison.Ordinal))
+                    {
+                        staticField.SetValue(null, Localizer.Format("#KSPCF_" + type.Name + "_" + staticField.Name.Substring(4)));
+                    }
+                }
+            }
+        }
+
+        public static void GenerateBlankLocCfg(bool defaultAsComments)
+        {
+            string tab = "  ";
+
+            List<string> lines = new List<string>();
+            lines.Add("Localization");
+            lines.Add("{");
+            lines.Add(tab + "en-us");
+            lines.Add(tab + "{");
+
+            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+            {
+                bool headerAdded = false;
+                foreach (FieldInfo staticField in type.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    if (staticField.Name.StartsWith("LOC_", StringComparison.Ordinal))
+                    {
+                        if (!headerAdded)
+                        {
+                            lines.Add(string.Empty);
+                            lines.Add(tab + tab + "// " + type.Name);
+                            lines.Add(string.Empty);
+                            headerAdded = true;
+                        }
+
+                        
+                        string line = tab + tab + "#KSPCF_" + type.Name + "_" + staticField.Name.Substring(4) + " = ";
+
+                        string defaultString = (string)staticField.GetValue(null);
+                        defaultString = defaultString.Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+                        if (defaultAsComments)
+                        {
+                            lines.Add(string.Empty);
+                            lines.Add(tab + tab + "// " + defaultString);
+                        }
+                        else
+                        {
+                            line += defaultString;
+                        }
+
+                        lines.Add(line);
+                    }
+                }
+            }
+
+            lines.Add(tab + "}");
+            lines.Add("}");
+
+            File.WriteAllLines(Path.Combine(KSPCommunityFixes.ModPath, "blankLoc.txt"), lines);
         }
     }
 }

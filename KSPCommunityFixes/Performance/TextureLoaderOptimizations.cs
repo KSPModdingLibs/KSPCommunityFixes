@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using KSP.Localization;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
@@ -17,6 +18,23 @@ namespace KSPCommunityFixes
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TextureLoaderOptimizations : MonoBehaviour
     {
+        public static string LOC_SettingsTitle = "Texture caching optimization";
+        public static string LOC_SettingsTooltip =
+            "Cache PNG textures on disk instead of converting them on every KSP launch." +
+            "\nSpeedup loading time but increase disk space usage." +
+            "\n<i>Changes will take effect after relaunching KSP</i>";
+
+        public static string LOC_PopupL1 = 
+            "KSPCommunityFixes can cache converted PNG textures on disk to speed up loading time.";
+        public static string LOC_F_PopupL2 = 
+            "In your current install, this should reduce future loading time by about <b><color=#FF8000><<1>> seconds</color></b>.";
+        public static string LOC_F_PopupL3 = 
+            "However, this will use about <b><color=#FF8000><<1>> MB</color></b> of additional disk space, and potentially much more if you install additional mods.";
+        public static string LOC_PopupL4 = 
+            "You can change this setting later in the in-game settings menu";
+        public static string LOC_PopupL5 = 
+            "Do you want to enable this optimization ?";
+
         private static TextureLoaderOptimizations instance;
 
         public static bool IsPatchEnabled { get; private set; }
@@ -557,21 +575,21 @@ namespace KSPCommunityFixes
 
             string desc =
                 "<size=120%><color=\"white\">" +
-                "KSPCommunityFixes can cache converted PNG textures on disk to speed up loading time.\n\n" +
-                $"In your current install, this should reduce future loading time by about <b><color=#FF8000>{loadingTimeReduction:F0} seconds</color></b>.\n\n" +
-                $"However, this will use about <b><color=#FF8000>{cacheSize / 1024.0 / 1024.0:F0} MB</color></b> of additional disk space, and potentially much more if you install additional mods.\n\n" +
-                "You can change this setting later in the in-game settings menu\n\n" +
-                "<align=\"center\">Do you want to enable this optimization ?\n";
+                LOC_PopupL1 + "\n\n" +
+                Localizer.Format(LOC_F_PopupL2, loadingTimeReduction.ToString("F0")) + "\n\n" +
+                Localizer.Format(LOC_F_PopupL3, (cacheSize / 1024.0 / 1024.0).ToString("F0")) + "\n\n" +
+                LOC_PopupL4 + "\n\n" +
+                "<align=\"center\">" + LOC_PopupL5 + "\n";
 
             string cacheSizeMb = (cacheSize / 1024.0 / 1024.0).ToString("F0") + "Mb";
             bool? choosed = null;
             bool dismissed = false;
             MultiOptionDialog dialog = new MultiOptionDialog("TextureLoaderOptimizations",
                 desc,
-                "KSPCommunityFixes",
+                KSPCommunityFixes.LOC_KSPCF_Title,
                 HighLogic.UISkin, 350f,
-                new DialogGUIButton("Yes", delegate { SetOptIn(true, ref choosed); }),
-                new DialogGUIButton("No", delegate { SetOptIn(false, ref choosed); }));
+                new DialogGUIButton(Localizer.Format("#autoLOC_439839"), delegate { SetOptIn(true, ref choosed); }), // yes
+                new DialogGUIButton(Localizer.Format("#autoLOC_439840"), delegate { SetOptIn(false, ref choosed); })); // no
             PopupDialog popup = PopupDialog.SpawnPopupDialog(dialog, false, HighLogic.UISkin, false);
             popup.OnDismiss = () => dismissed = true;
 

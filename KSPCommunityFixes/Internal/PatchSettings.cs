@@ -3,6 +3,7 @@ using KSP.Localization;
 using KSPCommunityFixes.QoL;
 using System;
 using System.Collections.Generic;
+using KSPCommunityFixes.Performance;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -31,16 +32,18 @@ namespace KSPCommunityFixes
                 this));
 
             altimeterPatch = KSPCommunityFixes.GetPatchInstance<AltimeterHorizontalPosition>();
-            maneuverToolPatch = KSPCommunityFixes.GetPatchInstance<DisableManeuverTool>();
-
             if (altimeterPatch != null)
                 entryCount++;
 
+            maneuverToolPatch = KSPCommunityFixes.GetPatchInstance<DisableManeuverTool>();
             if (maneuverToolPatch != null)
                 entryCount++;
 
             if (TextureLoaderOptimizations.IsPatchEnabled)
                 entryCount++;
+
+            // NoIVA is always enabled
+            entryCount++;
         }
 
         static void GameplaySettingsScreen_DrawMiniSettings_Postfix(GameplaySettingsScreen __instance, ref DialogGUIBase[] __result)
@@ -55,36 +58,61 @@ namespace KSPCommunityFixes
             for (int i = 0; i < count; i++)
                 modifiedResult[i] = __result[i];
 
-            modifiedResult[count] = new DialogGUIBox("KSP Community Fixes", -1f, 18f, null);
+            modifiedResult[count] = new DialogGUIBox(KSPCommunityFixes.LOC_KSPCF_Title, -1f, 18f, null);
             count++;
 
             if (maneuverToolPatch != null)
             {
+                DialogGUIToggle toggle = new DialogGUIToggle(DisableManeuverTool.enableManeuverTool,
+                    () => (!DisableManeuverTool.enableManeuverTool) 
+                        ? Localizer.Format("#autoLOC_6001071") //"Disabled"
+                        : Localizer.Format("#autoLOC_6001072"), //"Enabled"
+                    DisableManeuverTool.OnToggleApp, 150f);
+                toggle.tooltipText = DisableManeuverTool.LOC_SettingsTooltip;
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f),
-                    new DialogGUIToggle(DisableManeuverTool.enableManeuverTool, () => (!DisableManeuverTool.enableManeuverTool) ? Localizer.Format("#autoLOC_6001071") : Localizer.Format("#autoLOC_6001072"), DisableManeuverTool.OnToggleApp, 150f), new DialogGUIFlexibleSpace());
+                    new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f), //"Maneuver Tool"
+                    toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
 
             if (altimeterPatch != null)
             {
+                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate(float f)
+                {
+                    AltimeterHorizontalPosition.altimeterPosition = f;
+                    AltimeterHorizontalPosition.SetTopFramePosition();
+                });
+                slider.tooltipText = AltimeterHorizontalPosition.LOC_SettingsTooltip;
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("Altimeter pos (Left<->Right)"), 150f),
-                    new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate (float f)
-                    {
-                        AltimeterHorizontalPosition.altimeterPosition = f;
-                        AltimeterHorizontalPosition.SetTopFramePosition();
-                    }), new DialogGUIFlexibleSpace());
+                    new DialogGUILabel(AltimeterHorizontalPosition.LOC_SettingsTitle, 150f),
+                    slider, new DialogGUIFlexibleSpace());
                 count++;
             }
 
             if (TextureLoaderOptimizations.IsPatchEnabled)
             {
+                DialogGUIToggle toggle = new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled,
+                    () => (TextureLoaderOptimizations.textureCacheEnabled) 
+                        ? Localizer.Format("#autoLOC_900889") //"Enabled"
+                        : Localizer.Format("#autoLOC_900890"), //"Disabled"
+                    TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f);
+                toggle.tooltipText = TextureLoaderOptimizations.LOC_SettingsTooltip;
+
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => Localizer.Format("Texture caching optimization"), 150f),
-                    new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled, () => (TextureLoaderOptimizations.textureCacheEnabled) ? "Enabled" : "Disabled", TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f), new DialogGUIFlexibleSpace());
+                    new DialogGUILabel(() => TextureLoaderOptimizations.LOC_SettingsTitle, 150f),
+                    toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
+
+            DialogGUISlider noIVAslider = new DialogGUISlider(NoIVA.PatchStateToFloat, 0f, 2f, true, 100f, 20f, NoIVA.SwitchPatchState);
+            noIVAslider.tooltipText = NoIVA.LOC_SettingsTooltip;
+            DialogGUILabel valueLabel = new DialogGUILabel(NoIVA.PatchStateTitle);
+
+            modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
+                new DialogGUILabel(NoIVA.LOC_SettingsTitle, 150f), noIVAslider, valueLabel, new DialogGUIFlexibleSpace());
+            count++;
 
             __result = modifiedResult;
         }
@@ -105,6 +133,7 @@ namespace KSPCommunityFixes
                 SaveData<AltimeterHorizontalPosition>(node);
             }
 
+            NoIVA.SaveSettings();
         }
     }
 }

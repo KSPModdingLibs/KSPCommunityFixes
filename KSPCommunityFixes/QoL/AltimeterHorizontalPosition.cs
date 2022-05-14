@@ -26,6 +26,11 @@ namespace KSPCommunityFixes
 
     class AltimeterHorizontalPosition : BasePatch
     {
+        public static string LOC_SettingsTitle =
+            "Altimeter pos (Left<->Right)";
+        public static string LOC_SettingsTooltip =
+            "Set the horizontal position of the flight scene altimeter widget";
+
         protected override Version VersionMin => new Version(1, 8, 0);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
