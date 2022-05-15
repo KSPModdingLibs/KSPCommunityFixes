@@ -55,6 +55,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)** [KSP 1.12.0 - 1.12.3]<br/>Stock alarm preserve line breaks (and tabs) in the description field.
 - **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.3]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
 - **[DeltaVHideWhenDisabled](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/31)** [KSP 1.12.0 - 1.12.3]<br/>Hide the stock stage delta-v UI elements and navball extended burn info when `DELTAV_CALCULATIONS_ENABLED` and `DELTAV_APP_ENABLED` are disabled by another mod or in the KSP `settings.cfg` file.
+- **AsteroidSpawnerUniqueFlightId** [KSP 1.8.0 - 1.12.3]<br/>Fix the asteroid/comet spawner generating non-unique `Part.flightId` identifiers. This has a few minor side effects in stock (mainly incorrect science bonuses), but this field is heavily relied upon by various mods and this can cause major issues for them.
 
 #### Quality of Life tweaks 
 
