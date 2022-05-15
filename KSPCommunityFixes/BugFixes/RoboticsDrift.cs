@@ -279,14 +279,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected abstract void UpdateServoChildCoords(Part servoChild);
 
-            protected QuaternionD GetVesselToLocalSpace()
-            {
-                QuaternionD movingPartLocalRot = QuaternionD.Inverse(movingPart.transform.rotation) * (QuaternionD)servo.part.transform.rotation;
-
-                // for some reason not normalizing can end up with a quaternion with near infinity components 
-                // when it should be identity, leading to infinity and NaN down the line...
-                return (QuaternionD.Inverse((QuaternionD)servo.part.orgRot * movingPartLocalRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
-            }
+            protected abstract QuaternionD GetVesselToLocalSpace();
         }
 
         private class TranslationServoInfo : ServoInfo
@@ -303,7 +296,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected override void UpdateOffset()
             {
-                Quaternion vesselToLocal = GetVesselToLocalSpace();
+                QuaternionD vesselToLocalSpace = GetVesselToLocalSpace();
 
                 // using the magnitude *feels* like what we should be doing. But this isn't what stock is doing, it only get the component
                 // on the translation axis. I can't detect a visible difference after a 8 servos setup "torture test" moving during ~10 hours,
@@ -311,7 +304,7 @@ namespace KSPCommunityFixes.BugFixes
                 Vector3d localOffset = mainAxis * ((Vector3d)movingPart.transform.localPosition).magnitude;
 
                 // get translation offset of the moving part since last update, and transform from the servo local space to the vessel space
-                posOffset = vesselToLocal.Inverse() * (localOffset - lastLocalOffset);
+                posOffset = QuaternionD.Inverse(vesselToLocalSpace) * (localOffset - lastLocalOffset);
 
                 // save the moving part position
                 lastLocalOffset = localOffset;
@@ -324,6 +317,13 @@ namespace KSPCommunityFixes.BugFixes
                     posOffset = -posOffset;
                     servo.part.orgPos += posOffset;
                 }
+            }
+
+            protected override QuaternionD GetVesselToLocalSpace()
+            {
+                // for some reason not normalizing can end up with a quaternion with near infinity components 
+                // when it should be identity, leading to infinity and NaN down the line...
+                return (QuaternionD.Inverse(servo.part.orgRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
 
             protected override void UpdateServoChildCoords(Part part)
@@ -369,7 +369,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected override void UpdateOffset()
             {
-                QuaternionD localToVesselSpace = GetVesselToLocalSpace();
+                QuaternionD vesselToLocalSpace = GetVesselToLocalSpace();
 
                 // get rotation offset of the moving part since last update
                 double rotAngle = CurrentAngle(movingPart.transform.localRotation);
@@ -378,7 +378,7 @@ namespace KSPCommunityFixes.BugFixes
                 rotOffset = QuaternionD.AngleAxis(angleOffset, mainAxis);
 
                 // transform offset from the servo local space to the vessel space
-                rotOffset = QuaternionD.Inverse(localToVesselSpace) * rotOffset * localToVesselSpace;
+                rotOffset = QuaternionD.Inverse(vesselToLocalSpace) * rotOffset * vesselToLocalSpace;
 
                 // get the distance between the part orgin and the rotation pivot
                 // we could probably get this once and keep it, but better safe than sorry
@@ -420,6 +420,15 @@ namespace KSPCommunityFixes.BugFixes
                     movingPartOffset = servo.part.orgRot.Inverse() * movingPartOffset;
                     servoPosOffset = Vector3d.zero;
                 }
+            }
+
+            protected override QuaternionD GetVesselToLocalSpace()
+            {
+                QuaternionD movingPartLocalRot = QuaternionD.Inverse(movingPart.transform.rotation) * (QuaternionD)servo.part.transform.rotation;
+
+                // for some reason not normalizing can end up with a quaternion with near infinity components 
+                // when it should be identity, leading to infinity and NaN down the line...
+                return (QuaternionD.Inverse((QuaternionD)servo.part.orgRot * movingPartLocalRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
 
             // Getting the euler angle along the servo axis is what is used by stock code to get the current angle.

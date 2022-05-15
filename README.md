@@ -119,6 +119,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.13.2
+- RoboticsDrift : fixed a rotation offset being wrongly applied to child parts of translation servos following the fix for issue #35 released in KSPCF 1.12.2 (see [report 1](https://forum.kerbalspaceprogram.com/index.php?/topic/204002-18-112-kspcommunityfixes-bugfixes-and-qol-tweaks/&do=findComment&comment=4132262), [report 2](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13#issuecomment-1126797719))
+
 ##### 1.13.1
 - Fixed NoIVA patch causing missing part textures when the part reuse/share IVA textures (ex : SXT). Note that this change negate the loading time gains of the original patch, and might even cause a small increase (a few seconds) if KSP isn't running from a SSD.
 
