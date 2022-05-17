@@ -25,7 +25,7 @@ Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
 
-User options are available from the "ESC" in-game settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.png"/>
+User options are available from the "ESC" in-game settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.gif"/>
 
 #### Major bugfixes
 
@@ -56,6 +56,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.3]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
 - **[DeltaVHideWhenDisabled](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/31)** [KSP 1.12.0 - 1.12.3]<br/>Hide the stock stage delta-v UI elements and navball extended burn info when `DELTAV_CALCULATIONS_ENABLED` and `DELTAV_APP_ENABLED` are disabled by another mod or in the KSP `settings.cfg` file.
 - **AsteroidSpawnerUniqueFlightId** [KSP 1.8.0 - 1.12.3]<br/>Fix the asteroid/comet spawner generating non-unique `Part.flightId` identifiers. This has a few minor side effects in stock (mainly incorrect science bonuses), but this field is heavily relied upon by various mods and this can cause major issues for them.
+- **PartListTooltipIconSpin** [KSP 1.8.0 - 1.12.3]<br/> Fix editor tooltip part icons not spinning anymore after hovering on a greyed out surface attachable only part while the editor is empty.
 
 #### Quality of Life tweaks 
 
@@ -70,6 +71,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.3]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
 - [**ShowContractFinishDates**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/36) [KSP 1.12.0 - 1.12.3]<br/>For archived contracts, show accepted/finished dates.
 - **NoIVA** [KSP 1.8.0 - 1.12.3]<br/>Allow to disable IVA functionality and prevent related assets from being loaded, reducing RAM/VRAM usage and slightly increasing performance in some cases. Has a "use placeholder IVA" option allowing to keep crew portraits. This patch is disabled by default and must be enabled from the KSP "ESC" settings menu. It has no entry in the `Settings.cfg` file and require a restart to take effect. Do not use this option alongside IVA mods like RPM or MAS.
+- **DisableNewGameIntro** [KSP 1.8.0 - 1.12.3]<br/>Disable the "intro" popups appearing in the space center, VAB/SPH and tracking station upon creating a new career game. Disabled by default.
 
 #### Performance tweaks 
 
@@ -119,6 +121,12 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.14.0
+- New bugfix : PartListTooltipIconSpin (investigation efforts by @StoneBlue)
+- New bugfix : AsteroidSpawnerUniqueFlightId
+- New QoL patch : DisableNewGameIntro
+- Updated Harmony to v2.2.1
 
 ##### 1.13.2
 - RoboticsDrift : fixed a rotation offset being wrongly applied to child parts of translation servos following the fix for issue #35 released in KSPCF 1.12.2 (see [report 1](https://forum.kerbalspaceprogram.com/index.php?/topic/204002-18-112-kspcommunityfixes-bugfixes-and-qol-tweaks/&do=findComment&comment=4132262), [report 2](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13#issuecomment-1126797719))
