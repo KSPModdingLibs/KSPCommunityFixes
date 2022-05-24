@@ -118,9 +118,15 @@ namespace KSPCommunityFixes.BugFixes
                 return true;
             }
 
-            servoInfo.PristineCoordsUpdate();
-
-            return false;
+            if (servoInfo.IsEnabled)
+            {
+                servoInfo.PristineCoordsUpdate();
+                return false;
+            }
+            else
+            {
+                return true;
+            }
         }
 
         private static bool BaseServo_OnSave_Prefix(BaseServo __instance, ConfigNode node)
@@ -145,7 +151,7 @@ namespace KSPCommunityFixes.BugFixes
 
                     if (!__instance.servoIsLocked)
                     {
-                        if (servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
+                        if (servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo) && servoInfo.IsEnabled)
                         {
                             servoInfo.GetMovingPartPristineCoords(out Vector3d position, out QuaternionD rotation);
                             __instance.servoTransformPosition = position;
@@ -153,7 +159,7 @@ namespace KSPCommunityFixes.BugFixes
                         }
                         else
                         {
-                            Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                            //Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
                             __instance.servoTransformPosition = __instance.movingPartObject.transform.localPosition;
                             __instance.servoTransformRotation = __instance.movingPartObject.transform.localRotation;
                         }
@@ -188,7 +194,8 @@ namespace KSPCommunityFixes.BugFixes
                     return;
                 }
 
-                servoInfo.RestoreMovingPartPristineCoords();
+                if (servoInfo.IsEnabled)
+                    servoInfo.RestoreMovingPartPristineCoords();
             }
         }
 
@@ -202,7 +209,8 @@ namespace KSPCommunityFixes.BugFixes
                     return;
                 }
 
-                __state.RestoreMovingPartPristineCoords();
+                if (__state.IsEnabled)
+                    __state.RestoreMovingPartPristineCoords();
             }
             else
             {
@@ -218,6 +226,8 @@ namespace KSPCommunityFixes.BugFixes
             protected readonly bool isRootPart;
             protected bool isInverted;
             private bool isInitialized;
+
+            public virtual bool IsEnabled => true;
 
             public ServoInfo(BaseServo servo, GameObject movingPartObject)
             {
@@ -278,8 +288,6 @@ namespace KSPCommunityFixes.BugFixes
             protected abstract void UpdateOffset();
 
             protected abstract void UpdateServoChildCoords(Part servoChild);
-
-            protected abstract QuaternionD GetVesselToLocalSpace();
         }
 
         private class TranslationServoInfo : ServoInfo
@@ -296,7 +304,7 @@ namespace KSPCommunityFixes.BugFixes
 
             protected override void UpdateOffset()
             {
-                QuaternionD vesselToLocalSpace = GetVesselToLocalSpace();
+                QuaternionD vesselToLocalSpace = QuaternionD.Inverse(servo.part.orgRot.ToQuaternionD()) * servo.part.vessel.rootPart.orgRot.ToQuaternionD();
 
                 // using the magnitude *feels* like what we should be doing. But this isn't what stock is doing, it only get the component
                 // on the translation axis. I can't detect a visible difference after a 8 servos setup "torture test" moving during ~10 hours,
@@ -317,13 +325,6 @@ namespace KSPCommunityFixes.BugFixes
                     posOffset = -posOffset;
                     servo.part.orgPos += posOffset;
                 }
-            }
-
-            protected override QuaternionD GetVesselToLocalSpace()
-            {
-                // for some reason not normalizing can end up with a quaternion with near infinity components 
-                // when it should be identity, leading to infinity and NaN down the line...
-                return (QuaternionD.Inverse(servo.part.orgRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
 
             protected override void UpdateServoChildCoords(Part part)
@@ -347,12 +348,18 @@ namespace KSPCommunityFixes.BugFixes
         {
             private readonly int mainAxisIndex;
             private readonly Vector3d movingPartPristineLocalPos;
-            private Vector3d movingPartOffset;
-            private bool hasMovingPartOffset;
+            
+            private bool hasMovingPartPosOffset;
             private Vector3d servoPosOffset;
             private QuaternionD rotOffset;
 
+            private QuaternionD movingPartModelRotOffset;
+            private Vector3d movingPartModelPosOffset;
+            private Vector3d movingPartModelPosOffsetCurrent;
+
             private double lastRotAngle;
+
+            public override bool IsEnabled => !hasMovingPartPosOffset;
 
             public RotationServoInfo(BaseServo baseServo, GameObject movingPartObject, Vector3d movingPartLocalPos, Quaternion movingPartLocalRot) : base(baseServo, movingPartObject)
             {
@@ -365,11 +372,49 @@ namespace KSPCommunityFixes.BugFixes
 
                 movingPartPristineLocalPos = movingPartLocalPos;
                 lastRotAngle = CurrentAngle(movingPartLocalRot);
+
+                int moduleIdx = baseServo.part.modules.IndexOf(baseServo);
+                
+                if (moduleIdx < 0 || moduleIdx >= baseServo.part.partInfo.partPrefab.modules.Count || !(baseServo.part.partInfo.partPrefab.modules[moduleIdx] is BaseServo prefabModule))
+                {
+                    movingPartModelRotOffset = QuaternionD.identity;
+                    movingPartModelPosOffset = Vector3d.zero;
+                    hasMovingPartPosOffset = false;
+                    Debug.LogError($"[RoboticsDrift] Couldn't find prefab counterpart for {baseServo} at index {moduleIdx} on {baseServo.part.name}");
+                }
+                else
+                {
+                    GameObject prefabMovingPartObject = prefabModule.gameObject.GetChild(prefabModule.servoTransformName);
+                    movingPartModelRotOffset = Quaternion.Inverse(prefabMovingPartObject.transform.rotation) * prefabModule.part.transform.rotation;
+                    movingPartModelRotOffset = movingPartModelRotOffset.Normalize();
+                    movingPartModelPosOffset = prefabModule.part.transform.InverseTransformPoint(prefabMovingPartObject.transform.position);
+                    if (Math.Abs(movingPartModelPosOffset.x) < 1e-6)
+                        movingPartModelPosOffset.x = 0.0;
+
+                    if (Math.Abs(movingPartModelPosOffset.y) < 1e-6)
+                        movingPartModelPosOffset.y = 0.0;
+
+                    if (Math.Abs(movingPartModelPosOffset.z) < 1e-6)
+                        movingPartModelPosOffset.z = 0.0;
+
+                    movingPartModelPosOffsetCurrent = movingPartModelPosOffset;
+                    hasMovingPartPosOffset = false;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        if (i == mainAxisIndex)
+                            continue;
+
+                        if (movingPartModelPosOffset[i] != 0.0)
+                            hasMovingPartPosOffset = true;
+                    }
+                }
             }
 
             protected override void UpdateOffset()
             {
-                QuaternionD vesselToLocalSpace = GetVesselToLocalSpace();
+                QuaternionD vesselToLocalSpace = 
+                    QuaternionD.Inverse(servo.part.orgRot.ToQuaternionD() * movingPartModelRotOffset) 
+                    * servo.part.vessel.rootPart.orgRot.ToQuaternionD();
 
                 // get rotation offset of the moving part since last update
                 double rotAngle = CurrentAngle(movingPart.transform.localRotation);
@@ -382,8 +427,8 @@ namespace KSPCommunityFixes.BugFixes
 
                 // get the distance between the part orgin and the rotation pivot
                 // we could probably get this once and keep it, but better safe than sorry
-                movingPartOffset = servo.part.transform.InverseTransformPoint(movingPart.transform.position);
-                hasMovingPartOffset = movingPartOffset != Vector3d.zero;
+                // movingPartModelPosOffset = servo.part.transform.InverseTransformPoint(movingPart.transform.position);
+                // hasMovingPartOffset = movingPartModelPosOffset != Vector3d.zero;
 
                 // if servo part is attached to its parent by its moving part, we need to move and rotate
                 // the servo part itself :
@@ -391,12 +436,12 @@ namespace KSPCommunityFixes.BugFixes
                 {
                     // translate the servo part if the rotation pivot isn't aligned with the part origin
                     // avoid manipulating orgPos unless necessary to limit FP precision issues
-                    if (hasMovingPartOffset)
+                    if (hasMovingPartPosOffset)
                     {
                         // transform in vessel space (but reversed)
-                        movingPartOffset = servo.part.orgRot * movingPartOffset;
-                        Vector3d parentToPivot = servo.part.orgPos - servo.part.parent.orgPos - movingPartOffset;
-                        Vector3d pivotToServo = rotOffset * movingPartOffset;
+                        movingPartModelPosOffsetCurrent = servo.part.orgRot.ToQuaternionD() * movingPartModelPosOffset;
+                        Vector3d parentToPivot = servo.part.orgPos - servo.part.parent.orgPos - movingPartModelPosOffsetCurrent;
+                        Vector3d pivotToServo = rotOffset * movingPartModelPosOffsetCurrent;
                         Vector3d newOrgPos = parentToPivot + pivotToServo;
                         // update the offset that will be applied downstream to childrens
                         servoPosOffset = newOrgPos - servo.part.orgPos;
@@ -412,23 +457,14 @@ namespace KSPCommunityFixes.BugFixes
                     rotOffset = QuaternionD.Inverse(rotOffset);
 
                     // rotate the servo part itself
-                    servo.part.orgRot = rotOffset * (QuaternionD)servo.part.orgRot;
+                    servo.part.orgRot = rotOffset * servo.part.orgRot.ToQuaternionD();
                 }
                 else
                 {
                     // transform in vessel space
-                    movingPartOffset = servo.part.orgRot.Inverse() * movingPartOffset;
+                    movingPartModelPosOffsetCurrent = QuaternionD.Inverse(servo.part.orgRot.ToQuaternionD()) * movingPartModelPosOffset;
                     servoPosOffset = Vector3d.zero;
                 }
-            }
-
-            protected override QuaternionD GetVesselToLocalSpace()
-            {
-                QuaternionD movingPartLocalRot = QuaternionD.Inverse(movingPart.transform.rotation) * (QuaternionD)servo.part.transform.rotation;
-
-                // for some reason not normalizing can end up with a quaternion with near infinity components 
-                // when it should be identity, leading to infinity and NaN down the line...
-                return (QuaternionD.Inverse((QuaternionD)servo.part.orgRot * movingPartLocalRot) * (QuaternionD)servo.part.vessel.rootPart.orgRot).Normalize();
             }
 
             // Getting the euler angle along the servo axis is what is used by stock code to get the current angle.
@@ -455,25 +491,25 @@ namespace KSPCommunityFixes.BugFixes
                     // childs directly using the eventual position offset of the servo part.
                     RecurseChildCoordsUpdate(part, servoPosOffset);
                 }
-                else if (hasMovingPartOffset)
+                else if (hasMovingPartPosOffset)
                 {
-                    // otherwise, we need to correct the position of the servo direct childs while
-                    // taking into account the eventual offset between the servo moving part and its
-                    // the origin
+                    // otherwise, and if the moving part isn't aligned with the part transform, we
+                    // need to correct the position of the servo direct childs while taking into
+                    // account the offset between the servo moving part and i
 
                     // get position offset between this part and the servo part
                     Vector3d orgPosOffset = part.orgPos - part.parent.orgPos;
                     // substract the "non-rotating" length of the servo part, then rotate the result
-                    Vector3d rotatingPosOffset = rotOffset * (orgPosOffset - movingPartOffset);
+                    Vector3d rotatingPosOffset = rotOffset * (orgPosOffset - movingPartModelPosOffsetCurrent);
                     // get the resulting position of the child
-                    Vector3d newOrgPos = part.parent.orgPos + movingPartOffset + rotatingPosOffset;
+                    Vector3d newOrgPos = part.parent.orgPos + movingPartModelPosOffsetCurrent + rotatingPosOffset;
                     // update the total offset that will be applied downstream to childrens
                     Vector3d posOffset = newOrgPos - part.orgPos;
                     // apply the new position
                     part.orgPos = newOrgPos;
 
                     // apply the rotation
-                    part.orgRot = rotOffset * (QuaternionD)part.orgRot;
+                    part.orgRot = (rotOffset * part.orgRot.ToQuaternionD()).ToQuaternionF();
 
                     // propagate to childrens
                     for (int i = 0; i < part.children.Count; i++)
@@ -499,7 +535,7 @@ namespace KSPCommunityFixes.BugFixes
                 part.orgPos = newOrgPos;
 
                 // apply the rotation
-                part.orgRot = rotOffset * (QuaternionD)part.orgRot;
+                part.orgRot = (rotOffset * part.orgRot.ToQuaternionD()).ToQuaternionF();
 
                 // propagate to childrens
                 for (int i = 0; i < part.children.Count; i++)
@@ -510,11 +546,56 @@ namespace KSPCommunityFixes.BugFixes
 
     public static class QuaternionExtensions
     {
+        /// <summary>
+        /// Normalize a QuaternionD
+        /// </summary>
         public static QuaternionD Normalize(this QuaternionD q)
         {
             double ls = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+            if (ls == 1.0)
+                return q;
+
             double invNorm = 1.0 / Math.Sqrt(ls);
-            return new QuaternionD(q.x * invNorm, q.y * invNorm, q.z * invNorm, q.w * invNorm);
+            q.x *= invNorm;
+            q.y *= invNorm;
+            q.z *= invNorm;
+            q.w *= invNorm;
+            return q;
+        }
+
+        /// <summary>
+        /// Convert a Quaternion to a normalized QuaternionD
+        /// </summary>
+        public static QuaternionD ToQuaternionD(this Quaternion q)
+        {
+            QuaternionD qD = new QuaternionD(q.x, q.y, q.z, q.w);
+            double ls = qD.x * qD.x + qD.y * qD.y + qD.z * qD.z + qD.w * qD.w;
+            if (ls == 1.0)
+                return qD;
+
+            double invNorm = 1.0 / Math.Sqrt(ls);
+            qD.x *= invNorm;
+            qD.y *= invNorm;
+            qD.z *= invNorm;
+            qD.w *= invNorm;
+            return qD;
+        }
+
+        /// <summary>
+        /// Convert a QuaternionD to a normalized Quaternion
+        /// </summary>
+        public static Quaternion ToQuaternionF(this QuaternionD q)
+        {
+            double ls = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+            if (ls == 1.0)
+                return new Quaternion((float) q.x, (float) q.y, (float) q.z, (float) q.w);
+
+            double invNorm = 1.0 / Math.Sqrt(ls);
+            return new Quaternion(
+                (float)(q.x * invNorm),
+                (float)(q.y * invNorm),
+                (float)(q.z * invNorm),
+                (float)(q.w * invNorm));
         }
     }
 }
