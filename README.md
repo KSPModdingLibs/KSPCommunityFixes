@@ -37,9 +37,9 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - Fix joint failure and phantom forces when a docking port pair is set to opposite extreme angles.
   - Allow tweaking the rotation in the editor and while not docked in flight.
   - Rotation can now be properly used in a robotic controller.
-  - Remove the -86°/86° hardcoded limitation of `hardMinMaxLimits`, it is now -180°/180°.
+  - Remove the -86Â°/86Â° hardcoded limitation of `hardMinMaxLimits`, it is now -180Â°/180Â°.
   - Fix many issues and state inconsistencies.
-  - An optional `DockingPortExtendedRotation.cfg.extra` MM patch extending rotation range to 360° is available in the `Extras` folder. Copy it to your `GameData` folder and remove the `.extra` extension to use it.
+  - An optional `DockingPortExtendedRotation.cfg.extra` MM patch extending rotation range to 360Â° is available in the `Extras` folder. Copy it to your `GameData` folder and remove the `.extra` extension to use it.
 - **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.3]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
 - **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.3]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurrences of that issue.
 - **PackedPartsRotation** [KSP 1.8.0 - 1.12.3]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
