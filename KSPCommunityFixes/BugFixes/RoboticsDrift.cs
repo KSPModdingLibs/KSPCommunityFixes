@@ -223,9 +223,7 @@ namespace KSPCommunityFixes.BugFixes
             protected readonly BaseServo servo;
             protected readonly GameObject movingPart;
             protected readonly Vector3d mainAxis;
-            protected readonly bool isRootPart;
             protected bool isInverted;
-            private bool isInitialized;
 
             public virtual bool IsEnabled => true;
 
@@ -234,25 +232,14 @@ namespace KSPCommunityFixes.BugFixes
                 this.servo = servo;
                 movingPart = movingPartObject;
                 mainAxis = servo.GetMainAxis();
-                isRootPart = servo.part == servo.vessel.rootPart;
-                if (isRootPart)
-                {
-                    isInitialized = true;
-                    isInverted = false;
-                }
-                else
-                {
-                    isInitialized = false;
-                }
             }
 
             public void PristineCoordsUpdate()
             {
-                if (!isInitialized)
-                {
+                if (servo.part == servo.vessel.rootPart)
+                    isInverted = false;
+                else
                     isInverted = servo.part.attachJoint.AsNull()?.Joint.gameObject == movingPart;
-                    isInitialized = true;
-                }
 
                 UpdateOffset();
 
