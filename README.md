@@ -87,7 +87,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - The callback will only be called when the field value has actually been modified.
   - The "object" argument will contain the previous field value (instead of the new value).
 - **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods.
-- **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such an situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
+- **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 
 ### License
 
@@ -124,11 +124,16 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.14.0
-- New KSP bugfix : PartListTooltipIconSpin (investigation efforts by @StoneBlue)
+- New KSP bugfix : PartListTooltipIconSpin (investigation efforts by @StoneBlue).
 - New KSP bugfix : AsteroidSpawnerUniqueFlightId
 - New QoL patch : DisableNewGameIntro
-- New performance patch : PQSUpdateNoMemoryAlloc
+- New performance patch : PQSUpdateNoMemoryAlloc (investigation and fix by @Linx).
 - Updated Harmony to v2.2.1
+- Fixed multiple RoboticsDrift patch issues: 
+  - Improved general numerical stability by normalizing input/output Quaternions.
+  - Fixed potential NRE spam happening after in-flight vessel hierarchy changes (ie, docking/undocking/decoupling...)
+  - Fixed random child-parts-of-robotic-part displacement after timewarping/reloading (bug introduced with the changes made in 1.12.2)
+  - Modded robotic parts whose `servoTransform` has a position offset relative to the part origin (either due to non-zero local position in the model hierarchy or a position offset in the part config `MODEL{}` node) are now unsupported. This mean drift correction won't be applied for them, and the stock behavior will apply. KSPCF will issue a log warning when unsupported parts are loaded in flight. Note that such a configuration isn't fully supported by stock either, and such parts will also have issues when manipulating their angle in the editor. And while I *might* find a way to fix this issue in the future, I strongly recommend mod authors to check/alter their models to ensure the `servoTransform` has a zero relative position/rotation from the model root. As of writing, this issue notably affect the BDB Skylab truss, the "More Servos" mod by @Angel-125 and possibly others. 
 
 ##### 1.13.2
 - RoboticsDrift : fixed a rotation offset being wrongly applied to child parts of translation servos following the fix for issue #35 released in KSPCF 1.12.2 (see [report 1](https://forum.kerbalspaceprogram.com/index.php?/topic/204002-18-112-kspcommunityfixes-bugfixes-and-qol-tweaks/&do=findComment&comment=4132262), [report 2](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/13#issuecomment-1126797719))

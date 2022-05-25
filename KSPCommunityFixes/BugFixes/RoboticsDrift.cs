@@ -199,22 +199,18 @@ namespace KSPCommunityFixes.BugFixes
             }
         }
 
-        private static void BaseServo_OnPartPack_Prefix(BaseServo __instance, out ServoInfo __state)
+        private static void BaseServo_OnPartPack_Prefix(BaseServo __instance)
         {
             if (__instance.servoInitComplete && HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
-                if (!servoInfos.TryGetValue(__instance.part, out __state))
+                if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
                 {
                     Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
                     return;
                 }
 
-                if (__state.IsEnabled)
-                    __state.RestoreMovingPartPristineCoords();
-            }
-            else
-            {
-                __state = null;
+                if (servoInfo.IsEnabled)
+                    servoInfo.RestoreMovingPartPristineCoords();
             }
         }
 
@@ -239,7 +235,7 @@ namespace KSPCommunityFixes.BugFixes
                 if (servo.part == servo.vessel.rootPart)
                     isInverted = false;
                 else
-                    isInverted = servo.part.attachJoint.AsNull()?.Joint.gameObject == movingPart;
+                    isInverted = servo.part.attachJoint.AsNull()?.Joint.AsNull()?.gameObject == movingPart;
 
                 UpdateOffset();
 
@@ -360,6 +356,29 @@ namespace KSPCommunityFixes.BugFixes
                 movingPartPristineLocalPos = movingPartLocalPos;
                 lastRotAngle = CurrentAngle(movingPartLocalRot);
 
+
+                // FIXME : non-stock rotating parts can have a position/rotation offset between the part Transform and the MovingPartObject.
+                // This can either be the model hierachy having non-zero local pos/rot, or a pos/rot offset in the part config MODEL{} node.
+
+                // After spending way too much time to handle that case (and having a few borked releases in the process), the state of things is :
+                // - The current code *seems* to produce correct results when there is only a rotation offset.
+                // - When there is a position offset, it doesn't work in various cases. Specifically, it doesn't work if the servo part or its parent
+                //   part has a orgRot offset (ie, if the part has been rotated in the editor)
+                // When things are "incorrect", the issue is a wrong position offset being applied to the servo part itself (if inverted) or its childs
+                // (if not inverted), with the offset potentially being really large, usually resulting in an immediate kraken event.
+                // I'm likely missing something obvious, but this remains a mystery...
+
+                // So, as of now, since the most urgent is to do a non-borked release, the strategy is as follow :
+                // - The code handling pos/rot offsets is still here
+                // - However, the whole drift correction is disabled if a position offset is detected
+                // - Drift correction is enabled if there is only a rot offset (fingers crossed)
+
+                // Note that the stock code doesn't handle a pos offset correctly either (but as far as I can tell this is only an issue in the editor).
+                // This happen to many modded robotic parts :
+                // - The BDB skylab truss part by @Zorg
+                // - A large proportion of the "MoreServos" parts by @Angel-125
+                // - Some robotic parts by @Benjee
+
                 int moduleIdx = baseServo.part.modules.IndexOf(baseServo);
                 
                 if (moduleIdx < 0 || moduleIdx >= baseServo.part.partInfo.partPrefab.modules.Count || !(baseServo.part.partInfo.partPrefab.modules[moduleIdx] is BaseServo prefabModule))
@@ -388,12 +407,17 @@ namespace KSPCommunityFixes.BugFixes
                     hasMovingPartPosOffset = false;
                     for (int i = 0; i < 3; i++)
                     {
+                        // An offset alongside the servo axis isn't an issue.
+                        // At least, this is the case for stock parts.
                         if (i == mainAxisIndex)
                             continue;
 
                         if (movingPartModelPosOffset[i] != 0.0)
                             hasMovingPartPosOffset = true;
                     }
+
+                    if (hasMovingPartPosOffset)
+                        Debug.LogWarning($"[RoboticsDrift] Can't enable drift correction for '{baseServo.part.name}', the servo transform '{movingPartObject.name}' has a position offset of '{movingPartModelPosOffset}' relative to the part origin");
                 }
             }
 
@@ -425,6 +449,7 @@ namespace KSPCommunityFixes.BugFixes
                     // avoid manipulating orgPos unless necessary to limit FP precision issues
                     if (hasMovingPartPosOffset)
                     {
+                        // FIXME : doesn't work correctly if the parent part has an orgRot offset
                         // transform in vessel space (but reversed)
                         movingPartModelPosOffsetCurrent = servo.part.orgRot.ToQuaternionD() * movingPartModelPosOffset;
                         Vector3d parentToPivot = servo.part.orgPos - servo.part.parent.orgPos - movingPartModelPosOffsetCurrent;
@@ -481,8 +506,9 @@ namespace KSPCommunityFixes.BugFixes
                 else if (hasMovingPartPosOffset)
                 {
                     // otherwise, and if the moving part isn't aligned with the part transform, we
-                    // need to correct the position of the servo direct childs while taking into
-                    // account the offset between the servo moving part and i
+                    // need to correct the position of the servo direct childs
+
+                    // FIXME : doesn't work correctly if the parent has an orgRot offset
 
                     // get position offset between this part and the servo part
                     Vector3d orgPosOffset = part.orgPos - part.parent.orgPos;
