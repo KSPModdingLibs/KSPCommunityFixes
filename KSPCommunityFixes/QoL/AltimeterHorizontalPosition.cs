@@ -119,6 +119,12 @@ namespace KSPCommunityFixes
             if (trackingFiltersHoverArea != null)
             {
                 trackingFiltersHoverArea.SetActive(true);
+
+                // Fix issue #39
+                // updateButtonsToFilter is checking for the isActiveAndEnabled state of button GO before setting state.
+                // Since we disabled the containing GO when this was called in MapViewFiltering.Init(), the buttons state  
+                // will be incorrect initially, so update them manually.
+                MapViewFiltering.Instance.updateButtonsToFilter(MapViewFiltering.vesselTypeFilter);
             }
         }
 
