@@ -12,18 +12,29 @@ namespace KSPCommunityFixes
         protected override Version VersionMin => new Version(1, 8, 0);
 
         private static UIPartActionNumericFloatEdit prefab;
+        private static Type UI_FloatEdit_Type = typeof(UI_FloatEdit);
 
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionController), "Awake"),
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.Awake)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetFieldControl)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetControl)),
                 this));
         }
 
         static void UIPartActionController_Awake_Postfix(UIPartActionController __instance)
         {
-            if (prefab == null)
+            if (ReferenceEquals(prefab, null))
             {
                 UIPartActionFloatEdit original = null;
                 UIPartActionFloatRange floatRange = null;
@@ -39,18 +50,30 @@ namespace KSPCommunityFixes
                 if (original != null && floatRange != null)
                     prefab = UIPartActionNumericFloatEdit.CreatePrefab(original, floatRange);
             }
+        }
 
-            if (prefab != null)
+        static bool UIPartActionController_GetFieldControl_Prefix(Type uiControlType, out UIPartActionFieldItem __result)
+        {
+            if (uiControlType == UI_FloatEdit_Type && !ReferenceEquals(prefab, null))
             {
-                for (int i = 0; i < __instance.fieldPrefabs.Count; i++)
-                {
-                    if (__instance.fieldPrefabs[i] is UIPartActionFloatEdit)
-                    {
-                        __instance.fieldPrefabs[i] = prefab;
-                        break;
-                    }
-                }
+                __result = prefab;
+                return false;
             }
+
+            __result = null;
+            return true;
+        }
+
+        static bool UIPartActionController_GetControl_Prefix(Type uiControlType, out UIPartActionItem __result)
+        {
+            if (uiControlType == UI_FloatEdit_Type && !ReferenceEquals(prefab, null))
+            {
+                __result = prefab;
+                return false;
+            }
+
+            __result = null;
+            return true;
         }
     }
 
