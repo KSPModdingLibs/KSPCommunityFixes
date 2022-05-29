@@ -123,6 +123,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.14.1
+- Fix KSPCF [issue #39](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/39) : AltimeterHorizontalPosition patch causes state inconsistencies with vessel filters.
+- Fix KSPCF [issue #40](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/40) : UIFloatEditNumericInput patch breaking IR custom FloatEdit control. Don't alter the control prefab list, instead return our custom prefab on the fly in the KSP methods searching the prefab list.
+
 ##### 1.14.0
 - New KSP bugfix : PartListTooltipIconSpin (investigation efforts by @StoneBlue).
 - New KSP bugfix : AsteroidSpawnerUniqueFlightId
