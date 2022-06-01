@@ -1,12 +1,8 @@
-﻿using System;
+﻿using HarmonyLib;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
-using System.Threading.Tasks;
-using HarmonyLib;
-using UnityEngine;
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -32,8 +28,8 @@ namespace KSPCommunityFixes.BugFixes
 
             for (int i = 0; i < code.Count - 1; i++)
             {
-                if (code[i].opcode == OpCodes.Ldfld && code[i].operand == PQSMod_sphere_field
-                    && code[i + 1].opcode == OpCodes.Ldfld && code[i + 1].operand == PQS_sx_field)
+                if (code[i].opcode == OpCodes.Ldfld && ReferenceEquals(code[i].operand, PQSMod_sphere_field)
+                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, PQS_sx_field))
                 {
                     code[i + 1].opcode = OpCodes.Call;
                     code[i + 1].operand = GetLongitudeFromSX_method;
