@@ -57,6 +57,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[DeltaVHideWhenDisabled](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/31)** [KSP 1.12.0 - 1.12.3]<br/>Hide the stock stage delta-v UI elements and navball extended burn info when `DELTAV_CALCULATIONS_ENABLED` and `DELTAV_APP_ENABLED` are disabled by another mod or in the KSP `settings.cfg` file.
 - **AsteroidSpawnerUniqueFlightId** [KSP 1.8.0 - 1.12.3]<br/>Fix the asteroid/comet spawner generating non-unique `Part.flightId` identifiers. This has a few minor side effects in stock (mainly incorrect science bonuses), but this field is heavily relied upon by various mods and this can cause major issues for them.
 - **PartListTooltipIconSpin** [KSP 1.8.0 - 1.12.3]<br/> Fix editor tooltip part icons not spinning anymore after hovering on a greyed out surface attachable only part while the editor is empty.
+- **[ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41)** [KSP 1.8.0 - 1.12.3]<br/>Fix incorrect terrain scatter distribution when a partial longitude range is defined in the PQSLandControl definition.
 
 #### Quality of Life tweaks 
 
@@ -122,6 +123,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.15.0
+- New KSP bugfix : [ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41) (credit to @R-T-B)
 
 ##### 1.14.1
 - Fix KSPCF [issue #39](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/39) : AltimeterHorizontalPosition patch causes state inconsistencies with vessel filters.
