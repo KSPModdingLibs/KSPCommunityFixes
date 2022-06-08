@@ -92,6 +92,7 @@
     <Compile Include="BugFixes\ExtendedDeployableParts.cs" />
     <Compile Include="BugFixes\DeltaVHideWhenDisabled.cs" />
     <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
+    <Compile Include="BugFixes\LostSoundAfterSceneSwitch.cs" />
     <Compile Include="BugFixes\PackedPartsRotation.cs" />
     <Compile Include="BugFixes\PartListTooltipIconSpin.cs" />
     <Compile Include="BugFixes\PartStartStability.cs" />
