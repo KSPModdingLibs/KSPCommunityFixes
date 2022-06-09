@@ -17,6 +17,16 @@ namespace KSPCommunityFixes.BugFixes
     // deformation will become permanent.
     // To fix this, we reset the part transform rotations to their pristine orgRot when a vessel is being packed.
 
+    // Finding the ideal timing to do this is a bit difficult. Packed vessels position is updated by the OrbitDriver, meaning
+    // this won't happen immediately when packing, but usually on the next frame. Doing it in the OrbitDriver update is messy
+    // and will likely interfere with mods implementing packed rotation. We certainly don't want to rotate the parts before
+    // GoOnRails(), as this will have a (minor, but still) effect on the VesselPrecalculate integrator and on anything using
+    // the various callbacks : partmodules with OnPartPack(), vesselmodules with OnGoOnRails(), and the various GameEvents.
+    // Moreover, we need orgRot to be up-to-date, and many stuff (like BG robotics) are updating it on vessel packing.
+
+    // So we settle for a one time call just after Vessel.GoOnRails(). This ensure things are unchanged for everything doing
+    // stuff during that event, and it shouldn't affect anything messing with rotation afterwards.
+
     class PackedPartsRotation : BasePatch
     {
         protected override Version VersionMin => new Version(1, 8, 0);
@@ -31,7 +41,7 @@ namespace KSPCommunityFixes.BugFixes
 
         static void Vessel_GoOnRails_Postfix(Vessel __instance)
         {
-            if (__instance.LandedOrSplashed)
+            if (__instance.orbitDriver.updateMode != OrbitDriver.UpdateMode.UPDATE)
                 return;
 
             Quaternion vesselRotation = __instance.vesselTransform.rotation;
