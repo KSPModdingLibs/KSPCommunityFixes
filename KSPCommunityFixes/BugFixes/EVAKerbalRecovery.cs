@@ -3,8 +3,6 @@
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Reflection.Emit;
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -15,85 +13,84 @@ namespace KSPCommunityFixes.BugFixes
         protected override void ApplyPatches(ref List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
+                PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsIncludingCargo)),
                 this));
         }
 
-        static IEnumerable<CodeInstruction> ProtoVessel_GetAllProtoPartsIncludingCargo_Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
+        private static bool ProtoVessel_GetAllProtoPartsIncludingCargo_Prefix(ProtoVessel __instance, out List<ProtoPartSnapshot> __result)
         {
-            MethodInfo mInfo_IsEVAKerbal = AccessTools.Method(typeof(EVAKerbalRecovery), nameof(EVAKerbalRecovery.IsEVAKerbal));
-            MethodInfo mInfo_GetAllProtoPartsFromCrew = AccessTools.Method(typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsFromCrew));
-
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-
-            for (int i = 0; i < code.Count; i++)
+            int partCount = __instance.protoPartSnapshots.Count;
+            __result = new List<ProtoPartSnapshot>(partCount * 2);
+            for (int i = 0; i < partCount; i++)
             {
-                // find "if (partInfoByName == null || string.Equals(partInfoByName.name, "kerbalEVA"))"
-                // and nop the whole "string.Equals(partInfoByName.name, "kerbalEVA")" condition
-                // Note that this condition was added in KSP 1.12.0 (probably to attempt to fix cargo parts being recovered twice)
-                // so it won't be found in KSP 1.11.x. Since this "fix" doesn't work and create even more problems, we remove it.
-                if (code[i].opcode == OpCodes.Ldstr && code[i].operand is string str && str == "kerbalEVA")
-                {
-                    int j = i + 1;
-                    // advance to the jump
-                    while (code[j].opcode != OpCodes.Brtrue)
-                        j++;
+                ProtoPartSnapshot protoPartSnapshot = __instance.protoPartSnapshots[i];
 
-                    // rewind and nop all instructions until the "partInfoByName == null" jump is reached
-                    while (code[j].opcode != OpCodes.Brfalse)
+                AvailablePart partInfoByName = PartLoader.getPartInfoByName(protoPartSnapshot.partInfo.name);
+                if (partInfoByName == null)
+                    continue;
+
+                __result.Add(protoPartSnapshot);
+
+                // if the part has an inventory module, instantiate protoparts for the cargo parts
+                // this include EVA kerbal inventories
+                for (int j = 0; j < protoPartSnapshot.modules.Count; j++)
+                {
+                    // note : this won't handle ModuleInventoryPart derivatives, but the same issue is present
+                    // in many other places in the stock codebase, so we assume this is an unsupported scenario.
+                    if (string.Equals(protoPartSnapshot.modules[j].moduleName, nameof(ModuleInventoryPart)))
                     {
-                        code[j].opcode = OpCodes.Nop;
-                        code[j].operand = null;
-                        j--;
+                        AddProtoPartsFromInventoryNode(__result, __instance, protoPartSnapshot.modules[j].moduleValues);
+                        break;
                     }
                 }
 
-                // find the "list.AddRange(GetAllProtoPartsFromCrew());" line at the end of the method and don't execute it for EVA kerbals
-                // this is the proper fix to the EVA kerbal inventories being recovered twice.
-                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, mInfo_GetAllProtoPartsFromCrew))
+                // if the part has some crew, add the cargo parts of their inventories,
+                // unless the part is an EVA kerbal (its inventory was already handled in the above code)
+                if (protoPartSnapshot.protoModuleCrew != null && protoPartSnapshot.protoModuleCrew.Count > 0 && !partInfoByName.name.StartsWith("kerbalEVA"))
                 {
-                    // search the begining of line
-                    int insertPos = i;
-                    while (code[insertPos].opcode != OpCodes.Ldloc_0)
-                        insertPos--;
-
-                    // search the final "return list;" line
-                    int jumpPos = i;
-                    while (code[jumpPos].opcode != OpCodes.Ret)
-                        jumpPos++;
-
-                    while (code[jumpPos].opcode != OpCodes.Ldloc_0)
-                        jumpPos--;
-
-                    // and add a label so we can jump to it
-                    Label jump = ilGen.DefineLabel();
-                    code[jumpPos].labels.Add(jump);
-
-                    // then add a jump to bypass the "list.AddRange(GetAllProtoPartsFromCrew());" line if our
-                    // IsEVAKerbal() method returns true
-                    CodeInstruction[] insert = new CodeInstruction[3];
-                    insert[0] = new CodeInstruction(OpCodes.Ldarg_0);
-                    insert[1] = new CodeInstruction(OpCodes.Call, mInfo_IsEVAKerbal);
-                    insert[2] = new CodeInstruction(OpCodes.Brtrue, jump);
-
-                    code.InsertRange(insertPos, insert);
-                    break;
+                    for (int j = 0; j < protoPartSnapshot.protoModuleCrew.Count; j++)
+                    {
+                        AddProtoPartsFromInventoryNode(__result, __instance, protoPartSnapshot.protoModuleCrew[j].InventoryNode);
+                    }
                 }
             }
 
-            return code;
+            return false;
         }
 
-        private static bool IsEVAKerbal(ProtoVessel pv)
+        private static void AddProtoPartsFromInventoryNode(List<ProtoPartSnapshot> list, ProtoVessel pv, ConfigNode moduleInventoryNode)
         {
-            // EVA kerbals are always 1 part vessels
-            if (pv.protoPartSnapshots.Count != 1)
-                return false;
+            if (moduleInventoryNode == null)
+                return;
 
-            return pv.protoPartSnapshots[0].partInfo.name.StartsWith("kerbalEVA");
+            ConfigNode storedPartsNode = null;
+            if (!moduleInventoryNode.TryGetNode("STOREDPARTS", ref storedPartsNode))
+                return;
+
+            for (int k = 0; k < storedPartsNode.nodes.Count; k++)
+            {
+                ConfigNode storedPartNode = storedPartsNode.nodes[k];
+
+                if (storedPartNode == null)
+                    continue;
+
+                int quantity = 1;
+                storedPartNode.TryGetValue("quantity", ref quantity);
+                ConfigNode protoPartSnapshotNode = null;
+
+                if (!storedPartNode.TryGetNode("PART", ref protoPartSnapshotNode))
+                    continue;
+
+                ProtoPartSnapshot protoPartSnapshot = new ProtoPartSnapshot(protoPartSnapshotNode, pv, null);
+                if (protoPartSnapshot != null)
+                {
+                    for (int l = 0; l < quantity; l++)
+                    {
+                        list.Add(protoPartSnapshot);
+                    }
+                }
+            }
         }
     }
-
-
 }
