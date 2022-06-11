@@ -17,7 +17,7 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -85,15 +85,15 @@ namespace KSPCommunityFixes
 
         // This is a replica of the 1.12.2 CreatePartList() method, for debugging purposes
 
-        private static MethodInfo RemoveItemAt = AccessTools.Method(typeof(UIPartActionWindow), "RemoveItemAt");
-        private static MethodInfo HasKerbalInventory = AccessTools.Method(typeof(UIPartActionWindow), "HasKerbalInventory");
-        private static MethodInfo GetPartCrew = AccessTools.Method(typeof(UIPartActionWindow), "GetPartCrew");
-        private static MethodInfo AddCrewInventory = AccessTools.Method(typeof(UIPartActionWindow), "AddCrewInventory", new Type[] { typeof(ProtoCrewMember) });
-        private static MethodInfo RemoveCrewInventory = AccessTools.Method(typeof(UIPartActionWindow), "RemoveCrewInventory");
+        private static readonly MethodInfo RemoveItemAt = AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.RemoveItemAt));
+        private static readonly MethodInfo HasKerbalInventory = AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.HasKerbalInventory));
+        private static readonly MethodInfo GetPartCrew = AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.GetPartCrew));
+        private static readonly MethodInfo AddCrewInventory = AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new Type[] { typeof(ProtoCrewMember) });
+        private static readonly MethodInfo RemoveCrewInventory = AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.RemoveCrewInventory));
 
         static bool UIPartActionWindow_CreatePartList_Prefix(UIPartActionWindow __instance, bool clearFirst, ref bool __result, ref int ___controlIndex, ref UIPartActionWindow.DisplayType ___displayType, ref UI_Scene ___scene)
         {
-            if (__instance.part == null)
+            if (__instance.part.IsNullOrDestroyed())
             {
                 __result = false;
                 return false;
@@ -109,7 +109,7 @@ namespace KSPCommunityFixes
                 {
                     if (!__instance.ListItems[count].IsItemValid())
                     {
-                        if (__instance.ListItems[count] != null)
+                        if (__instance.ListItems[count].IsNotNullOrDestroyed())
                         {
                             Object.DestroyImmediate(__instance.ListItems[count].gameObject);
                         }

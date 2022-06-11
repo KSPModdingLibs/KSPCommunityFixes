@@ -33,7 +33,7 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -65,7 +65,7 @@ namespace KSPCommunityFixes
         // others stock UI elements at the top of the screen
         public static void SetTopFramePosition()
         {
-            if (FlightUIModeController.Instance == null || FlightUIModeController.Instance.altimeterFrame == null || TelemetryUpdate.Instance == null || ApplicationLauncher.Instance == null)
+            if (FlightUIModeController.Instance.IsNullOrDestroyed() || FlightUIModeController.Instance.altimeterFrame.IsNullOrDestroyed() || TelemetryUpdate.Instance.IsNullOrDestroyed() || ApplicationLauncher.Instance.IsNullOrDestroyed())
             {
                 return;
             }
@@ -104,8 +104,11 @@ namespace KSPCommunityFixes
             SetTopFramePosition();
 
             // hide map the vessel filters button
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance?.MapOptionsQuadrant.gameObject.transform?.GetChild(0)?.GetChild(0).gameObject;
-            if (trackingFiltersHoverArea != null)
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
+                .MapOptionsQuadrant.gameObject.AsNull()?
+                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
+
+            if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
                 trackingFiltersHoverArea.SetActive(false);
             }
@@ -114,9 +117,11 @@ namespace KSPCommunityFixes
         // show the map vessel filters button when entering map view
         static void MapView_enterMapView_Prefix()
         {
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance?.MapOptionsQuadrant.gameObject.transform?.GetChild(0)?.GetChild(0).gameObject;
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
+                .MapOptionsQuadrant.gameObject.AsNull()?
+                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
 
-            if (trackingFiltersHoverArea != null)
+            if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
                 trackingFiltersHoverArea.SetActive(true);
 
@@ -131,9 +136,11 @@ namespace KSPCommunityFixes
         // hide the map vessel filters button when entering map view
         static void MapView_exitMapView_Postfix()
         {
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance?.MapOptionsQuadrant.gameObject.transform?.GetChild(0)?.GetChild(0).gameObject;
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
+                .MapOptionsQuadrant.gameObject.AsNull()?
+                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
 
-            if (trackingFiltersHoverArea != null)
+            if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
                 trackingFiltersHoverArea.SetActive(false);
             }

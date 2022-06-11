@@ -23,7 +23,7 @@ namespace KSPCommunityFixes.BugFixes
             return base.CanApplyPatch(out reason);
         }
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -98,7 +98,7 @@ namespace KSPCommunityFixes.BugFixes
                 servoInfos.Remove(__instance.part);
         }
 
-        private static bool BaseServo_RecurseCoordUpdate_Prefix(BaseServo __instance, Part p, ConfigurableJoint ___servoJoint, GameObject ___movingPartObject)
+        private static bool BaseServo_RecurseCoordUpdate_Prefix(BaseServo __instance, Part p)
         {
             if (HighLogic.LoadedScene == GameScenes.EDITOR)
                 return true;
@@ -134,7 +134,7 @@ namespace KSPCommunityFixes.BugFixes
             if (!__instance.servoInitComplete)
                 return false;
 
-            if (__instance.movingPartObject != null)
+            if (__instance.movingPartObject.IsNotNullOrDestroyed())
             {
                 if (HighLogic.LoadedScene == GameScenes.EDITOR)
                 {
@@ -144,7 +144,7 @@ namespace KSPCommunityFixes.BugFixes
                 }
                 else
                 {
-                    if (__instance.vessel == null || !__instance.vessel.loaded)
+                    if (__instance.vessel.IsNullOrDestroyed() || !__instance.vessel.loaded)
                         return false;
 
                     __instance.ApplyCoordsUpdate();
@@ -173,7 +173,7 @@ namespace KSPCommunityFixes.BugFixes
             // note : "jointParent" is unused in stock parts, and I'm unsure what its purpose is. It seem to be
             // an extra configuration option for a more complicated part model setup / hierarchy. It is likely
             // that using that option will cause weird things when our patch is used anyway.
-            if (__instance.jointParent != null)
+            if (__instance.jointParent.IsNotNullOrDestroyed())
             {
                 node.SetValue("jointParentRotation", __instance.jointParent.localRotation);
             }
@@ -332,7 +332,7 @@ namespace KSPCommunityFixes.BugFixes
             private readonly int mainAxisIndex;
             private readonly Vector3d movingPartPristineLocalPos;
             
-            private bool hasMovingPartPosOffset;
+            private readonly bool hasMovingPartPosOffset;
             private Vector3d servoPosOffset;
             private QuaternionD rotOffset;
 

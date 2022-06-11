@@ -12,7 +12,7 @@ namespace KSPCommunityFixes
 
         private static Dictionary<int, Dictionary<string, bool>> collapseState;
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,

@@ -45,13 +45,13 @@ namespace KSPCommunityFixes
 
         void Start()
         {
-            if (Instance != null && Instance != this)
+            if (Instance.IsNotNullOrDestroyed() && Instance != this)
             {
                 Destroy(Instance);
                 Instance = null;
             }
             
-            if (Instance == null)
+            if (Instance.IsNullOrDestroyed())
             {
                 Instance = this;
                 DontDestroyOnLoad(this);

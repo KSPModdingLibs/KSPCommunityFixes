@@ -25,12 +25,12 @@ namespace KSPCommunityFixes.QoL
 
         public enum PatchState {disabled, noIVA, usePlaceholder}
 
-        private static char[] textureSplitChars = new char[3] {':', ',', ';'};
+        private static readonly char[] textureSplitChars = new char[3] {':', ',', ';'};
 
         public static PatchState patchState = PatchState.disabled;
         private static bool debugPrunning = false;
 
-        private Stopwatch watch = new Stopwatch();
+        private readonly Stopwatch watch = new Stopwatch();
 
         public static void SwitchPatchState(float f)
         {

@@ -14,7 +14,7 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             MethodInfo ConfigNode_ReadObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.ReadObject), new Type[] {typeof(object), typeof(ConfigNode)});
             MethodInfo ConfigNode_WriteObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteObject), new Type[] { typeof(object), typeof(ConfigNode), typeof(int) });

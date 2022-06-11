@@ -129,6 +129,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.16.0
 - New KSP bugfix : [EVAKerbalRecovery](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/43) (thanks to @JonnyOThan for bug-reporting)
+- Codebase cleaning pass and made analyzers happy.
 
 ##### 1.15.0
 - New KSP bugfix : [ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41) (credit to @R-T-B)

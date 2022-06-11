@@ -14,10 +14,12 @@ namespace KSPCommunityFixes.Modding
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     class ReflectionTypeLoadExceptionHandler : MonoBehaviour
     {
+#pragma warning disable IDE0044 // Add readonly modifier
         private static string LOC_KSPCFWarning = "KSPCommunityFixes warning";
         private static string LOC_PluginsLoadFailed = "The following plugin(s) failed to load :";
         private static string LOC_F_PluginLoadFailed_name_in_location = "<<1>> in <<2>>";
         private static string LOC_PluginLoadFailed_missingDep = "Load failed due to missing dependencies";
+#pragma warning restore IDE0044 // Add readonly modifier
 
         private class FailedAssembly
         {
@@ -83,7 +85,7 @@ namespace KSPCommunityFixes.Modding
 
         private static GUIStyle labelStyle;
 
-        private static Dictionary<Assembly, FailedAssembly> failedAssemblies = new Dictionary<Assembly, FailedAssembly>();
+        private static readonly Dictionary<Assembly, FailedAssembly> failedAssemblies = new Dictionary<Assembly, FailedAssembly>();
 
         private static bool logStackTrace = true;
 

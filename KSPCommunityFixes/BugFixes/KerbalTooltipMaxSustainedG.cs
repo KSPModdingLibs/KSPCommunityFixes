@@ -10,13 +10,13 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             // replace the orginial delegate, no need for harmony patching here
-            ProtoCrewMember.MaxSustainedG = _MaxSustainedG;
+            ProtoCrewMember.MaxSustainedG = MaxSustainedG;
         }
 
-        public static double _MaxSustainedG(ProtoCrewMember pcm)
+        public static double MaxSustainedG(ProtoCrewMember pcm)
         {
             // orginial : return Math.Pow(PhysicsGlobals.KerbalGOffset * GToleranceMult(pcm), 1.0 / PhysicsGlobals.KerbalGPower);
             return Math.Pow(PhysicsGlobals.KerbalGOffset, 1.0 / PhysicsGlobals.KerbalGPower) * ProtoCrewMember.GToleranceMult(pcm);

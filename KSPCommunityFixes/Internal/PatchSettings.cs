@@ -18,7 +18,7 @@ namespace KSPCommunityFixes
         private static AltimeterHorizontalPosition altimeterPatch;
         private static DisableManeuverTool maneuverToolPatch;
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -45,7 +45,7 @@ namespace KSPCommunityFixes
             entryCount++;
         }
 
-        static void GameplaySettingsScreen_DrawMiniSettings_Postfix(GameplaySettingsScreen __instance, ref DialogGUIBase[] __result)
+        static void GameplaySettingsScreen_DrawMiniSettings_Postfix(ref DialogGUIBase[] __result)
         {
             if (entryCount == 0)
                 return;

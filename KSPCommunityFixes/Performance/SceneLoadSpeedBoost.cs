@@ -16,11 +16,11 @@ namespace KSPCommunityFixes
         private static string lastPersistentSerializedTimestamp;
         private static ConfigNode lastPersistent;
 
-        private static Stopwatch watch = new Stopwatch();
+        private static readonly Stopwatch watch = new Stopwatch();
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
@@ -283,7 +283,7 @@ namespace KSPCommunityFixes
                                 break;
                             }
                             List<FileInfo> list = new List<FileInfo>(new DirectoryInfo(text2).GetFiles("*.sfs"));
-                            list.Sort(saveCompareToDate);
+                            list.Sort(SaveCompareToDate);
                             if (list.Count < GameSettings.SAVE_BACKUPS)
                             {
                                 File.Copy(text3, destFileName, overwrite: true);
@@ -326,7 +326,7 @@ namespace KSPCommunityFixes
             }
         }
 
-        private static int saveCompareToDate(FileInfo a, FileInfo b)
+        private static int SaveCompareToDate(FileInfo a, FileInfo b)
         {
             try
             {

@@ -14,7 +14,7 @@ namespace KSPCommunityFixes
         private static Func<ROCManager, string, CelestialBody> ValidCelestialBody;
         private static Func<ROCManager, CelestialBody, string, bool> ValidCBBiome;
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -34,7 +34,7 @@ namespace KSPCommunityFixes
                 for (int num2 = rocDefinitions[num].myCelestialBodies.Count - 1; num2 >= 0; num2--)
                 {
                     CelestialBody celestialBody = ValidCelestialBody(__instance, rocDefinitions[num].myCelestialBodies[num2].name);
-                    if (celestialBody == null)
+                    if (celestialBody.IsNullOrDestroyed())
                     {
                         Debug.LogWarningFormat("[ROCManager]: Invalid CelestialBody Name {0} on ROC Definition {1}. Removed entry.", rocDefinitions[num].myCelestialBodies[num2].name, rocDefinitions[num].type);
                         rocDefinitions[num].myCelestialBodies.RemoveAt(num2);

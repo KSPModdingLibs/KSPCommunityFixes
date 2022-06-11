@@ -27,11 +27,11 @@ namespace KSPCommunityFixes
     public class ModuleIndexingMismatch : BasePatch
     {
         private const string VALUENAME_MODULEPARTCONFIGID = "modulePartConfigId";
-        private static HashSet<string> multiModules = new HashSet<string>();
+        private static readonly HashSet<string> multiModules = new HashSet<string>();
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             // ConfigurePart() was added in 1.11, by stripping a portion of the 1.10 ProtoPartSnapshot.Load()
             // method in a separate method.
@@ -419,7 +419,7 @@ namespace KSPCommunityFixes
             return code;
         }
 
-        private static List<ConfigNode> currentModuleNodes = new List<ConfigNode>();
+        private static readonly List<ConfigNode> currentModuleNodes = new List<ConfigNode>();
 
         static void LoadShipModuleNodes(Part part, ConfigNode partNode)
         {

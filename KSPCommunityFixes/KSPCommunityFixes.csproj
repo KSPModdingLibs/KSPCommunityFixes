@@ -2,16 +2,6 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props" Condition="Exists('..\packages\Krafs.Publicizer.1.0.2\build\Krafs.Publicizer.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="$(MSBuildProjectFile).user" Condition="Exists('$(MSBuildProjectFile).user')" />
-  <PropertyGroup>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64.exe</KSPExecutable>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app</KSPExecutable>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP.x86_64</KSPExecutable>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64_Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app\Contents\Resources\Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP_Data\Managed</ManagedRelativePath>
-    <ManagedPath>$(ReferencePath)\$(ManagedRelativePath)</ManagedPath>
-  </PropertyGroup>
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -24,9 +14,6 @@
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <PlatformTarget>x64</PlatformTarget>
-    <StartAction>Program</StartAction>
-    <StartProgram>$(ReferencePath)\$(KSPExecutable)</StartProgram>
-    <StartWorkingDirectory>$(ReferencePath)</StartWorkingDirectory>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
@@ -48,6 +35,23 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <!--Import targets now, which will import KSPCommunityFixes.csproj.user where the path to the KSP install root must be defined in ReferencePath-->
+  <!--This must be done after the main project poperties are defined because it needs the target framework property to be defined -->
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!--Parse KSP platform-specific paths and set the start action-->
+  <PropertyGroup>
+    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64.exe</KSPExecutable>
+    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app</KSPExecutable>
+    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP.x86_64</KSPExecutable>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64_Data\Managed</ManagedRelativePath>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app\Contents\Resources\Data\Managed</ManagedRelativePath>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP_Data\Managed</ManagedRelativePath>
+    <ManagedPath>$(ReferencePath)\$(ManagedRelativePath)</ManagedPath>
+    <StartAction>Program</StartAction>
+    <StartProgram>$(ReferencePath)\$(KSPExecutable)</StartProgram>
+    <StartWorkingDirectory>$(ReferencePath)</StartWorkingDirectory>
+  </PropertyGroup>
+  <!--Import references-->
   <ItemGroup>
     <Reference Include="$(ManagedPath)\System.dll">
       <Name>System (KSP/Mono)</Name>
@@ -78,6 +82,7 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
+  <!--Krafs.Publicizer items-->
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
@@ -103,6 +108,7 @@
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="BugFixes\ScatterDistribution.cs" />
     <Compile Include="BugFixes\StockAlarmDescPreserveLineBreak.cs" />
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Modding\PersistentIConfigNode.cs" />
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
@@ -143,7 +149,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!--Project-specfic configuration-->
   <PropertyGroup>
     <RepoRootPath>$(SolutionDir)</RepoRootPath>
     <GameDataFolderName>KSPCommunityFixes</GameDataFolderName>
@@ -151,6 +157,7 @@
     <CopyReleaseBinariesToRepo>false</CopyReleaseBinariesToRepo>
     <AVCFilename>KSPCommunityFixes.version</AVCFilename>
   </PropertyGroup>
+  <!--MSBuild targets-->
   <Target Name="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
     <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
       <Output PropertyName="AVCFullVersion" TaskParameter="FullVersion" />
@@ -163,6 +170,7 @@
     <CallTarget Targets="CopyBinariesToRepo" Condition="'$(Configuration)' == 'Release' AND '$(CopyReleaseBinariesToRepo)' == 'true'" />
     <CallTarget Targets="MakeReleaseZip" Condition="'$(Configuration)' == 'Release'" />
   </Target>
+  <!--Custom targets-->
   <Target Name="CopyToKSP">
     <RemoveDir Condition="Exists('$(ReferencePath)\GameData\$(GameDataFolderName)')" Directories="$(ReferencePath)\GameData\$(GameDataFolderName)" />
     <ItemGroup>

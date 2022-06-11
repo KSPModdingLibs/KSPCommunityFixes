@@ -54,7 +54,7 @@ namespace KSPCommunityFixes
         private static FieldInfo current;
         private static MethodBase waitForFixedUpdateCtor;
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             Type partType = typeof(Part);
 

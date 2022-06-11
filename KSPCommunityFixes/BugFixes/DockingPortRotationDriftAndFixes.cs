@@ -11,7 +11,7 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
@@ -125,7 +125,7 @@ namespace KSPCommunityFixes.BugFixes
 
                 // this is the reverse of the VisualTargetAngle property
                 float currentTargetAngle = __instance.visualTargetAngle;
-                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
+                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
                 {
                     if (!__instance.inverted)
                         currentTargetAngle *= -1f;
@@ -160,7 +160,7 @@ namespace KSPCommunityFixes.BugFixes
 
         static void UnlockRotationJoint(ConfigurableJoint rotationJoint)
         {
-            if (rotationJoint != null)
+            if (rotationJoint.IsNotNullOrDestroyed())
                 rotationJoint.angularXMotion = ConfigurableJointMotion.Free;
         }
 
@@ -204,7 +204,7 @@ namespace KSPCommunityFixes.BugFixes
         // to the FixedUpdate() cycle. Arguably, that issue is a side effect of the PartStartStability patch, but the
         // stock code works "by chance", so we reimplement OnStartFinished as coroutine that actually check if the FSM
         // is started before running.
-        static bool ModuleDockingNode_OnStartFinished_Prefix(ModuleDockingNode __instance, PartModule.StartState state)
+        static bool ModuleDockingNode_OnStartFinished_Prefix(ModuleDockingNode __instance)
         {
             if (HighLogic.LoadedScene != GameScenes.FLIGHT)
                 return false;
@@ -214,7 +214,7 @@ namespace KSPCommunityFixes.BugFixes
 
             if (__instance.fsm == null || __instance.fsm.CurrentState == null)
             {
-                __instance.StartCoroutine(OnStartFinishedDelayed(__instance, state));
+                __instance.StartCoroutine(OnStartFinishedDelayed(__instance));
                 return false;
             }
 
@@ -226,12 +226,12 @@ namespace KSPCommunityFixes.BugFixes
             return true;
         }
 
-        private static IEnumerator OnStartFinishedDelayed(ModuleDockingNode mdn, PartModule.StartState state)
+        private static IEnumerator OnStartFinishedDelayed(ModuleDockingNode mdn)
         {
             while (mdn.vessel.packed || mdn.fsm == null || mdn.fsm.CurrentState == null)
                 yield return null;
 
-            if (mdn.otherNode != null && (mdn.otherNode.fsm == null || mdn.fsm.CurrentState == null))
+            if (mdn.otherNode.IsNotNullOrDestroyed() && (mdn.otherNode.fsm == null || mdn.fsm.CurrentState == null))
                 yield return null;
 
             float jointTargetAngle = mdn.JointTargetAngle;
@@ -241,7 +241,7 @@ namespace KSPCommunityFixes.BugFixes
             else
                 Debug.LogWarning($"[DockingNodeDrift] Docking node info not found on {mdn.part}, drift correction won't be applied !");
 
-            if (mdn.otherNode == null)
+            if (mdn.otherNode.IsNullOrDestroyed())
             {
                 mdn.rotationInitComplete = true;
                 yield break;
@@ -249,7 +249,7 @@ namespace KSPCommunityFixes.BugFixes
 
             ConfigurableJoint rotationJoint = GetRotationJoint(mdn);
 
-            if (rotationJoint == null || mdn.rotationTransform == null)
+            if (rotationJoint.IsNullOrDestroyed() || mdn.rotationTransform.IsNullOrDestroyed())
                 yield break;
 
             float visualTargetAngle = GetVisualTargetAngle(mdn, rotationJoint);
@@ -299,7 +299,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             if (IsDocked(mdn))
             {
-                if (mdn.sameVesselDockJoint != null)
+                if (mdn.sameVesselDockJoint.IsNotNullOrDestroyed())
                     return null;
 
                 if (mdn.part.parent == mdn.otherNode.part)
@@ -308,7 +308,7 @@ namespace KSPCommunityFixes.BugFixes
                     return mdn.otherNode.part.attachJoint.AsNull()?.Joint;
             }
 
-            if (mdn.referenceNode?.attachedPart != null && mdn.referenceNode.attachedPart.parent == mdn.part)
+            if (mdn.referenceNode != null && mdn.referenceNode.attachedPart.IsNotNullOrDestroyed() && mdn.referenceNode.attachedPart.parent == mdn.part)
                 return mdn.referenceNode.attachedPart.attachJoint.AsNull()?.Joint;
 
             return null;
@@ -319,7 +319,7 @@ namespace KSPCommunityFixes.BugFixes
             if (!mdn.fsm.fsmStarted)
                 return false;
 
-            return mdn.otherNode != null 
+            return mdn.otherNode.IsNotNullOrDestroyed()
                    && (mdn.fsm.currentState == mdn.st_docked_docker 
                        || mdn.fsm.currentState == mdn.st_docked_dockee 
                        || mdn.fsm.currentState == mdn.st_preattached);
@@ -333,7 +333,7 @@ namespace KSPCommunityFixes.BugFixes
 
         static float GetVisualTargetAngle(ModuleDockingNode mdn, ConfigurableJoint rotationJoint)
         {
-            if (rotationJoint != null && rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
+            if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
             {
                 if (mdn.inverted)
                     return mdn.targetAngle;
@@ -362,7 +362,7 @@ namespace KSPCommunityFixes.BugFixes
                 __instance.driveTargetAngle = __instance.JointTargetAngle;
                 __instance.visualTargetAngle = GetVisualTargetAngle(__instance, rotationJoint);
                 
-                if (rotationJoint != null && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
+                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
                 {
                     Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
                     rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
@@ -386,7 +386,7 @@ namespace KSPCommunityFixes.BugFixes
             }
             else
             {
-                bool canUnlock = __instance.sameVesselDockJoint == null;
+                bool canUnlock = __instance.sameVesselDockJoint.IsNullOrDestroyed();
                 bool rotationEnabled = !__instance.nodeIsLocked && canUnlock;
                 __instance.Fields["targetAngle"].guiActive = rotationEnabled;
                 __instance.Fields["inverted"].guiActive = rotationEnabled;
@@ -402,7 +402,7 @@ namespace KSPCommunityFixes.BugFixes
         // - The stock implementation doesn't work when both docking port are moving at the same time
         static bool ModuleDockingNode_UpdateAlignmentRotation_Prefix(ModuleDockingNode __instance)
         {
-            if (!__instance.hasEnoughResources || !__instance.rotationInitComplete || __instance.sameVesselDockJoint != null)
+            if (!__instance.hasEnoughResources || !__instance.rotationInitComplete || __instance.sameVesselDockJoint.IsNotNullOrDestroyed())
                 return false;
 
             __instance.targetAngle = Mathf.Clamp(__instance.targetAngle, __instance.hardMinMaxLimits.x, __instance.hardMinMaxLimits.y);
@@ -601,7 +601,7 @@ namespace KSPCommunityFixes.BugFixes
 
         private class DockingNodeInfo
         {
-            private static Queue<Part> partQueue = new Queue<Part>();
+            private static readonly Queue<Part> partQueue = new Queue<Part>();
 
             private readonly ModuleDockingNode dockingNode;
             private readonly float initialTargetAngle;
@@ -755,7 +755,7 @@ namespace KSPCommunityFixes.BugFixes
                     // but since AttachNode is serializable, the field will still be populated with an useless instance
                     // So we always acquire the AttachNode instance from the part.
                     AttachNode attachNode = dockingNode.part.FindAttachNode(dockingNode.referenceAttachNode);
-                    if (attachNode?.attachedPart != null && attachNode.attachedPart.HasModuleImplementing<ModuleDockingNode>())
+                    if (attachNode != null && attachNode.attachedPart.IsNotNullOrDestroyed() && attachNode.attachedPart.HasModuleImplementing<ModuleDockingNode>())
                     {
                         Part rotatingPart;
                         // if the docking port is the child of the docking port pair, rotate itself, else rotate the child docking port

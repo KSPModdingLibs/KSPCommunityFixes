@@ -1,7 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Condition="Exists('$(SolutionDir)\KSPDevPath.xml')" Project="$(SolutionDir)\KSPDevPath.xml" />
+  <Import Project="$(MSBuildProjectDirectory)\..\KSPCommunityFixes\KSPCommunityFixes.csproj.user" Condition="Exists('$(MSBuildProjectDirectory)\..\KSPCommunityFixes\KSPCommunityFixes.csproj.user')" />
+  <PropertyGroup>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64_Data\Managed</ManagedRelativePath>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app\Contents\Resources\Data\Managed</ManagedRelativePath>
+    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP_Data\Managed</ManagedRelativePath>
+    <ManagedPath>$(ReferencePath)\$(ManagedRelativePath)</ManagedPath>
+  </PropertyGroup>
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -35,11 +41,11 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\System.dll">
+    <Reference Include="$(ManagedPath)\System.dll">
       <Name>System (KSP/Mono)</Name>
       <Private>False</Private>
     </Reference>
-    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\mscorlib.dll">
+    <Reference Include="$(ManagedPath)\mscorlib.dll">
       <Name>System.Core (KSP/Mono)</Name>
       <Private>False</Private>
     </Reference>

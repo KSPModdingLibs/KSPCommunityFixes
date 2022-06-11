@@ -13,7 +13,7 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             foreach (MethodInfo methodInfo in AccessTools.GetDeclaredMethods(typeof(AppUIMember)))
             {
@@ -81,7 +81,7 @@ namespace KSPCommunityFixes
             minutes = seconds / 60 % 60;
             hours = seconds / 3600 % (day_len / 3600);
             days = seconds / day_len;
-            seconds = seconds % 60;
+            seconds %= 60;
             if (asDate)
             {
                 days += 1;
@@ -94,7 +94,7 @@ namespace KSPCommunityFixes
             AppUIMemberDateTime.DateTimeModes ___datetimeMode,
             AppUIMemberDateTime.DisplayModes ___displayMode)
         {
-            double ut = 0.0;
+            double ut;
             switch (___displayMode)
             {
                 default:

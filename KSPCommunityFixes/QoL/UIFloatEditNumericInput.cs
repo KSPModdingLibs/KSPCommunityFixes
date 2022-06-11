@@ -12,9 +12,9 @@ namespace KSPCommunityFixes
         protected override Version VersionMin => new Version(1, 8, 0);
 
         private static UIPartActionNumericFloatEdit prefab;
-        private static Type UI_FloatEdit_Type = typeof(UI_FloatEdit);
+        private static readonly Type UI_FloatEdit_Type = typeof(UI_FloatEdit);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -34,27 +34,27 @@ namespace KSPCommunityFixes
 
         static void UIPartActionController_Awake_Postfix(UIPartActionController __instance)
         {
-            if (ReferenceEquals(prefab, null))
+            if (prefab.IsNullRef())
             {
                 UIPartActionFloatEdit original = null;
                 UIPartActionFloatRange floatRange = null;
 
-                foreach (var uiPartActionFieldItem in __instance.fieldPrefabs)
+                foreach (UIPartActionFieldItem uiPartActionFieldItem in __instance.fieldPrefabs)
                 {
-                    if (uiPartActionFieldItem is UIPartActionFloatEdit)
-                        original = (UIPartActionFloatEdit)uiPartActionFieldItem;
-                    else if (uiPartActionFieldItem is UIPartActionFloatRange)
-                        floatRange = (UIPartActionFloatRange)uiPartActionFieldItem;
+                    if (uiPartActionFieldItem is UIPartActionFloatEdit floatEditPrefab)
+                        original = floatEditPrefab;
+                    else if (uiPartActionFieldItem is UIPartActionFloatRange floatRangePrefab)
+                        floatRange = floatRangePrefab;
                 }
 
-                if (original != null && floatRange != null)
+                if (original.IsNotNullOrDestroyed() && floatRange.IsNotNullOrDestroyed())
                     prefab = UIPartActionNumericFloatEdit.CreatePrefab(original, floatRange);
             }
         }
 
         static bool UIPartActionController_GetFieldControl_Prefix(Type uiControlType, out UIPartActionFieldItem __result)
         {
-            if (uiControlType == UI_FloatEdit_Type && !ReferenceEquals(prefab, null))
+            if (uiControlType == UI_FloatEdit_Type && prefab.IsNotNullRef())
             {
                 __result = prefab;
                 return false;
@@ -66,7 +66,7 @@ namespace KSPCommunityFixes
 
         static bool UIPartActionController_GetControl_Prefix(Type uiControlType, out UIPartActionItem __result)
         {
-            if (uiControlType == UI_FloatEdit_Type && !ReferenceEquals(prefab, null))
+            if (uiControlType == UI_FloatEdit_Type && prefab.IsNotNullRef())
             {
                 __result = prefab;
                 return false;

@@ -16,7 +16,7 @@ namespace KSPCommunityFixes
         private static float lastFixedTime;
         
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -36,13 +36,13 @@ namespace KSPCommunityFixes
         {
             // - if part was in water previously, always let the integrator run.
             // - always let it run at least once 
-            if (__instance.splashed || __instance.depth > 0.0 || ReferenceEquals(__instance.body, null))
+            if (__instance.splashed || __instance.depth > 0.0 || __instance.body.IsNullRef())
                 return true;
 
             Vessel vessel = ___part.vessel;
 
             // let stock code handle that case
-            if (ReferenceEquals(vessel, null))
+            if (vessel.IsNullRef())
                 return true;
 
             // avoid further processing if no ocean, but set PartBuoyancy.body to replicate stock behavior

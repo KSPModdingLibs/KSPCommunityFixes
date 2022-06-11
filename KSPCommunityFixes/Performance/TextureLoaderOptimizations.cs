@@ -42,7 +42,7 @@ namespace KSPCommunityFixes
         private static string configPath;
         private static bool isSetPixelDataSupported;
 
-        private Stopwatch cacheLoadingWatch = new Stopwatch();
+        private readonly Stopwatch cacheLoadingWatch = new Stopwatch();
 
         private bool userOptInChoiceDone;
         private string modPath;
@@ -219,7 +219,7 @@ namespace KSPCommunityFixes
         [Serializable]
         public class CachedTextureInfo
         {
-            private static Random random = new Random();
+            private static readonly Random random = new Random();
 
             public string name;
             public uint id;
@@ -398,7 +398,7 @@ namespace KSPCommunityFixes
 
             if (texture2D.width % 4 == 0 && texture2D.height % 4 == 0)
             {
-                texture2D.Compress(flag2 ? true : false);
+                texture2D.Compress(flag2);
             }
             else
             {

@@ -15,7 +15,7 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix, 
@@ -46,18 +46,18 @@ namespace KSPCommunityFixes.QoL
         {
             enableManeuverTool = enabled;
 
-            if (!enableManeuverTool && ManeuverTool.Instance != null)
+            if (!enableManeuverTool && ManeuverTool.Instance.IsNotNullOrDestroyed())
             {
                 UnityEngine.Object.Destroy(ManeuverTool.Instance.gameObject);
             }
-            else if (enableManeuverTool && ManeuverTool.Instance == null)
+            else if (enableManeuverTool && ManeuverTool.Instance.IsNullOrDestroyed())
             {
                 UIAppSpawner appSpawner = UIMasterController.Instance.transform.Find("PrefabSpawners")?.GetComponentInChildren<UIAppSpawner>();
-                if (appSpawner != null)
+                if (appSpawner.IsNotNullOrDestroyed())
                 {
                     foreach (UIAppSpawner.AppWrapper appWrapper in appSpawner.apps)
                     {
-                        if (appWrapper.prefab.GetComponent<ManeuverTool>() != null && appWrapper.scenes.Contains(HighLogic.LoadedScene))
+                        if (appWrapper.prefab.GetComponent<ManeuverTool>().IsNotNullOrDestroyed() && appWrapper.scenes.Contains(HighLogic.LoadedScene))
                         {
                             appWrapper.instantiatedApp = UnityEngine.Object.Instantiate(appWrapper.prefab);
                             appWrapper.instantiatedApp.GetComponent<ManeuverTool>().ForceAddToAppLauncher();

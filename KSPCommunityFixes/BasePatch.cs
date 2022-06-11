@@ -8,7 +8,7 @@ using UnityEngine;
 namespace KSPCommunityFixes
 {
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
-    public class PatchPriority : Attribute
+    public sealed class PatchPriority : Attribute
     {
         private int order;
 
@@ -79,7 +79,7 @@ namespace KSPCommunityFixes
             ReversePatch
         }
 
-        protected struct PatchInfo
+        protected class PatchInfo
         {
             public PatchMethodType patchType;
             public MethodBase patchedMethod;
@@ -117,7 +117,7 @@ namespace KSPCommunityFixes
         /// Add PatchInfo entries to the patches list to appply harmony patches
         /// </summary>
         /// <param name="patches"></param>
-        protected abstract void ApplyPatches(ref List<PatchInfo> patches);
+        protected abstract void ApplyPatches(List<PatchInfo> patches);
 
         /// <summary>
         /// Override this to define the min KSP version for witch this patch applies. Defaults to KSP 1.12.0
@@ -134,7 +134,7 @@ namespace KSPCommunityFixes
         private void ApplyHarmonyPatch()
         {
             List<PatchInfo> patches = new List<PatchInfo>();
-            ApplyPatches(ref patches);
+            ApplyPatches(patches);
 
             foreach (PatchInfo patch in patches)
             {

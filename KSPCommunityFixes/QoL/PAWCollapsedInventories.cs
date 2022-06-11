@@ -10,11 +10,11 @@ namespace KSPCommunityFixes.UI
 {
     class PAWCollapsedInventories : BasePatch
     {
-        private static StringBuilder sb = new StringBuilder();
+        private static readonly StringBuilder sb = new StringBuilder();
 
         protected override Version VersionMin => new Version(1, 11, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -88,7 +88,7 @@ namespace KSPCommunityFixes.UI
             UIPartActionWindow paw;
             if (__instance.kerbalMode)
             {
-                if (__instance.grid?.pawInventory == null || __instance.grid.pawInventory.Window == null)
+                if (__instance.grid == null || __instance.grid.pawInventory.IsNullOrDestroyed() || __instance.grid.pawInventory.Window.IsNullOrDestroyed())
                     return;
 
                 paw = __instance.grid.pawInventory.Window;
@@ -106,7 +106,7 @@ namespace KSPCommunityFixes.UI
 
             BasePAWGroup group = __instance.Fields["InventorySlots"].group;
 
-            if (uiGroup.groupHeader != null)
+            if (uiGroup.groupHeader.IsNotNullOrDestroyed())
             {
                 string title = GetGroupTitle(__instance);
                 group.displayName = title;
@@ -159,7 +159,7 @@ namespace KSPCommunityFixes.UI
                 return;
             }
 
-            if (crewMember.KerbalInventoryModule != null && uiGroup.groupHeader != null)
+            if (crewMember.KerbalInventoryModule.IsNotNullOrDestroyed() && uiGroup.groupHeader.IsNotNullOrDestroyed())
             {
                 string title = GetGroupTitle(crewMember.KerbalInventoryModule);
                 uiGroup.groupHeader.text = title;

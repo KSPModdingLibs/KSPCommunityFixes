@@ -8,7 +8,7 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -21,7 +21,7 @@ namespace KSPCommunityFixes.Modding
             __result = false;
             if (__instance.isModule)
             {
-                if (__instance.part != null && __instance.partModule != null)
+                if (__instance.part.IsNotNullOrDestroyed() && __instance.partModule.IsNotNullOrDestroyed())
                 {
                     int moduleIndex = __instance.part.Modules.IndexOf(__instance.partModule);
                     int symPartCount = __instance.part.symmetryCounterparts.Count;
@@ -29,7 +29,7 @@ namespace KSPCommunityFixes.Modding
                     {
                         Part part = __instance.part.symmetryCounterparts[i];
                         PartModule partModule;
-                        if (moduleIndex < part.Modules.Count && part.Modules[moduleIndex] != null && __instance.partModule.GetType() == part.Modules[moduleIndex].GetType())
+                        if (moduleIndex < part.Modules.Count && part.Modules[moduleIndex].IsNotNullOrDestroyed() && __instance.partModule.GetType() == part.Modules[moduleIndex].GetType())
                         {
                             partModule = part.Modules[moduleIndex];
                             object oldValue = partModule.Fields.GetValue(__instance.field.name);
@@ -43,7 +43,7 @@ namespace KSPCommunityFixes.Modding
                             continue;
                         }
                         partModule = part.Modules[__instance.partModule.ClassName];
-                        if (partModule != null)
+                        if (partModule.IsNotNullOrDestroyed())
                         {
                             object oldValue = partModule.Fields.GetValue(__instance.field.name);
                             bool changed = object.Equals(oldValue, value);
@@ -57,7 +57,7 @@ namespace KSPCommunityFixes.Modding
                     }
                 }
             }
-            else if (__instance.part != null)
+            else if (__instance.part.IsNotNullOrDestroyed())
             {
                 int partCount = __instance.part.symmetryCounterparts.Count;
                 for (int j = 0; j < partCount; j++)

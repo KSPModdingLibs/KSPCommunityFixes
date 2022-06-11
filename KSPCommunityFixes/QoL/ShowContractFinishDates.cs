@@ -12,7 +12,7 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix, 
@@ -25,7 +25,7 @@ namespace KSPCommunityFixes.QoL
             if (__instance.displayMode == MissionControl.DisplayMode.Archive)
             {
                 // Find an autoloc for the status
-                string stateStr = string.Empty;
+                string stateStr;
                 switch (contract.ContractState)
                 {
                     case Contract.State.Failed: stateStr = "#autoLOC_900708"; break;

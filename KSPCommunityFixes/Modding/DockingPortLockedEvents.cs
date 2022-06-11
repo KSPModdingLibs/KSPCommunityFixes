@@ -8,7 +8,7 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 12, 2);
 
-        protected override void ApplyPatches(ref List<PatchInfo> patches)
+        protected override void ApplyPatches(List<PatchInfo> patches)
         {
             // Priority.First because we have an overriding prefix in the DockingPortRotationDriftAndFixes patch
             patches.Add(new PatchInfo(
