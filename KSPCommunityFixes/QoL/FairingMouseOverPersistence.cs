@@ -6,7 +6,7 @@ namespace KSPCommunityFixes.QoL
 {
     class FairingMouseOverPersistence : BasePatch
     {
-        protected override Version VersionMin => new Version(1, 8, 0);
+        protected override Version VersionMin => new Version(1, 10, 0);
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
