@@ -235,7 +235,7 @@ namespace KSPCommunityFixes.BugFixes
                 if (servo.part == servo.vessel.rootPart)
                     isInverted = false;
                 else
-                    isInverted = servo.part.attachJoint.AsNull()?.Joint.AsNull()?.gameObject == movingPart;
+                    isInverted = servo.part.attachJoint.DestroyedAsNull()?.Joint.DestroyedAsNull()?.gameObject == movingPart;
 
                 UpdateOffset();
 
@@ -245,7 +245,7 @@ namespace KSPCommunityFixes.BugFixes
                     // Dont move the child if :
                     // - child is attached the servo moving part, and servo is attached to its parent by its moving part
                     // - child is attached to the servo non-moving part, and servo is attached to its parent by its non-moving part
-                    if (p.children[i].attachJoint.AsNull()?.Joint.AsNull()?.connectedBody.gameObject == movingPart)
+                    if (p.children[i].attachJoint.DestroyedAsNull()?.Joint.DestroyedAsNull()?.connectedBody.gameObject == movingPart)
                     {
                         if (isInverted)
                             continue;

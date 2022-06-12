@@ -87,19 +87,12 @@ namespace KSPCommunityFixes.UI
         {
             UIPartActionWindow paw;
             if (__instance.kerbalMode)
-            {
-                if (__instance.grid == null || __instance.grid.pawInventory.IsNullOrDestroyed() || __instance.grid.pawInventory.Window.IsNullOrDestroyed())
-                    return;
-
-                paw = __instance.grid.pawInventory.Window;
-            }
+                paw = __instance.grid?.pawInventory.DestroyedAsNull()?.Window.DestroyedAsNull();
             else
-            {
-                if (__instance.part.PartActionWindow == null)
-                    return;
+                paw = __instance.part.DestroyedAsNull()?.PartActionWindow.DestroyedAsNull();
 
-                paw = __instance.part.PartActionWindow;
-            }
+            if (paw.IsNullRef())
+                return;
 
             if (!paw.parameterGroups.TryGetValue(GetGroupName(__instance), out UIPartActionGroup uiGroup))
                 return;

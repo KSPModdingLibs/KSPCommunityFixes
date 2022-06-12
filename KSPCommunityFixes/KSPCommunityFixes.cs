@@ -1,9 +1,8 @@
-﻿using System;
+﻿using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using HarmonyLib;
-using KSP.Localization;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -69,7 +68,7 @@ namespace KSPCommunityFixes
 
         public void ModuleManagerPostLoad()
         {
-            if (Instance == null || Instance != this)
+            if (Instance.IsNullOrDestroyed() || !Instance.RefEquals(this))
                 return;
 
             UrlDir.UrlConfig[] featuresNodes = GameDatabase.Instance.GetConfigs(CONFIGNODE_NAME);

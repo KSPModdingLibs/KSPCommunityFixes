@@ -125,7 +125,7 @@ namespace KSPCommunityFixes.BugFixes
 
                 // this is the reverse of the VisualTargetAngle property
                 float currentTargetAngle = __instance.visualTargetAngle;
-                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
+                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.DestroyedAsNull()?.Joint)
                 {
                     if (!__instance.inverted)
                         currentTargetAngle *= -1f;
@@ -260,7 +260,7 @@ namespace KSPCommunityFixes.BugFixes
             mdn.cachedInitialAngle = jointTargetAngle;
             mdn.initialRotation = mdn.rotationTransform.localRotation.eulerAngles;
 
-            if (rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
+            if (rotationJoint == mdn.part.attachJoint.DestroyedAsNull()?.Joint)
             {
                 Quaternion targetLocalRotation = mdn.SetTargetRotation(Quaternion.identity, jointTargetAngle - mdn.cachedInitialAngle, true, Vector3.up);
                 rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
@@ -303,13 +303,13 @@ namespace KSPCommunityFixes.BugFixes
                     return null;
 
                 if (mdn.part.parent == mdn.otherNode.part)
-                    return mdn.part.attachJoint.AsNull()?.Joint;
+                    return mdn.part.attachJoint.DestroyedAsNull()?.Joint;
                 else
-                    return mdn.otherNode.part.attachJoint.AsNull()?.Joint;
+                    return mdn.otherNode.part.attachJoint.DestroyedAsNull()?.Joint;
             }
 
             if (mdn.referenceNode != null && mdn.referenceNode.attachedPart.IsNotNullOrDestroyed() && mdn.referenceNode.attachedPart.parent == mdn.part)
-                return mdn.referenceNode.attachedPart.attachJoint.AsNull()?.Joint;
+                return mdn.referenceNode.attachedPart.attachJoint.DestroyedAsNull()?.Joint;
 
             return null;
         }
@@ -333,7 +333,7 @@ namespace KSPCommunityFixes.BugFixes
 
         static float GetVisualTargetAngle(ModuleDockingNode mdn, ConfigurableJoint rotationJoint)
         {
-            if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == mdn.part.attachJoint.AsNull()?.Joint)
+            if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == mdn.part.attachJoint.DestroyedAsNull()?.Joint)
             {
                 if (mdn.inverted)
                     return mdn.targetAngle;
@@ -362,7 +362,7 @@ namespace KSPCommunityFixes.BugFixes
                 __instance.driveTargetAngle = __instance.JointTargetAngle;
                 __instance.visualTargetAngle = GetVisualTargetAngle(__instance, rotationJoint);
                 
-                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.AsNull()?.Joint)
+                if (rotationJoint.IsNotNullOrDestroyed() && rotationJoint == __instance.part.attachJoint.DestroyedAsNull()?.Joint)
                 {
                     Quaternion targetLocalRotation = __instance.SetTargetRotation(Quaternion.identity, __instance.driveTargetAngle - __instance.cachedInitialAngle, true, Vector3.up);
                     rotationJoint.SetTargetRotationLocal(targetLocalRotation, Quaternion.identity);
@@ -428,7 +428,7 @@ namespace KSPCommunityFixes.BugFixes
             // handle rotation while docked
 
             ConfigurableJoint rotationJoint = GetRotationJoint(__instance);
-            bool isJointOwner = rotationJoint == __instance.part.attachJoint.AsNull()?.Joint;
+            bool isJointOwner = rotationJoint == __instance.part.attachJoint.DestroyedAsNull()?.Joint;
 
             // If both ports can rotate, both ports are handled from the "child" docking port side (the joint owner)
             // This is needed because when both ports are rotating at the same time, we need to know each port rotation direction
@@ -664,7 +664,7 @@ namespace KSPCommunityFixes.BugFixes
                 // - recursively rotate all childs
                 // else
                 // - recursively rotate the child docking port, and all its childs
-                if (GetRotationJoint(dockingNode) == dockingNode.part.attachJoint.AsNull()?.Joint)
+                if (GetRotationJoint(dockingNode) == dockingNode.part.attachJoint.DestroyedAsNull()?.Joint)
                 {
                     rotOffset = QuaternionD.Inverse(rotOffset);
                     dockingNode.part.orgRot = rotOffset * (QuaternionD)dockingNode.part.orgRot;
@@ -759,7 +759,7 @@ namespace KSPCommunityFixes.BugFixes
                     {
                         Part rotatingPart;
                         // if the docking port is the child of the docking port pair, rotate itself, else rotate the child docking port
-                        if (attachNode.attachedPart == dockingNode.part.parent)
+                        if (attachNode.attachedPart.NotDestroyedRefEquals(dockingNode.part.parent))
                             rotatingPart = dockingNode.part;
                         else
                             rotatingPart = attachNode.attachedPart;

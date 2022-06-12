@@ -104,9 +104,9 @@ namespace KSPCommunityFixes
             SetTopFramePosition();
 
             // hide map the vessel filters button
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
-                .MapOptionsQuadrant.gameObject.AsNull()?
-                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.DestroyedAsNull()?
+                .MapOptionsQuadrant.gameObject.DestroyedAsNull()?
+                .transform.GetChild(0).DestroyedAsNull()?.GetChild(0).DestroyedAsNull()?.gameObject;
 
             if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
@@ -117,9 +117,9 @@ namespace KSPCommunityFixes
         // show the map vessel filters button when entering map view
         static void MapView_enterMapView_Prefix()
         {
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
-                .MapOptionsQuadrant.gameObject.AsNull()?
-                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.DestroyedAsNull()?
+                .MapOptionsQuadrant.gameObject.DestroyedAsNull()?
+                .transform.GetChild(0).DestroyedAsNull()?.GetChild(0).DestroyedAsNull()?.gameObject;
 
             if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
@@ -136,9 +136,9 @@ namespace KSPCommunityFixes
         // hide the map vessel filters button when entering map view
         static void MapView_exitMapView_Postfix()
         {
-            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.AsNull()?
-                .MapOptionsQuadrant.gameObject.AsNull()?
-                .transform.GetChild(0).AsNull()?.GetChild(0).AsNull()?.gameObject;
+            GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.DestroyedAsNull()?
+                .MapOptionsQuadrant.gameObject.DestroyedAsNull()?
+                .transform.GetChild(0).DestroyedAsNull()?.GetChild(0).DestroyedAsNull()?.gameObject;
 
             if (trackingFiltersHoverArea.IsNotNullOrDestroyed())
             {
