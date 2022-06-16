@@ -127,6 +127,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.16.1
+- RoboticsDrift : fix "Servo info not found" log spam originating from servo parts for which the drift correction isn't enabled.
+
 ##### 1.16.0
 - New KSP bugfix : [EVAKerbalRecovery](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/43) (thanks to @JonnyOThan for bug-reporting)
 - FairingMouseOverPersistence : patch now only applies to KSP 1.10.0 and latter, as the field it relies on doesn't exists in prior versions, causing exceptions in OnLoad()/OnSave().

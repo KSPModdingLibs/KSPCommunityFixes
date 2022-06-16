@@ -112,6 +112,11 @@ namespace KSPCommunityFixes.BugFixes
             if (!p.started)
                 return false;
 
+            // always ignore recursive calls on child parts
+            // will happen if we aren't handling the initial call (other return true cases in this method)
+            if (p != __instance.part)
+                return true;
+
             if (!servoInfos.TryGetValue(p, out ServoInfo servoInfo))
             {
                 Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {p}, drift correction won't be applied !");
