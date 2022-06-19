@@ -28,28 +28,39 @@ namespace KSPCommunityFixes.BugFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(StageManager), "ActivateStage"),
+                AccessTools.Method(typeof(Part), "Die"),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageManager), "ActivateStage"),
+                AccessTools.Method(typeof(Part), "Die"),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(Part), "decouple"),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), "decouple"),
                 this));
         }
 
         static bool Vessel_updateSituation_Prefix(Vessel __instance)
         {
-			bool flag;
+			bool evaOnLadderOnOtherVessel;
             if (__instance.EVALadderVessel != __instance)
             {
                 __instance.situation = __instance.evaController.LadderPart.vessel.situation;
-                flag = true;
+                evaOnLadderOnOtherVessel = true;
             }
             else
             {
-                flag = false;
+                evaOnLadderOnOtherVessel = false;
                 if (__instance.situation == Vessel.Situations.PRELAUNCH)
                 {
+                    // Slower speed for leaving prelaunch in water since, well, boats are slow.
                     if (__instance.srfSpeed > (__instance.Splashed ? 1 : 2.5) && !__instance.precalc.isEasingGravity && !__instance.vesselSpawning)
                         __instance.situation = __instance.Splashed ? Vessel.Situations.SPLASHED : Vessel.Situations.LANDED;
                 }
@@ -91,41 +102,40 @@ namespace KSPCommunityFixes.BugFixes
                 __instance.lastSituation = __instance.situation;
             }
 
-            if (__instance.wasLadder != flag)
+            if (__instance.wasLadder != evaOnLadderOnOtherVessel)
             {
-                __instance.wasLadder = flag;
+                __instance.wasLadder = evaOnLadderOnOtherVessel;
             }
             
             return false;
         }
 
-        static List<Part> stagedPartList = new List<Part>();
-        static HashSet<Vessel> vesselsToCheck = new HashSet<Vessel>();
+        // We could optimize the below by setting up a coroutine that runs later in the frame
+        // so a vessel isn't processed more than once if, say, multiple parts detach on the
+        // same frame. But the landed/splash check isn't very expensive so I'm not worried.
 
-        static void StageManager_ActivateStage_Prefix(StageManager __instance, out int __state)
+        static void Part_die_Prefix(Part __instance, out Vessel __state)
         {
-            stagedPartList.AddRange(FlightGlobals.ActiveVessel.Parts);
-            __state = __instance._currentStage;
+            __state = __instance.vessel;
         }
 
-        static void StageManager_ActivateStage_Postfix(StageManager __instance, int __state)
+        static void Part_die_Postfix(Part __instance, Vessel __state)
         {
-            if (__instance._currentStage != __state)
-            {
-                for (int i = stagedPartList.Count; i-- > 0;)
-                {
-                    Vessel v = stagedPartList[i].vessel;
-                    if (vesselsToCheck.Contains(v))
-                        continue;
+            if (__state.IsNotNullOrDestroyed())
+                __state.UpdateLandedSplashed();
+        }
 
-                    vesselsToCheck.Add(v);
-                }
+        static void Part_Decouple_Prefix(Part __instance, out Vessel __state)
+        {
+            __state = __instance.vessel;
+        }
 
-                foreach (Vessel v in vesselsToCheck)
-                    v.UpdateLandedSplashed();
-            }
-            stagedPartList.Clear();
-            vesselsToCheck.Clear();
+        static void Part_Decouple_Postfix(Part __instance, Vessel __state)
+        {
+            if (__state.IsNotNullOrDestroyed())
+                __state.UpdateLandedSplashed();
+
+            // New vessel (on __instance) will run Initialize.
         }
     }
 }
