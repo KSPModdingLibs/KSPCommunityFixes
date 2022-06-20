@@ -78,6 +78,12 @@ namespace KSPCommunityFixes.Modding
                             WriteValue(fieldName, typeof(int), writeLinks.AssignLink(value), node);
                         }
                     }
+                    // begin edit 1
+                    else if (fieldType == typeof(Guid))
+                    {
+                        node.AddValue(fieldName, ((Guid)value).ToString());
+                    }
+                    // end edit
                     else if (IsValue(fieldType))
                     {
                         WriteValue(fieldName, fieldType, value, node);
@@ -86,7 +92,7 @@ namespace KSPCommunityFixes.Modding
                     {
                         WriteArrayTypes(fieldName, fieldType, value, node, persistent);
                     }
-                    // begin edit
+                    // begin edit 2
                     else if (IsIConfigNode(fieldType))
                     {
                         WriteIConfigNode(fieldName, value, node);
@@ -158,6 +164,12 @@ namespace KSPCommunityFixes.Modding
                         value.name = "";
                     }
                 }
+                // begin edit 1
+                else if (fieldItem.fieldType == typeof(Guid))
+                {
+                    fieldItem.fieldInfo.SetValue(fieldItem.host, new Guid(value.value));
+                }
+                // end edit
                 else if (IsValue(fieldItem.fieldType))
                 {
                     object obj2 = ReadValue(fieldItem.fieldType, value.value);
@@ -178,7 +190,7 @@ namespace KSPCommunityFixes.Modding
                 ReadFieldList.FieldItem fieldItem2 = readFieldList[configNode.name];
                 if (fieldItem2 != null)
                 {
-                    // begin edit
+                    // begin edit 2
                     if (IsIConfigNode(fieldItem2.fieldType))
                     {
                         ReadIConfigNode(fieldItem2, configNode);
