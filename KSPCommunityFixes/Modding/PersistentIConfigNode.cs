@@ -1,12 +1,13 @@
-﻿using HarmonyLib;
+﻿// - Add support for IConfigNode serialization
+// - Add support for Guid serialization
+
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using static ConfigNode;
 using Random = System.Random;
-
-// TODO: use transpilers instead of overriding the stock methods...
 
 namespace KSPCommunityFixes.Modding
 {
@@ -78,6 +79,12 @@ namespace KSPCommunityFixes.Modding
                             WriteValue(fieldName, typeof(int), writeLinks.AssignLink(value), node);
                         }
                     }
+                    // begin edit 1
+                    else if (fieldType == typeof(Guid))
+                    {
+                        node.AddValue(fieldName, ((Guid)value).ToString());
+                    }
+                    // end edit
                     else if (IsValue(fieldType))
                     {
                         WriteValue(fieldName, fieldType, value, node);
@@ -86,7 +93,7 @@ namespace KSPCommunityFixes.Modding
                     {
                         WriteArrayTypes(fieldName, fieldType, value, node, persistent);
                     }
-                    // begin edit
+                    // begin edit 2
                     else if (IsIConfigNode(fieldType))
                     {
                         WriteIConfigNode(fieldName, value, node);
@@ -158,6 +165,12 @@ namespace KSPCommunityFixes.Modding
                         value.name = "";
                     }
                 }
+                // begin edit 1
+                else if (fieldItem.fieldType == typeof(Guid))
+                {
+                    fieldItem.fieldInfo.SetValue(fieldItem.host, new Guid(value.value));
+                }
+                // end edit
                 else if (IsValue(fieldItem.fieldType))
                 {
                     object obj2 = ReadValue(fieldItem.fieldType, value.value);
@@ -178,7 +191,7 @@ namespace KSPCommunityFixes.Modding
                 ReadFieldList.FieldItem fieldItem2 = readFieldList[configNode.name];
                 if (fieldItem2 != null)
                 {
-                    // begin edit
+                    // begin edit 2
                     if (IsIConfigNode(fieldItem2.fieldType))
                     {
                         ReadIConfigNode(fieldItem2, configNode);
@@ -235,7 +248,7 @@ namespace KSPCommunityFixes.Modding
         [KSPEvent(active = true, guiActive = true, guiActiveEditor = true, guiName = "IConfigNode test")]
         public void Test()
         {
-            Random rnd = new Random();
+            System.Random rnd = new System.Random();
 
             foo = new FloatCurve();
             float time = rnd.Next(100);

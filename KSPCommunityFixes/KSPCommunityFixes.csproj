@@ -91,6 +91,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="Modding\DepartmentHeadImage.cs" />
+    <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
     <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
