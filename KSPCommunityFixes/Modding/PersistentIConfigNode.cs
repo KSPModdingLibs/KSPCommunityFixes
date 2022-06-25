@@ -1,12 +1,13 @@
-﻿using HarmonyLib;
+﻿// - Add support for IConfigNode serialization
+// - Add support for Guid serialization
+
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using static ConfigNode;
 using Random = System.Random;
-
-// TODO: use transpilers instead of overriding the stock methods...
 
 namespace KSPCommunityFixes.Modding
 {
@@ -247,7 +248,7 @@ namespace KSPCommunityFixes.Modding
         [KSPEvent(active = true, guiActive = true, guiActiveEditor = true, guiName = "IConfigNode test")]
         public void Test()
         {
-            Random rnd = new Random();
+            System.Random rnd = new System.Random();
 
             foo = new FloatCurve();
             float time = rnd.Next(100);

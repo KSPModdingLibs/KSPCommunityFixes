@@ -60,7 +60,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41)** [KSP 1.8.0 - 1.12.3]<br/>Fix incorrect terrain scatter distribution when a partial longitude range is defined in the PQSLandControl definition.
 - **[LostSoundAfterSceneSwitch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/42)** [KSP 1.12.0 - 1.12.3]<br/> Fix audio source not being centered/aligned with the current vessel after scene switches, causing loss of vessel effects audio and random volume or left/right channel weirdness.
 - **[EVAKerbalRecovery](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/43)** [KSP 1.11.0 - 1.12.3]<br/> Fix recovery of EVAing kerbals either causing their inventory to be recovered twice or the science data they carry not being recovered, depending on the EVA kerbal variant/suit.
-
+- **[StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44)** [KSP 1.8.0 - 1.12.3]<br/> Fix vessel never leaving the splashed state if it starts out splashed, and decouples from its only splashed parts. This also fixes an issue where Splashed overrides Prelaunch as a situation.
 
 #### Quality of Life tweaks 
 
@@ -90,8 +90,9 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **OnSymmetryFieldChanged** [KSP 1.8.0 - 1.12.3]<br/> Disabled by default, you can enable it with a MM patch. Change the `UI_Control.onSymmetryFieldChanged` callback to behave identically to the `UI_Control.onFieldChanged` callback :
   - The callback will only be called when the field value has actually been modified.
   - The "object" argument will contain the previous field value (instead of the new value).
-- **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods.
+- **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods. Also implements `Guid` serialization support for those methods.
 - **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
+- **[DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47)** [KSP 1.8.0 - 1.12.3]<br/> Fix administration building custom departement head image not being used when added by a mod.
 
 ### License
 
@@ -126,6 +127,11 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.17.0
+- New KSP bugfix : [StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44) (@NathanKell)
+- New modding bugfix : [DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47) (@NathanKell)
+- PersistentIConfigNode patch : added `Guid` serialization support to `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods (@NathanKell).
 
 ##### 1.16.1
 - RoboticsDrift : fix "Servo info not found" log spam originating from servo parts for which the drift correction isn't enabled.

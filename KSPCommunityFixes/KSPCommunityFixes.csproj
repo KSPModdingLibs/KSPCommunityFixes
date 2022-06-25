@@ -91,7 +91,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
-    <Compile Include="BugFixes\DepartmentHeadImage.cs" />
+    <Compile Include="Modding\DepartmentHeadImage.cs" />
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
