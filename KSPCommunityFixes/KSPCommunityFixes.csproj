@@ -91,6 +91,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
