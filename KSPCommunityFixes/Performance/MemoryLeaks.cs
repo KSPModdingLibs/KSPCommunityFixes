@@ -6,7 +6,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
+using System.Text;
 using UnityEngine.Profiling;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
@@ -17,15 +19,28 @@ namespace KSPCommunityFixes.Performance
     {
         private static readonly Stopwatch watch = new Stopwatch();
 
-        private static bool logGameEventsDestroyedObjectCallbacks = false;
+        private static bool logDestroyedUnityObjectGameEventsLeaks = false;
+        private static bool logGameEventsSubscribers = false;
+        private static bool advancedGameEventsLeakDetection = false;
+        private static bool forceGCCollect = false;
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
-            KSPCommunityFixes.SettingsNode.TryGetValue("LogGameEventsLeaks", ref logGameEventsDestroyedObjectCallbacks);
+            ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("MEMORY_LEAKS_DEBUGGING");
+            if (settingsNode != null)
+            {
+                settingsNode.TryGetValue("ForceGCCollect", ref forceGCCollect);
+                settingsNode.TryGetValue("LogDestroyedUnityObjectGameEventsLeaks", ref logDestroyedUnityObjectGameEventsLeaks);
+                settingsNode.TryGetValue("AdvancedGameEventsLeakDetection", ref advancedGameEventsLeakDetection);
+                settingsNode.TryGetValue("LogGameEventsSubscribers", ref logGameEventsSubscribers);
+            }
+
 #if DEBUG
-            logGameEventsDestroyedObjectCallbacks = true;
+            logDestroyedUnityObjectGameEventsLeaks = true;
+            advancedGameEventsLeakDetection = true;
+            forceGCCollect = true;
 #endif
             // removing PartSet finalizers
 
@@ -80,7 +95,9 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.OnDestroy)),
                 this));
 
-            // Singleton Monobehaviours holding tons of part references...
+            // Various singleton MonoBehaviours are scene-specific. They are using a static accessor that isn't nulled
+            // when the instance is destroyed, causing anything still referenced to never be GCed.
+            // There are way too many of them t fix them all, but we try to patch the worst offenders here.
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
@@ -92,10 +109,28 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(EVAConstructionModeController), nameof(EVAConstructionModeController.OnDestroy)),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy)),
+                this));
+
+            // general cleanup on scene switches
+
             SceneManager.sceneUnloaded += OnSceneUnloaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
 
-            
+            // fix some previously silently failing code that was refering to dead instances, 
+            // and is throwing because we actually remove references to those dead instances
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionControllerInventory), nameof(UIPartActionControllerInventory.UpdateCursorOverPAWs)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Update)),
+                this));
         }
 
         private enum KSPScene
@@ -160,6 +195,24 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
+            // another leak with a non-unity-derived class, AlarmTypeManeuver...
+            for (int i = GameEvents.onManeuverAdded.events.Count; i-- > 0;)
+            {
+                if (GameEvents.onManeuverAdded.events[i].originator is AlarmTypeManeuver)
+                {
+                    GameEvents.onManeuverAdded.events.RemoveAt(i);
+                    leakCount++;
+                }
+            }
+            for (int i = GameEvents.onManeuverRemoved.events.Count; i-- > 0;)
+            {
+                if (GameEvents.onManeuverRemoved.events[i].originator is AlarmTypeManeuver)
+                {
+                    GameEvents.onManeuverRemoved.events.RemoveAt(i);
+                    leakCount++;
+                }
+            }
+
             // This is a general catch-all patch that attempt to remove all GameEvents delegates owned by destroyed unity objects
             // after a scene switch.
             // While we are fixing some GameEvent induced leaks manually, there are simply too many of them and this has the added
@@ -176,7 +229,7 @@ namespace KSPCommunityFixes.Performance
                     {
                         if (eventVoid.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
-                            if (logGameEventsDestroyedObjectCallbacks)
+                            if (logDestroyedUnityObjectGameEventsLeaks)
                             {
                                 Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
                             }
@@ -203,7 +256,7 @@ namespace KSPCommunityFixes.Performance
                     {
                         if (originatorField.GetValue(list[count]) is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
-                            if (logGameEventsDestroyedObjectCallbacks)
+                            if (logDestroyedUnityObjectGameEventsLeaks)
                             {
                                 Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
                             }
@@ -250,11 +303,166 @@ namespace KSPCommunityFixes.Performance
             // More stuff stored in static fields for zero good reason...
             AnalyticsUtil.vesselCrew = null;
 
+            if (advancedGameEventsLeakDetection)
+            {
+                AdvancedLeakDetection(currentScene);
+            }
+
+            if (logGameEventsSubscribers)
+            {
+                LogGameEventsSuscribers();
+            }
+
+            if (forceGCCollect)
+            {
+                GC.Collect();
+            }
+
             string heapAlloc = Utils.HumanReadableBytes(Profiler.GetMonoUsedSizeLong());
             string unityAlloc = Utils.HumanReadableBytes(Profiler.GetTotalAllocatedMemoryLong());
             watch.Stop();
 
-            Debug.Log($"[KSPCF:MemoryLeaks] Cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
+            Debug.Log($"[KSPCF:MemoryLeaks] Leaving scene \"{currentScene}\", cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
+        }
+
+        static void LogGameEventsSuscribers()
+        {
+            Dictionary<Type, int> eventSubscribers = new Dictionary<Type, int>();
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append("[KSPCF:MemoryLeaks] Logging GameEvents delegates :");
+
+            foreach (BaseGameEvent gameEvent in BaseGameEvent.eventsByName.Values)
+            {
+                try
+                {
+                    IList list = (IList)gameEvent.GetType().GetField(nameof(EventVoid.events), BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gameEvent);
+                    int count = list.Count;
+                    if (count == 0)
+                        continue;
+
+                    sb.Append($"\n- \"{gameEvent.EventName}\" : {count} subscribers");
+
+                    FieldInfo originatorField = list[0].GetType().GetField(nameof(EventVoid.EvtDelegate.originator));
+                    while (count-- > 0)
+                    {
+                        Type originatorType = originatorField.GetValue(list[count]).GetType();
+
+                        if (eventSubscribers.TryGetValue(originatorType, out int subscriberCount))
+                        {
+                            eventSubscribers[originatorType] = subscriberCount + 1;
+                        }
+                        else
+                        {
+                            eventSubscribers.Add(originatorType, 1);
+                        }
+                    }
+
+                    foreach (KeyValuePair<Type, int> subscriber in eventSubscribers)
+                    {
+                        Type type = subscriber.Key;
+                        sb.Append($"\n  - {subscriber.Value} from {type.Assembly.GetName().Name}:");
+                        if (type.IsNested)
+                            sb.Append($"{type.DeclaringType.Name}.{type.Name}");
+                        else
+                            sb.Append(type.Name);
+                    }
+
+                    eventSubscribers.Clear();
+                }
+                catch (Exception)
+                {
+                    eventSubscribers.Clear();
+                    continue;
+                }
+            }
+
+            Debug.Log(sb.ToString());
+        }
+
+        private static Dictionary<KSPScene, Dictionary<string, Dictionary<Type, int>>> advancedLeakDetection;
+
+        static void AdvancedLeakDetection(KSPScene exitedScene)
+        {
+            if (advancedLeakDetection == null)
+                advancedLeakDetection = new Dictionary<KSPScene, Dictionary<string, Dictionary<Type, int>>>();
+
+            Dictionary<string, Dictionary<Type, int>> currentSceneGE = new Dictionary<string, Dictionary<Type, int>>(BaseGameEvent.eventsByName.Count);
+
+            foreach (BaseGameEvent gameEvent in BaseGameEvent.eventsByName.Values)
+            {
+                try
+                {
+                    IList list = (IList)gameEvent.GetType().GetField(nameof(EventVoid.events), BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gameEvent);
+                    int count = list.Count;
+                    if (count == 0)
+                        continue;
+
+                    Dictionary<Type, int> subscribers = new Dictionary<Type, int>(count);
+                    currentSceneGE.Add(gameEvent.EventName, subscribers);
+
+                    FieldInfo originatorField = list[0].GetType().GetField(nameof(EventVoid.EvtDelegate.originator));
+                    while (count-- > 0)
+                    {
+                        Type originatorType = originatorField.GetValue(list[count]).GetType();
+
+                        if (subscribers.TryGetValue(originatorType, out int subscriberCount))
+                            subscribers[originatorType] = subscriberCount + 1;
+                        else
+                            subscribers.Add(originatorType, 1);
+                    }
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+            }
+
+            if (advancedLeakDetection.TryGetValue(exitedScene, out Dictionary<string, Dictionary<Type, int>> lastSceneGE))
+            {
+                StringBuilder sb = new StringBuilder();
+                bool leaksDetected = false;
+                sb.Append($"[KSPCF:MemoryLeaks] Potential GameEvents leaks for scene {exitedScene} :");
+
+                foreach (KeyValuePair<string, Dictionary<Type, int>> currentGE in currentSceneGE)
+                {
+                    bool gameEventLogged = false;
+                    if (lastSceneGE.TryGetValue(currentGE.Key, out Dictionary<Type, int> lastSuscribers))
+                    {
+                        foreach (KeyValuePair<Type, int> subscriber in currentGE.Value)
+                        {
+                            if (lastSuscribers.TryGetValue(subscriber.Key, out int lastSubscriptionCount) && lastSubscriptionCount < subscriber.Value)
+                            {
+                                leaksDetected = true;
+
+                                if (!gameEventLogged)
+                                {
+                                    int lastSubscribersCount = lastSuscribers.Sum(x => x.Value);
+                                    int newSubscribersCount = currentGE.Value.Sum(x => x.Value);
+                                    sb.Append($"\n- \"{currentGE.Key}\" had {lastSubscribersCount} subscribers on last scene switch, now it has {newSubscribersCount}. Those subscribers are likely leaking :");
+                                    gameEventLogged = true;
+                                }
+
+                                Type type = subscriber.Key;
+                                sb.Append($"\n  - {type.Assembly.GetName().Name}:");
+                                if (type.IsNested)
+                                    sb.Append($"{type.DeclaringType.Name}.{type.Name}");
+                                else
+                                    sb.Append(type.Name);
+
+                                sb.Append($" - Subscriptions : {lastSubscriptionCount}/{subscriber.Value} (last/now)");
+                            }
+                        }
+                    }
+                }
+
+                if (!leaksDetected)
+                    sb.Append(" no leaks detected !");
+
+                Debug.Log(sb.ToString());
+            }
+
+            advancedLeakDetection[exitedScene] = currentSceneGE;
         }
 
         // FlightStateCache is essentially a snapshot of the whole game, and is used for reverting to launch.
@@ -293,6 +501,7 @@ namespace KSPCommunityFixes.Performance
         static void ModuleProceduralFairing_OnDestroy_Postfix(ModuleProceduralFairing __instance)
         {
             GameEvents.onVariantApplied.Remove(__instance.onVariantApplied);
+            GameEvents.onVariantsAdded.Remove(__instance.onVariantsAdded);
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
@@ -328,8 +537,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // inventory UI panels controllers are singletons, the destroyed instance is 
-        // keeping tons of part references around.
+        // patch singletons keeping around ton of dead stuff
 
         static void InventoryPanelController_OnDestroy_Postfix()
         {
@@ -339,6 +547,48 @@ namespace KSPCommunityFixes.Performance
         static void EVAConstructionModeController_OnDestroy_Postfix()
         {
             EVAConstructionModeController.Instance = null;
+        }
+
+        static void FuelFlowOverlay_OnDestroy_Postfix()
+        {
+            FuelFlowOverlay.instance = null;
+        }
+
+        // patch previously silently failing code that now "properly" throw exceptions when attempting to access dead instances
+        static bool UIPartActionControllerInventory_UpdateCursorOverPAWs_Prefix(UIPartActionControllerInventory __instance)
+        {
+            bool flag = false;
+            for (int i = 0; i < __instance.pawController.windows.Count; i++)
+            {
+                flag |= __instance.pawController.windows[i].Hover;
+            }
+            if (HighLogic.LoadedSceneIsFlight && EVAConstructionModeController.Instance.IsNotNullOrDestroyed())
+            {
+                flag |= EVAConstructionModeController.Instance.Hover;
+            }
+            else if (HighLogic.LoadedSceneIsEditor && InventoryPanelController.Instance.IsNotNullOrDestroyed())
+            {
+                flag |= InventoryPanelController.Instance.Hover;
+            }
+            __instance.IsCursorOverAnyPAWOrCargoPane = flag;
+            return false;
+        }
+
+        static bool UIPartActionInventory_Update_Prefix()
+        {
+            switch (HighLogic.LoadedScene)
+            {
+                case GameScenes.EDITOR:
+                    if (InventoryPanelController.Instance.IsNullOrDestroyed())
+                        return false;
+                    break;
+                case GameScenes.FLIGHT:
+                    if (EVAConstructionModeController.Instance.IsNullOrDestroyed())
+                        return false;
+                    break;
+            }
+
+            return true;
         }
     }
 }
