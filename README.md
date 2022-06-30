@@ -131,6 +131,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.18.3
+- MemoryLeaks : Only remove GameEvent delegates owned by destroyed UnityEngine.Object instances if they are declared by the stock assembly, or a PartModule, or a VesselModule. Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and relying on those being called on the dead instance to manipulate static data (sigh...). Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
+
 ##### 1.18.2
 - Fixed MemoryLeaks patch causing KSC facilities upgrades being reverted after a scene change.
 

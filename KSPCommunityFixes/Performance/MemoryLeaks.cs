@@ -17,6 +17,7 @@ namespace KSPCommunityFixes.Performance
 {
     class MemoryLeaks : BasePatch
     {
+        private static Assembly assemblyCSharp;
         private static readonly Stopwatch watch = new Stopwatch();
 
         private static bool logDestroyedUnityObjectGameEventsLeaks = false;
@@ -42,6 +43,7 @@ namespace KSPCommunityFixes.Performance
             advancedGameEventsLeakDetection = true;
             forceGCCollect = true;
 #endif
+
             // removing PartSet finalizers
 
             patches.Add(new PatchInfo(
@@ -116,6 +118,7 @@ namespace KSPCommunityFixes.Performance
 
             // general cleanup on scene switches
 
+            assemblyCSharp = Assembly.GetAssembly(typeof(Part));
             SceneManager.sceneUnloaded += OnSceneUnloaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
 
@@ -219,6 +222,13 @@ namespace KSPCommunityFixes.Performance
             // benefit of also taking care of mod induced GameEvents leaks.
             // Implementation is relying on reflection because of generic GameEvents types, as well as the fact that the same
             // EvtDelegate class is reimplemented as a nested class in every GE type, despite each class using the same exact layout...
+
+            // Note : we only remove objects if they are declared by the stock assembly, or a PartModule, or a VesselModule.
+            // Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and
+            // relying on those being called on the dead instance to manipulate static data... 
+            // Questionable at best, but since it is functionally valid and seems relatively common, we can't take the risk to remove them.
+            // Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
+
             foreach (BaseGameEvent gameEvent in BaseGameEvent.eventsByName.Values)
             {
                 // "fast" path for EventVoid
@@ -229,13 +239,18 @@ namespace KSPCommunityFixes.Performance
                     {
                         if (eventVoid.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
-                            if (logDestroyedUnityObjectGameEventsLeaks)
+                            Type originType = unityObject.GetType();
+                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
                             {
-                                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
+                                eventVoid.events.RemoveAt(i);
+                                leakCount++;
+                                gameEventsCallbacksCount--;
                             }
-                            eventVoid.events.RemoveAt(i);
-                            leakCount++;
-                            gameEventsCallbacksCount--;
+                            else
+                            {
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
+                            }
                         }
                     }
 
@@ -252,13 +267,18 @@ namespace KSPCommunityFixes.Performance
                     {
                         if (onLevelWasLoaded.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed() && !(unityObject is ScenarioUpgradeableFacilities))
                         {
-                            if (logDestroyedUnityObjectGameEventsLeaks)
+                            Type originType = unityObject.GetType();
+                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
                             {
-                                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
+                                onLevelWasLoaded.events.RemoveAt(i);
+                                leakCount++;
+                                gameEventsCallbacksCount--;
                             }
-                            onLevelWasLoaded.events.RemoveAt(i);
-                            leakCount++;
-                            gameEventsCallbacksCount--;
+                            else
+                            {
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
+                            }
                         }
                     }
 
@@ -279,14 +299,18 @@ namespace KSPCommunityFixes.Performance
                     {
                         if (originatorField.GetValue(list[count]) is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
-                            if (logDestroyedUnityObjectGameEventsLeaks)
+                            Type originType = unityObject.GetType();
+                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
                             {
-                                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
+                                list.RemoveAt(count);
+                                leakCount++;
+                                gameEventsCallbacksCount--;
                             }
-
-                            list.RemoveAt(count);
-                            leakCount++;
-                            gameEventsCallbacksCount--;
+                            else
+                            {
+                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
+                            }
                         }
                     }
                 }
@@ -346,6 +370,23 @@ namespace KSPCommunityFixes.Performance
             watch.Stop();
 
             Debug.Log($"[KSPCF:MemoryLeaks] Leaving scene \"{currentScene}\", cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
+        }
+
+        static void LogUnityObjectGameEventLeak(string eventName, Type origin, bool removed)
+        {
+            if (!logDestroyedUnityObjectGameEventsLeaks)
+                return;
+
+            string typeName = origin.Assembly.GetName().Name + ":";
+            if (origin.IsNested)
+                typeName += origin.DeclaringType.Name + "." + origin.Name;
+            else
+                typeName += origin.Name;
+
+            if (removed)
+                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {eventName} GameEvents callback owned by a destroyed {typeName} instance");
+            else
+                Debug.Log($"[KSPCF:MemoryLeaks] A destroyed {typeName} instance is owning a {eventName} GameEvents callback. No action has been taken, but unless this mod is relying on this pattern, this is likely a memory leak.");
         }
 
         static void LogGameEventsSuscribers()
