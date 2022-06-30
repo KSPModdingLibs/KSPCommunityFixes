@@ -20,6 +20,8 @@ namespace KSPCommunityFixes
         public static HashSet<string> enabledPatches = new HashSet<string>();
         public static Dictionary<Type, BasePatch> patchInstances = new Dictionary<Type, BasePatch>();
 
+        public static ConfigNode SettingsNode { get; private set; }
+
         public static KSPCommunityFixes Instance { get; private set; }
 
         private static string modPath;
@@ -73,13 +75,12 @@ namespace KSPCommunityFixes
 
             UrlDir.UrlConfig[] featuresNodes = GameDatabase.Instance.GetConfigs(CONFIGNODE_NAME);
 
-            ConfigNode cfg;
             if (featuresNodes != null && featuresNodes.Length == 1)
-                cfg = featuresNodes[0].config;
+                SettingsNode = featuresNodes[0].config;
             else
-                cfg = new ConfigNode();
+                SettingsNode = new ConfigNode();
 
-            foreach (ConfigNode.Value value in cfg.values)
+            foreach (ConfigNode.Value value in SettingsNode.values)
             {
                 if (!bool.TryParse(value.value, out bool patchEnabled) || patchEnabled)
                 {
