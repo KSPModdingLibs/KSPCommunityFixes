@@ -20,7 +20,12 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Start)),
+                AccessTools.Method(typeof(Part), nameof(Part.Awake)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(Part), nameof(Part.ModulesOnStartFinished)),
                 this));
 
             kspActionAutostrutOff = new KSPAction(Localizer.Format("#autoLOC_6001318"), KSPActionGroup.None, true); // Autostrut: Disabled
@@ -29,24 +34,27 @@ namespace KSPCommunityFixes.QoL
             kspActionAutostrutGrandparent = new KSPAction(Localizer.Format("#autoLOC_6001321"), KSPActionGroup.None, true); // Autostrut: Grandparent Part
         }
 
-        private static readonly Stack<BaseAction> actions = new Stack<BaseAction>(4);
-
-        static void Part_Start_Postfix(Part __instance)
+        // The actions need to be added right away, otherwise stock will nullref when copying action group settings on part duplication.
+        static void Part_Awake_Postfix(Part __instance)
         {
-            if (__instance.physicalSignificance != PhysicalSignificance.FULL)
-                return;
+            __instance.actions.Add("AutostrutOff", param => SetAutostrutMode(__instance, AutoStrutMode.Off), kspActionAutostrutOff);
+            __instance.actions.Add("AutostrutRoot", param => SetAutostrutMode(__instance, AutoStrutMode.Root), kspActionAutostrutRoot);
+            __instance.actions.Add("AutostrutHeaviest", param => SetAutostrutMode(__instance, AutoStrutMode.Heaviest), kspActionAutostrutHeaviest);
+            __instance.actions.Add("AutostrutGrandparent", param => SetAutostrutMode(__instance, AutoStrutMode.Grandparent), kspActionAutostrutGrandparent);
+        }
 
-            actions.Push(__instance.actions.Add("AutostrutOff", param => SetAutostrutMode(__instance, AutoStrutMode.Off), kspActionAutostrutOff));
-            actions.Push(__instance.actions.Add("AutostrutRoot", param => SetAutostrutMode(__instance, AutoStrutMode.Root), kspActionAutostrutRoot));
-            actions.Push(__instance.actions.Add("AutostrutHeaviest", param => SetAutostrutMode(__instance, AutoStrutMode.Heaviest), kspActionAutostrutHeaviest));
-            actions.Push(__instance.actions.Add("AutostrutGrandparent", param => SetAutostrutMode(__instance, AutoStrutMode.Grandparent), kspActionAutostrutGrandparent));
-
+        // We want to run during Part.Start(), after physicalSignificance has been set so the AllowAutoStruts() check works correctly
+        static void Part_ModulesOnStartFinished_Prefix(Part __instance)
+        {
             bool allowAutostruts = __instance.AllowAutoStruts();
 
-            while (actions.TryPop(out BaseAction action))
+            foreach (BaseAction action in __instance.actions)
             {
-                action.active = allowAutostruts;
-                action.activeEditor = allowAutostruts;
+                if (action.name == "AutostrutOff" || action.name == "AutostrutRoot" || action.name == "AutostrutHeaviest" || action.name == "AutostrutGrandparent")
+                {
+                    action.active = allowAutostruts;
+                    action.activeEditor = allowAutostruts;
+                }
             }
         }
 

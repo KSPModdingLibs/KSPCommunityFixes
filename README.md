@@ -131,6 +131,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.18.1
+- Fixed AutostrutActions patch causing nullrefs on part duplication and generally not working as intended.
+
 ##### 1.18.0
 - New performance patch : [MemoryLeaks](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49)
 - New KSP bugfix : [RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48) (thanks to @pap1723)
