@@ -61,6 +61,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[LostSoundAfterSceneSwitch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/42)** [KSP 1.12.0 - 1.12.3]<br/> Fix audio source not being centered/aligned with the current vessel after scene switches, causing loss of vessel effects audio and random volume or left/right channel weirdness.
 - **[EVAKerbalRecovery](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/43)** [KSP 1.11.0 - 1.12.3]<br/> Fix recovery of EVAing kerbals either causing their inventory to be recovered twice or the science data they carry not being recovered, depending on the EVA kerbal variant/suit.
 - **[StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44)** [KSP 1.8.0 - 1.12.3]<br/> Fix vessel never leaving the splashed state if it starts out splashed, and decouples from its only splashed parts. This also fixes an issue where Splashed overrides Prelaunch as a situation.
+- **[RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48)** [KSP 1.8.0 - 1.12.3]<br/> Fix rescaled robotics parts propagating their scale to childrens after actuating the servo in the editor
 
 #### Quality of Life tweaks 
 
@@ -68,6 +69,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.3]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
 - **PAWStockGroups** [KSP 1.10.1 - 1.12.3]<br/>Part Action Window groups for a selection of stock items/modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
 - **[TweakableWheelsAutostrut](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)** [KSP 1.8.0 - 1.12.3]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
+- **AutostrutActions** [KSP 1.8.0 - 1.12.3]<br/>Allow autostrut mode to be toggled with action groups (requires advanced tweakables to be enabled).
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.3]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
 - **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the KSP 1.12 maneuver planner tool in the KSPCF in-game settings menu. It can cause stutter and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
 - **FairingMouseOverPersistence** [KSP 1.10.0 - 1.12.3]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
@@ -83,6 +85,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 - **TextureLoaderOptimizations** [KSP 1.10.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some RAM. This patch has no entry in `settings.cfg`, but is opt-in (a popup is shown on first KSP launch) and can be disabled latter in the in-game settings menu.
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.3]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
+- [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.3]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -128,10 +131,15 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.18.0
+- New performance patch : [MemoryLeaks](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49)
+- New KSP bugfix : [RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48) (thanks to @pap1723)
+- New QoL patch : AutostrutActions (suggested by forum user @RealKerbal3x)
+
 ##### 1.17.0
-- New KSP bugfix : [StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44) (@NathanKell)
-- New modding bugfix : [DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47) (@NathanKell)
-- PersistentIConfigNode patch : added `Guid` serialization support to `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods (@NathanKell).
+- New KSP bugfix : [StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44) (thanks to @NathanKell)
+- New modding bugfix : [DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47) (thanks to @NathanKell)
+- PersistentIConfigNode patch : added `Guid` serialization support to `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods (thanks to @NathanKell).
 
 ##### 1.16.1
 - RoboticsDrift : fix "Servo info not found" log spam originating from servo parts for which the drift correction isn't enabled.
@@ -142,8 +150,8 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - Codebase cleaning pass, analyzers are now happy (or silenced).
 
 ##### 1.15.0
-- New KSP bugfix : [ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41) (credit to @R-T-B)
-- New KSP bugfix : [LostSoundAfterSceneSwitch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/42) (credit to @ensou04)
+- New KSP bugfix : [ScatterDistribution](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/41) (thanks to @R-T-B)
+- New KSP bugfix : [LostSoundAfterSceneSwitch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/42) (thanks to @ensou04)
 - Fixed KerbalInventoryPersistence patch not being applied on KSP 1.12.3
 
 ##### 1.14.1

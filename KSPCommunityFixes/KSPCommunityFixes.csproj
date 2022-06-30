@@ -91,6 +91,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="Performance\MemoryLeaks.cs" />
+    <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
@@ -116,6 +118,7 @@
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
+    <Compile Include="QoL\AutostrutActions.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
