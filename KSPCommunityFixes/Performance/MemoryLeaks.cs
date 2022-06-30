@@ -242,6 +242,29 @@ namespace KSPCommunityFixes.Performance
                     continue;
                 }
 
+                // ScenarioUpgradeableFacilities is using a pattern where it adds a onLevelWasLoaded callback from its OnDestroy() to clean up some
+                // static stuff on the next scene load, and it also remove the delegate from the event while doing so. So it's not actually a leak
+                // and we add a specific case to exclude it.
+                if (gameEvent is EventData<GameScenes> onLevelWasLoaded && onLevelWasLoaded.eventName == "onNewGameLevelLoadRequestWasSanctionedAndActioned")
+                {
+                    gameEventsCallbacksCount += onLevelWasLoaded.events.Count;
+                    for (int i = onLevelWasLoaded.events.Count; i-- > 0;)
+                    {
+                        if (onLevelWasLoaded.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed() && !(unityObject is ScenarioUpgradeableFacilities))
+                        {
+                            if (logDestroyedUnityObjectGameEventsLeaks)
+                            {
+                                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {gameEvent.EventName} GameEvents callback owned by a destroyed {unityObject.GetType().FullName} instance");
+                            }
+                            onLevelWasLoaded.events.RemoveAt(i);
+                            leakCount++;
+                            gameEventsCallbacksCount--;
+                        }
+                    }
+
+                    continue;
+                }
+
                 // general case for all others GameEvent types
                 try
                 {

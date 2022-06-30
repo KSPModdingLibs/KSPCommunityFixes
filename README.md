@@ -131,6 +131,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.18.2
+- Fixed MemoryLeaks patch causing KSC facilities upgrades being reverted after a scene change.
+
 ##### 1.18.1
 - Fixed AutostrutActions patch causing nullrefs on part duplication and generally not working as intended.
 

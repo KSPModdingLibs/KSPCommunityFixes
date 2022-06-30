@@ -122,7 +122,7 @@ namespace KSPCommunityFixes
 
                     gameNode.SetValue(VALUENAME_TIMESTAMP, lastPersistentSerializedTimestamp, true);
 #if DEBUG
-                    Debug.Log($"[SceneLoadSpeedBoost] Persistent save cached\n{new StackTrace()}");
+                    Debug.Log($"[SceneLoadSpeedBoost] Persistent save cached");
 #endif
                 }
             }
