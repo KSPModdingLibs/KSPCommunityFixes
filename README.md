@@ -69,6 +69,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **AltimeterHorizontalPosition** [KSP 1.8.0 - 1.12.3]<br/>Altimeter widget horizontal position is now tweakable in the pause menu settings.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AltimeterHorizontalPosition.gif" width="500"/>
 - **PAWStockGroups** [KSP 1.10.1 - 1.12.3]<br/>Part Action Window groups for a selection of stock items/modules<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/PAWGroups.png" width="500"/>
 - **[TweakableWheelsAutostrut](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)** [KSP 1.8.0 - 1.12.3]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
+- **AutostrutActions** [KSP 1.8.0 - 1.12.3]<br/>Allow autostrut mode to be toggled with action groups (requires advanced tweakables to be enabled).
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.3]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
 - **DisableManeuverTool** [KSP 1.12.0 - 1.12.3]<br/>Allow disabling the KSP 1.12 maneuver planner tool in the KSPCF in-game settings menu. It can cause stutter and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
 - **FairingMouseOverPersistence** [KSP 1.10.0 - 1.12.3]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
@@ -131,6 +132,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.18.0
 - New KSP bugfix : [RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48) (thanks to @pap1723)
+- New QoL patch : AutostrutActions (suggested by forum user @RealKerbal3x)
 
 ##### 1.17.0
 - New KSP bugfix : [StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44) (thanks to @NathanKell)

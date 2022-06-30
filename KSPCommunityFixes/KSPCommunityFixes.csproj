@@ -117,6 +117,7 @@
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
+    <Compile Include="QoL\AutostrutActions.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
