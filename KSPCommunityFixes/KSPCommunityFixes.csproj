@@ -91,6 +91,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
+    <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />

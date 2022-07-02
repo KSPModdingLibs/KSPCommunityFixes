@@ -62,6 +62,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[EVAKerbalRecovery](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/43)** [KSP 1.11.0 - 1.12.3]<br/> Fix recovery of EVAing kerbals either causing their inventory to be recovered twice or the science data they carry not being recovered, depending on the EVA kerbal variant/suit.
 - **[StickySplashedFixer](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/44)** [KSP 1.8.0 - 1.12.3]<br/> Fix vessel never leaving the splashed state if it starts out splashed, and decouples from its only splashed parts. This also fixes an issue where Splashed overrides Prelaunch as a situation.
 - **[RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48)** [KSP 1.8.0 - 1.12.3]<br/> Fix rescaled robotics parts propagating their scale to childrens after actuating the servo in the editor
+- **[EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52)** [KSP 1.11.0 - 1.12.3]<br/>Fix engine plates causing the part attached above them to be incorrectly shielded from airstream.
+- **[AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51)** [KSP 1.10.0 - 1.12.3]<br/>Fix asteroid/comet mass being restored to 100% when reloading after having mined it down to 0%.
 
 #### Quality of Life tweaks 
 
@@ -130,6 +132,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.19.0
+- New KSP bugfix : [EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52) (Thanks to @yalov (flart) for reporting and to @Aelfhe1m for coming up with a clever solution).
+- New KSP bugfix : [AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51) (Thanks to @Rodg88 for reporting).
 
 ##### 1.18.3
 - MemoryLeaks : Only remove GameEvent delegates owned by destroyed UnityEngine.Object instances if they are declared by the stock assembly, or a PartModule, or a VesselModule. Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and relying on those being called on the dead instance to manipulate static data (sigh...). Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
