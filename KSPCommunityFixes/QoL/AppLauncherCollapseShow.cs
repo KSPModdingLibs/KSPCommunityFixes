@@ -21,6 +21,11 @@ namespace KSPCommunityFixes.QoL
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.OnDestroy)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.StartupSequence)),
                 this));
 
@@ -49,15 +54,74 @@ namespace KSPCommunityFixes.QoL
                 AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), new Type[] { typeof(GameEvents.VesselSpawnInfo) }),
                 this,
                 "ApplicationLauncher_ShouldItHideVesselSpawn_Prefix"));
+
+            defaultLayerId = SortingLayer.NameToID("Default");
+            appsLayerId = SortingLayer.NameToID("Apps");
+            actionsLayerId = SortingLayer.NameToID("Actions");
         }
+
+        private static int defaultLayerId;
+        private static int appsLayerId;
+        private static int actionsLayerId;
+
+        private static void SetAppLauncherOnTopOfKSCApps(ApplicationLauncher appLauncher, bool onTop)
+        {
+            Canvas canvas = appLauncher.GetComponent<Canvas>();
+            if (onTop)
+            {
+                canvas.overrideSorting = true;
+                canvas.sortingLayerID = actionsLayerId;
+                canvas.sortingOrder = 20;
+
+                foreach (ApplicationLauncherButton app in appLauncher.appList)
+                {
+                    if (app.spriteAnim.IsNotNullOrDestroyed() && app.spriteAnim.transform.TryGetComponent(out SpriteRenderer renderer))
+                    {
+                        renderer.sortingLayerID = actionsLayerId;
+                        renderer.sortingOrder = 20;
+                    }
+                }
+
+                foreach (ApplicationLauncherButton app in appLauncher.appListMod)
+                {
+                    if (app.spriteAnim.IsNotNullOrDestroyed() && app.spriteAnim.transform.TryGetComponent(out SpriteRenderer renderer))
+                    {
+                        renderer.sortingLayerID = actionsLayerId;
+                        renderer.sortingOrder = 20;
+                    }
+                }
+            }
+            else
+            {
+                canvas.overrideSorting = false;
+                canvas.sortingLayerID = defaultLayerId;
+                canvas.sortingOrder = 0;
+                
+                foreach (ApplicationLauncherButton app in appLauncher.appList)
+                {
+                    if (app.spriteAnim.IsNotNullOrDestroyed() && app.spriteAnim.transform.TryGetComponent(out SpriteRenderer renderer))
+                    {
+                        renderer.sortingLayerID = appsLayerId;
+                        renderer.sortingOrder = 1;
+                    }
+                }
+
+                foreach (ApplicationLauncherButton app in appLauncher.appListMod)
+                {
+                    if (app.spriteAnim.IsNotNullOrDestroyed() && app.spriteAnim.transform.TryGetComponent(out SpriteRenderer renderer))
+                    {
+                        renderer.sortingLayerID = appsLayerId;
+                        renderer.sortingOrder = 1;
+                    }
+                }
+            }
+        }
+
         static bool ApplicationLauncher_ShouldItShow_Prefix(ApplicationLauncher __instance)
         {
             if (__instance.ShouldBeVisible())
             {
-                Canvas canvas = ApplicationLauncher.Instance.GetComponent<Canvas>();
-                canvas.sortingLayerName = "Default";
-                canvas.sortingOrder = 0;
-                canvas.overrideSorting = false;
+                SetAppLauncherOnTopOfKSCApps(__instance, false);
                 __instance.Show();
             }
             return false;
@@ -67,10 +131,7 @@ namespace KSPCommunityFixes.QoL
         {
             if (__instance.ShouldBeVisible())
             {
-                Canvas canvas = ApplicationLauncher.Instance.GetComponent<Canvas>();
-                canvas.overrideSorting = true;
-                canvas.sortingLayerName = "Actions";
-                canvas.sortingOrder = 20;
+                SetAppLauncherOnTopOfKSCApps(__instance, true);
                 __instance.Hide();
             }
             return false;
@@ -80,10 +141,7 @@ namespace KSPCommunityFixes.QoL
         {
             if (__instance.ShouldBeVisible())
             {
-                Canvas canvas = ApplicationLauncher.Instance.GetComponent<Canvas>();
-                canvas.overrideSorting = true;
-                canvas.sortingLayerName = "Actions";
-                canvas.sortingOrder = 20;
+                SetAppLauncherOnTopOfKSCApps(__instance, true);
                 __instance.Hide();
             }
             return false;
@@ -112,23 +170,24 @@ namespace KSPCommunityFixes.QoL
             return false;
         }
 
+        private static GameObject expand, collapse;
+        private static GameObject spacer;
+
         static void ApplicationLauncher_SpawnSimpleLayout_Postfix(ApplicationLauncher __instance)
         {
-            List<Transform> allChilds = __instance.launcherSpace.GetComponentsInChildren<Transform>(true).ToList();
-            GameObject expand, collapse;
             Transform appList = __instance.currentLayout.GetGameObject().transform.GetChild(0);
             if (__instance.IsPositionedAtTop)
             {
-                expand = GameObject.Instantiate(allChilds.First(t => t.name == "BtnArrowDown").gameObject);
-                collapse = GameObject.Instantiate(allChilds.First(t => t.name == "BtnArrowUp").gameObject);
+                expand = GameObject.Instantiate(appList.Find("BtnArrowDown").gameObject);
+                collapse = GameObject.Instantiate(appList.Find("BtnArrowUp").gameObject);
                 var lG = __instance.currentLayout.GetGameObject().AddComponent<VerticalLayoutGroup>();
                 lG.childAlignment = appList.GetComponent<VerticalLayoutGroup>().childAlignment;
                 lG.childForceExpandHeight = false;
             }
             else
             {
-                expand = GameObject.Instantiate(allChilds.First(t => t.name == "BtnArrowLeft").gameObject);
-                collapse = GameObject.Instantiate(allChilds.First(t => t.name == "BtnArrowRight").gameObject);
+                expand = GameObject.Instantiate(appList.Find("BtnArrowLeft").gameObject);
+                collapse = GameObject.Instantiate(appList.Find("BtnArrowRight").gameObject);
                 var lG = __instance.currentLayout.GetGameObject().AddComponent<HorizontalLayoutGroup>();
                 lG.childAlignment = appList.GetComponent<HorizontalLayoutGroup>().childAlignment;
                 lG.childForceExpandWidth = false;
@@ -153,45 +212,51 @@ namespace KSPCommunityFixes.QoL
             colButton.onClick = new Button.ButtonClickedEvent();
             colButton.onClick.AddListener(CollapseAppLauncher);
         }
+
+        static void ApplicationLauncher_OnDestroy_Postfix()
+        {
+            expand = null;
+            collapse = null;
+            spacer = null;
+        }
+
         static void ApplicationLauncher_StartupSequence_Postfix(ApplicationLauncher __instance)
         {
             if (__instance.currentLayout == null)
                 return;
 
-            Transform[] childs = ApplicationLauncher.Instance.launcherSpace.GetComponentsInChildren<Transform>(true);
             if (HighLogic.LoadedScene == GameScenes.EDITOR)
             {
-                LayoutElement topRightSpacer = __instance.currentLayout.GetTopRightSpacer();
-                topRightSpacer.transform.SetAsLastSibling();
+                LayoutElement stockSpacerLayout = __instance.currentLayout.GetTopRightSpacer();
+                stockSpacerLayout.transform.SetAsLastSibling();
 
-                LayoutElement newSpacer;
-                var newSpacerTransform = childs.FirstOrDefault(t => t.name == "ExpandSpacer");
-                if (newSpacerTransform == null)
+                LayoutElement newSpacerLayout;
+                spacer = __instance.currentLayout.GetGameObject().transform.Find("ExpandSpacer")?.gameObject;
+                if (spacer == null)
                 {
-                    newSpacer = GameObject.Instantiate(topRightSpacer);
-                    newSpacer.name = "ExpandSpacer";
-                    newSpacer.transform.SetParent(__instance.currentLayout.GetGameObject().transform, false);
+                    newSpacerLayout = GameObject.Instantiate(stockSpacerLayout);
+                    spacer = newSpacerLayout.gameObject;
+                    newSpacerLayout.name = "ExpandSpacer";
+                    newSpacerLayout.transform.SetParent(__instance.currentLayout.GetGameObject().transform, false);
                 }
                 else
                 {
-                    newSpacer = newSpacerTransform.gameObject.GetComponent<LayoutElement>();
+                    newSpacerLayout = spacer.GetComponent<LayoutElement>();
                 }
-                newSpacer.preferredHeight = topRightSpacer.preferredHeight;
-                newSpacer.preferredWidth = topRightSpacer.preferredWidth;
-                newSpacer.gameObject.SetActive(childs.First(t => t.name == "BtnExpand").gameObject.activeSelf);
+                newSpacerLayout.preferredHeight = stockSpacerLayout.preferredHeight;
+                newSpacerLayout.preferredWidth = stockSpacerLayout.preferredWidth;
+                newSpacerLayout.gameObject.SetActive(expand.activeSelf);
             }
             else
             {
-                var newSpacerTransform = childs.FirstOrDefault(t => t.name == "ExpandSpacer");
-                if (newSpacerTransform != null)
-                    newSpacerTransform.gameObject.SetActive(false);
+                spacer = __instance.currentLayout.GetGameObject().transform.Find("ExpandSpacer")?.gameObject;
+                if (spacer != null)
+                    spacer.SetActive(false);
             }
         }
 
         private static void ToggleAppLauncher(bool show)
         {
-            Transform[] childs = ApplicationLauncher.Instance.launcherSpace.GetComponentsInChildren<Transform>(true);
-            var expand = childs.FirstOrDefault(t => t.name == "BtnExpand");
             var list = ApplicationLauncher.Instance.currentLayout.GetGameObject().transform.GetChild(0);
             if (expand == null || list == null)
             {
@@ -199,11 +264,12 @@ namespace KSPCommunityFixes.QoL
                 ApplicationLauncher.Instance.launcherSpace.gameObject.SetActive(show);
                 return;
             }
-            expand.gameObject.SetActive(!show);
+
+            expand.SetActive(!show);
             list.gameObject.SetActive(show);
-            var spacer = childs.FirstOrDefault(t => t.name == "ExpandSpacer");
-            if (spacer != null)
-                spacer.gameObject.SetActive(!show);
+
+            if (HighLogic.LoadedScene == GameScenes.EDITOR && spacer.IsNotNullOrDestroyed())
+                spacer.SetActive(!show);
         }
 
         public static void ExpandAppLauncher()
