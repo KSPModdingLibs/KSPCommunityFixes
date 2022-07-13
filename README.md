@@ -80,6 +80,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ShowContractFinishDates**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/36) [KSP 1.12.0 - 1.12.3]<br/>For archived contracts, show accepted/finished dates.
 - **NoIVA** [KSP 1.8.0 - 1.12.3]<br/>Allow to disable IVA functionality and prevent related assets from being loaded, reducing RAM/VRAM usage and slightly increasing performance in some cases. Has a "use placeholder IVA" option allowing to keep crew portraits. This patch is disabled by default and must be enabled from the KSP "ESC" settings menu. It has no entry in the `Settings.cfg` file and require a restart to take effect. Do not use this option alongside IVA mods like RPM or MAS.
 - **DisableNewGameIntro** [KSP 1.8.0 - 1.12.3]<br/>Disable the "intro" popups appearing in the space center, VAB/SPH and tracking station upon creating a new career game. Disabled by default.
+- [**ToolbarShowHide**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) [KSP 1.8.0 - 1.12.3]<br/>Add a button for hiding/showing the stock toolbar. Also allow accessing the toolbar while in the space center facilities windows (mission control, admin building, R&D...).
+- **ResourceLockActions** [KSP 1.8.0 - 1.12.3]<br/>Add part actions for locking/unlocking resources flow state.
 
 #### Performance tweaks 
 
@@ -88,6 +90,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **TextureLoaderOptimizations** [KSP 1.10.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some RAM. This patch has no entry in `settings.cfg`, but is opt-in (a popup is shown on first KSP launch) and can be disabled latter in the in-game settings menu.
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.3]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.3]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
+- [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.3]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in modded career games having a large amount of celestial bodies and many vessels.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -134,6 +137,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.19.0
+- New performance patch : [ProgressTrackingSpeedBoost](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) (contributed by @JonnyOThan)
+- New QoL patch : [ToolbarShowHide](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) (contributed by @NathanKell)
+- New QoL patch : ResourceLockActions
 - New KSP bugfix : [EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52) (Thanks to @yalov (flart) for reporting and to @Aelfhe1m for coming up with a clever solution).
 - New KSP bugfix : [AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51) (Thanks to @Rodg88 for reporting).
 

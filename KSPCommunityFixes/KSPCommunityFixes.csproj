@@ -122,7 +122,7 @@
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
-    <Compile Include="QoL\AppLauncherCollapseShow.cs" />
+    <Compile Include="QoL\ToolbarShowHide.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
@@ -130,6 +130,7 @@
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="Performance\TextureLoaderOptimizations.cs" />
     <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
+    <Compile Include="QoL\ResourceLockActions.cs" />
     <Compile Include="QoL\ShowContractFinishDates.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
     <Compile Include="QoL\FairingMouseOverPersistence.cs" />

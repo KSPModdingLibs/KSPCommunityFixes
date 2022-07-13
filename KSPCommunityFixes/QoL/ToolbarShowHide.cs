@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace KSPCommunityFixes.QoL
 {
-    class AppLauncherCollapseShow : BasePatch
+    class ToolbarShowHide : BasePatch
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
