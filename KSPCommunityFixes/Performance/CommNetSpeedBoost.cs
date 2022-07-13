@@ -31,15 +31,18 @@ namespace KSPCommunityFixes.Performance
 
 		static bool CommNetNetwork_Update_Prefix(CommNet.CommNetNetwork __instance)
 		{
-			double timeSinceLastUpdate = Time.timeSinceLevelLoad - __instance.prevUpdate;
-
-			if (FlightGlobals.ActiveVessel != null)
+			if (!__instance.queueRebuild && !__instance.commNet.IsDirty)
 			{
-				double interval = FlightGlobals.ActiveVessel.packed ? packedInterval : unpackedInterval;
-				if (timeSinceLastUpdate < interval)
+				double timeSinceLastUpdate = Time.timeSinceLevelLoad - __instance.prevUpdate;
+
+				if (FlightGlobals.ActiveVessel != null)
 				{
-					__instance.graphDirty = true;
-					return false;
+					double interval = FlightGlobals.ActiveVessel.packed ? packedInterval : unpackedInterval;
+					if (timeSinceLastUpdate < interval)
+					{
+						__instance.graphDirty = true;
+						return false;
+					}
 				}
 			}
 
