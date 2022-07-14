@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 namespace KSPCommunityFixes.Performance
 {
-    class DisableMapOrbitsInFlight : BasePatch
+    class DisableMapUpdateInFlight : BasePatch
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
