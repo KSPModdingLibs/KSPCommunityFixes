@@ -91,6 +91,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
+    <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
+    <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
+    <Compile Include="Performance\CommNetThrottling.cs" />
+    <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
@@ -118,7 +122,9 @@
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
+    <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
+    <Compile Include="QoL\ToolbarShowHide.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
@@ -126,6 +132,7 @@
     <Compile Include="Internal\PatchSettings.cs" />
     <Compile Include="Performance\TextureLoaderOptimizations.cs" />
     <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
+    <Compile Include="QoL\ResourceLockActions.cs" />
     <Compile Include="QoL\ShowContractFinishDates.cs" />
     <Compile Include="QoL\DisableManeuverTool.cs" />
     <Compile Include="QoL\FairingMouseOverPersistence.cs" />
