@@ -138,6 +138,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.19.1
+- DisableMapUpdateInFlight : fixed phantom map markers on flight scene load
+
 ##### 1.19.0
 - New performance patch : [CommNetThrottling](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) (contributed by @JonnyOThan)
 - New performance patch : [DisableMapOrbitsInFlight](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) (contributed by @JonnyOThan)
