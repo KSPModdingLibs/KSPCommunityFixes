@@ -60,83 +60,29 @@ namespace KSPCommunityFixes
         {
             if (!_apToPart.TryGetValue(ap, out Part p))
             {
-                Debug.Log($"Creating substitute part for {ap.name}.");
+                ConfigNode savedModules = new ConfigNode("PART");
+                for (int i = 0; i < ap.partPrefab.modules.Count; ++i)
+                    ap.partPrefab.modules[i].Save(savedModules.AddNode("MODULE"));
+
                 p = GameObject.Instantiate(ap.partPrefab);
                 p.partInfo = ap;
-                var scene = HighLogic.LoadedScene;
-                var wasEd = HighLogic.LoadedSceneIsEditor;
-                HighLogic.LoadedSceneIsEditor = false;
-                HighLogic.LoadedScene = GameScenes.LOADING;
                 p.gameObject.SetActive(false);
-
-                // Remove all partmodules so we can readd fresh
-                PartModule[] mods = p.GetComponentsInChildren<PartModule>();
-                foreach (var pm in mods)
-                    GameObject.DestroyImmediate(pm);
-                if (p.modules != null)
-                {
-                    p.modules.modules?.Clear();
-                    p.ClearModuleReferenceCache();
-                }
 
                 p.gameObject.SetActive(true);
 
-                ConfigNode[] modules = ap.partConfig.nodes.GetNodes("MODULE");
-                for (int i = 0; i < modules.Length; ++i)
-                    p.AddModule(modules[i]);
+                for (int i = 0; i < savedModules.nodes.Count; ++i)
+                    p.Modules[i].Load(savedModules.nodes[i]);
 
-                // Fix for mods that add partmodules after loading
-                if (ap.partPrefab.modules.Count > p.modules.Count)
-                {
-                    Debug.Log($"Prefab has more modules than the partConfig: prefab has {ap.partPrefab.modules.Count} and config had {p.modules.Count}. Adding extra modules.");
-                    for (int i = p.modules.Count; i < ap.partPrefab.modules.Count; ++i)
-                    {
-                        ConfigNode n = new ConfigNode("MODULE");
-                        ap.partPrefab.modules[i].Save(n);
-                        Debug.Log($"Adding {n.GetValue("name") ?? "null"}.");
-                        p.AddModule(n);
-                    }
-                }
-                Debug.Log($"Added modules.");
+                Debug.Log($"Reloaded modules.");
 
                 var ondestComp = p.gameObject.AddComponent<SubstitutePartRemoveFromDictOnDestroy>();
 
                 p.gameObject.SetActive(false);
 
-                HighLogic.LoadedScene = scene;
-                HighLogic.LoadedSceneIsEditor = wasEd;
                 ondestComp.Setup(_apToPart, ap);
                 _apToPart[ap] = p;
 
-                Debug.Log($"Created substitute.");
-
-                //// For some reason we have to copy resources
-                //p._resources = new PartResourceList(p, ap.partPrefab.Resources);
-                //// and this goes null
-                //var dest = p.FindModulesImplementing<ModulePartVariants>();
-                //var src = p.partInfo.partPrefab.FindModulesImplementing<ModulePartVariants>();
-                //for (int i = src.Count - 1; i >= 0; --i)
-                //    dest[i].partMaterials = src[i].partMaterials;
-
-                //Debug.Log($"Created substitute part for {ap.name}.");
-                //try
-                //{
-                //    ModulePartVariants mpv = p.FindModuleImplementing<ModulePartVariants>();
-                //    Debug.Log($"MPV null? {mpv == null}");
-                //    if (mpv.variantIndex >= 0)
-                //    {
-                //        Debug.Log($"MPV var list null? {mpv.variantList == null}. Mats null? {mpv.partMaterials == null}");
-                //        if (mpv.variantIndex <= mpv.variantList.Count)
-                //        {
-                //            ModulePartVariants.ApplyVariant(p, p.transform.Find("model"), mpv.variantList[mpv.variantIndex], mpv.partMaterials.ToArray(), skipShader: false, mpv.variantIndex);
-                //        }
-                //    }
-
-                //}
-                //catch (Exception e)
-                //{
-                //    Debug.Log("EXC: " + e);
-                //}
+                Debug.Log($"Created substitute part for {ap.name}.");
             }
             return p;
         }
