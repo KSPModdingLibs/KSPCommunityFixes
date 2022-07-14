@@ -1,21 +1,17 @@
 ﻿using HarmonyLib;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using UnityEngine;
 
 namespace KSPCommunityFixes.Performance
 {
-	class CommNetSpeedBoost : BasePatch
+    class CommNetThrottling : BasePatch
 	{
 		private static double packedInterval = 0.5;
 		private static double unpackedInterval = 5.0;
 
 		protected override void ApplyPatches(List<PatchInfo> patches)
 		{
-			ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("COMM_NET_PERFORMANCE_SETTINGS");
+			ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("COMMNET_THROTTLING_SETTINGS");
 
 			if (settingsNode != null)
 			{

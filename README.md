@@ -92,6 +92,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.3]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.3]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapOrbitsInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.3]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
+- [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) [KSP 1.12.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Prevent full CommNet network updates from happening every frame, but instead to happen at a regular real-world time interval of 5 seconds while in flight. Enabling this can provide a decent performance uplift in games having an large amount of celestial bodies and/or vessels, but has a detrimental impact on the precision of the simulation and can potentially cause issues with mods relying on the stock behavior.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -138,6 +139,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.19.0
+- New performance patch : [CommNetThrottling](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) (contributed by @JonnyOThan)
 - New performance patch : [DisableMapOrbitsInFlight](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) (contributed by @JonnyOThan)
 - New performance patch : [ProgressTrackingSpeedBoost](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) (contributed by @JonnyOThan)
 - New QoL patch : [ToolbarShowHide](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) (contributed by @NathanKell)
