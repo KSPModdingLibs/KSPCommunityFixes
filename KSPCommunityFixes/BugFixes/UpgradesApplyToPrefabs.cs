@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using HarmonyLib;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Editor;
+using System.Reflection;
+using System.Reflection.Emit;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -16,43 +18,33 @@ namespace KSPCommunityFixes
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "Setup", new Type[] {typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
+                PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(PartListTooltip), "Setup", new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "UpdateVariantText"),
+                AccessTools.Method(typeof(PartListTooltip), "Setup", new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
                 this));
 
             patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltip), "UpdateVariantText"),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "UpdateCargoPartModuleInfo"),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltip), "UpdateCargoPartModuleInfo"),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
+                PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(PartListTooltip), "CreateExtendedInfo"),
                 this));
 
             patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltip), "CreateExtendedInfo"),
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(PartListTooltip), "UpdateVariantText"),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(PartListTooltip), "SetupUpgradeInfo"),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(PartListTooltip), "GetUpgradedPrimaryInfo"),
                 this));
         }
 
@@ -86,49 +78,134 @@ namespace KSPCommunityFixes
             }
             return p;
         }
-        
-        static void PartListTooltip_Setup_Prefix(PartListTooltip __instance, ref AvailablePart availablePart, out Part __state)
+
+        static IEnumerable<CodeInstruction> PartListTooltip_Setup_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            __state = availablePart.partPrefab;
-            availablePart.partPrefab = GetSubstitutePart(availablePart);
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+
+            // Don't store partRef - we're setting it in Prefix.
+            // (That should be done as transpiler too but my transpiler-fu is weak.)
+            for (int i = 0; i < code.Count - 1; i++)
+            {
+                if (code[i].opcode == OpCodes.Ldarg_0 && code[i + 1].opcode == OpCodes.Ldarg_0)
+                {
+                    code.RemoveAt(i);
+                    code.RemoveAt(i);
+                    code.RemoveAt(i);
+                    code.RemoveAt(i);
+                    code.RemoveAt(i);
+                    break;
+                }
+            }
+
+            ReplacePartPrefabCallWithPartRef(code);
+
+            return code;
         }
 
-        static void PartListTooltip_Setup_Postfix(PartListTooltip __instance, ref AvailablePart availablePart, Part __state)
+        static void PartListTooltip_Setup_Prefix(PartListTooltip __instance, ref AvailablePart availablePart)
         {
-            availablePart.partPrefab = __state;
+            __instance.partRef = GetSubstitutePart(availablePart);
         }
 
-        static void PartListTooltip_UpdateVariantText_Prefix(PartListTooltip __instance, out Part __state)
+        static void ReplacePartPrefabCallWithPartRef(List<CodeInstruction> code)
         {
-            __state = __instance.partInfo.partPrefab;
-            __instance.partInfo.partPrefab = GetSubstitutePart(__instance.partInfo);
+            FieldInfo partInfoField = AccessTools.Field(typeof(PartListTooltip), nameof(PartListTooltip.partInfo));
+            FieldInfo partPrefabField = AccessTools.Field(typeof(AvailablePart), nameof(AvailablePart.partPrefab));
+            FieldInfo partRefField = AccessTools.Field(typeof(PartListTooltip), nameof(PartListTooltip.partRef));
+
+            for (int i = 0; i < code.Count - 1; ++i)
+            {
+                if (code[i].opcode == OpCodes.Ldfld && ReferenceEquals(code[i].operand, partInfoField)
+                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, partPrefabField))
+                {
+                    code[i].operand = partRefField;
+                    code.RemoveAt(i + 1);
+                    break;
+                }
+            }
         }
 
-        static void PartListTooltip_UpdateVariantText_Postfix(PartListTooltip __instance, Part __state)
+        static IEnumerable<CodeInstruction> PartListTooltip_CreateExtendedInfo_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            __instance.partInfo.partPrefab = __state;
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            ReplacePartPrefabCallWithPartRef(code);
+            return code;
         }
 
-        static void PartListTooltip_UpdateCargoPartModuleInfo_Prefix(PartListTooltip __instance, out Part __state)
+        static IEnumerable<CodeInstruction> PartListTooltip_UpdateVariantText_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            __state = __instance.partInfo.partPrefab;
-            __instance.partInfo.partPrefab = GetSubstitutePart(__instance.partInfo);
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            ReplacePartPrefabCallWithPartRef(code);
+            return code;
         }
 
-        static void PartListTooltip_UpdateCargoPartModuleInfo_Postfix(PartListTooltip __instance, Part __state)
+        static IEnumerable<CodeInstruction> PartListTooltip_SetupUpgradeInfo_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            __instance.partInfo.partPrefab = __state;
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+
+            FieldInfo prefabField = AccessTools.Field(typeof(AvailablePart), nameof(AvailablePart.partPrefab));
+            FieldInfo partRefField = AccessTools.Field(typeof(PartListTooltip), nameof(PartListTooltip.partRef));
+
+            int i = 0;
+            for (; i < code.Count - 1; ++i)
+            {
+                if (code[i].opcode == OpCodes.Ldarg_1
+                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, prefabField))
+                {
+                    code[i + 1].operand = partRefField;
+                    code.RemoveAt(i);
+                    break;
+                }
+            }
+            ++i;
+            for (; i < code.Count - 1; ++i)
+            {
+                if (code[i].opcode == OpCodes.Ldarg_1
+                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, prefabField))
+                {
+                    code[i].opcode = OpCodes.Ldarg_0;
+                    code[i + 1].operand = partRefField;
+                    ++i;
+                }
+            }
+
+            return code;
         }
 
-        static void PartListTooltip_CreateExtendedInfo_Prefix(PartListTooltip __instance, out Part __state)
+        static bool PartListTooltip_GetUpgradedPrimaryInfo_Prefix(ref AvailablePart aP, ref int maxLines, ref string __result)
         {
-            __state = __instance.partInfo.partPrefab;
-            __instance.partInfo.partPrefab = GetSubstitutePart(__instance.partInfo);
-        }
+            // Replace with our substitute
+            Part part = GetSubstitutePart(aP);
 
-        static void PartListTooltip_CreateExtendedInfo_Postfix(PartListTooltip __instance, Part __state)
-        {
-            __instance.partInfo.partPrefab = __state;
+            List<string> list = new List<string>();
+
+            if (part.GetType().IsSubclassOf(typeof(Part)))
+            {
+                if (part is IModuleInfo moduleInfo)
+                    list.Add(moduleInfo.GetPrimaryField() + "\n");
+                else
+                    list.Add(part.drawStats().Trim());
+            }
+            for (int i = 0; i < part.Modules.Count; ++i)
+            {
+                if (part.Modules[i] is IModuleInfo moduleInfo)
+                    list.Add(moduleInfo.GetPrimaryField());
+            }
+            for (int i = 0; i < aP.resourceInfos.Count; ++i)
+            {
+                AvailablePart.ResourceInfo resourceInfo = aP.resourceInfos[i];
+                if (!string.IsNullOrEmpty(resourceInfo.primaryInfo))
+                    list.Add(resourceInfo.primaryInfo + "\n");
+            }
+
+            var stringBuilder = new System.Text.StringBuilder();
+            int max = Math.Min(maxLines, list.Count);
+            for (int i = 0; i < max; ++i)
+                stringBuilder.Append(list[i]);
+            __result = stringBuilder.ToString().Trim();
+
+            return false;
         }
     }
 
