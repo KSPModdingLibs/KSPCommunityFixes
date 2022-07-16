@@ -48,8 +48,25 @@ namespace KSPCommunityFixes
                 this));
         }
 
+        static bool PartHasUpgrades(AvailablePart availablePart)
+        {
+            foreach (var pm in availablePart.partPrefab.Modules)
+            {
+                foreach (var node in pm.upgrades)
+                {
+                    string name = node.GetValue("name__");
+                    if (!string.IsNullOrEmpty(name) && PartUpgradeManager.Handler.IsEnabled(node.GetValue("name__")))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         static Part GetSubstitutePart(AvailablePart ap)
         {
+            if (!PartUpgradeManager.Handler.UgpradesAllowed() || !PartHasUpgrades(ap))
+                return ap.partPrefab;
+
             if (!_apToPart.TryGetValue(ap, out Part p))
             {
                 ConfigNode savedModules = new ConfigNode("PART");
