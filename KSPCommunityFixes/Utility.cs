@@ -12,7 +12,9 @@ namespace KSPCommunityFixes
     static class UnityExtensions
     {
         /// <summary>
-        /// Perform a true reference equality comparison between two UnityEngine.Object references.<br/>
+        /// Perform a true reference equality comparison between two UnityEngine.Object references,
+        /// ignoring the "a destroyed object is equal to null" Unity concept.<br/>
+        /// Avoid the performance hit of using the <c>==</c> and <c>Equals()</c> overloads.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool RefEquals(this UnityEngine.Object unityObject, UnityEngine.Object otherUnityObject)
@@ -21,7 +23,9 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// Perform a true reference inequality comparison between two UnityEngine.Object references.<br/>
+        /// Perform a true reference inequality comparison between two UnityEngine.Object references,
+        /// ignoring the "a destroyed object is equal to null" Unity concept.<br/>
+        /// Avoid the performance hit of using the <c>==</c> and <c>Equals()</c> overloads.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool RefNotEquals(this UnityEngine.Object unityObject, UnityEngine.Object otherUnityObject)
@@ -30,7 +34,7 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// Equivalent as the Unity <c>==</c> operator, but 6-8 times faster.<br/>
+        /// Equivalent as the Unity <c>==</c> and <c>Equals()</c> overloads, but 6-8 times faster.<br/>
         /// Use this if you want to perform an equality check where :<br/>
         /// - a destroyed <c>UnityEngine.Object</c> instance is considered equal to <c>null</c><br/>
         /// - two different destroyed <c>UnityEngine.Object</c> instances are not considered equal
@@ -50,7 +54,7 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// Equivalent as the Unity <c>!=</c> operator, but 6-8 times faster.<br/>
+        /// Equivalent as the Unity <c>==</c> and <c>Equals()</c> overloads, but 6-8 times faster.<br/>
         /// Use this if you want to perform an equality check where :<br/>
         /// - a destroyed <c>UnityEngine.Object</c> instance is considered equal to <c>null</c><br/>
         /// - two different destroyed <c>UnityEngine.Object</c> instances are not considered equal
@@ -79,7 +83,8 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// True if this <paramref name="unityObject"/> reference is <c>null</c>.
+        /// True if this <paramref name="unityObject"/> reference is <c>null</c>,
+        /// ignoring the "a destroyed object is equal to null" Unity concept.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNullRef(this UnityEngine.Object unityObject)
@@ -88,7 +93,8 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// True if this <paramref name="unityObject"/> reference is not <c>null</c>.
+        /// True if this <paramref name="unityObject"/> reference is not <c>null</c>,
+        /// ignoring the "a destroyed object is equal to null" Unity concept.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNotNullRef(this UnityEngine.Object unityObject)
