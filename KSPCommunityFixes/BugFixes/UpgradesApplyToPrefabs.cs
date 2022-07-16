@@ -38,11 +38,6 @@ namespace KSPCommunityFixes
                 this));
 
             patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), "SetupUpgradeInfo"),
-                this));
-
-            patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(PartListTooltip), "GetUpgradedPrimaryInfo"),
                 this));
@@ -52,11 +47,14 @@ namespace KSPCommunityFixes
         {
             foreach (var pm in availablePart.partPrefab.Modules)
             {
-                foreach (var node in pm.upgrades)
+                if (pm.upgrades != null)
                 {
-                    string name = node.GetValue("name__");
-                    if (!string.IsNullOrEmpty(name) && PartUpgradeManager.Handler.IsEnabled(node.GetValue("name__")))
-                        return true;
+                    foreach (var node in pm.upgrades)
+                    {
+                        string name = node.GetValue("name__");
+                        if (!string.IsNullOrEmpty(name) && PartUpgradeManager.Handler.IsEnabled(name))
+                            return true;
+                    }
                 }
             }
             return false;
@@ -106,11 +104,11 @@ namespace KSPCommunityFixes
             {
                 if (code[i].opcode == OpCodes.Ldarg_0 && code[i + 1].opcode == OpCodes.Ldarg_0)
                 {
-                    code.RemoveAt(i);
-                    code.RemoveAt(i);
-                    code.RemoveAt(i);
-                    code.RemoveAt(i);
-                    code.RemoveAt(i);
+                    code[i++] = new CodeInstruction(OpCodes.Nop);
+                    code[i++] = new CodeInstruction(OpCodes.Nop);
+                    code[i++] = new CodeInstruction(OpCodes.Nop);
+                    code[i++] = new CodeInstruction(OpCodes.Nop);
+                    code[i++] = new CodeInstruction(OpCodes.Nop);
                     break;
                 }
             }
@@ -137,7 +135,7 @@ namespace KSPCommunityFixes
                     && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, partPrefabField))
                 {
                     code[i].operand = partRefField;
-                    code.RemoveAt(i + 1);
+                    code[i + 1] = new CodeInstruction(OpCodes.Nop);
                     break;
                 }
             }
@@ -154,39 +152,6 @@ namespace KSPCommunityFixes
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
             ReplacePartPrefabCallWithPartRef(code);
-            return code;
-        }
-
-        static IEnumerable<CodeInstruction> PartListTooltip_SetupUpgradeInfo_Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-
-            FieldInfo prefabField = AccessTools.Field(typeof(AvailablePart), nameof(AvailablePart.partPrefab));
-            FieldInfo partRefField = AccessTools.Field(typeof(PartListTooltip), nameof(PartListTooltip.partRef));
-
-            int i = 0;
-            for (; i < code.Count - 1; ++i)
-            {
-                if (code[i].opcode == OpCodes.Ldarg_1
-                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, prefabField))
-                {
-                    code[i + 1].operand = partRefField;
-                    code.RemoveAt(i);
-                    break;
-                }
-            }
-            ++i;
-            for (; i < code.Count - 1; ++i)
-            {
-                if (code[i].opcode == OpCodes.Ldarg_1
-                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i + 1].operand, prefabField))
-                {
-                    code[i].opcode = OpCodes.Ldarg_0;
-                    code[i + 1].operand = partRefField;
-                    ++i;
-                }
-            }
-
             return code;
         }
 
