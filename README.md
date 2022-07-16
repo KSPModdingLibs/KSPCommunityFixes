@@ -104,6 +104,9 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 - **[DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47)** [KSP 1.8.0 - 1.12.3]<br/> Fix administration building custom departement head image not being used when added by a mod.
 
+#### Stock configs tweaks
+- **ManufacturerFixes**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
+
 ### License
 
 MIT
@@ -137,6 +140,11 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.20.0
+- OnSymmetryFieldChanged : fixed mistakenly inverted "changed" condition resulting in the patch not actually preventing symmetry events to be fired when the value hasn't changed.
+- Added russian localization (contributed by @sunnypunny)
+- New stock configs tweak : ManufacturerFixes (contributed by @sunnypunny)
 
 ##### 1.19.1
 - DisableMapUpdateInFlight : fixed phantom map markers on flight scene load
