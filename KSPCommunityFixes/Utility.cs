@@ -54,7 +54,7 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
-        /// Equivalent as the Unity <c>==</c> and <c>Equals()</c> overloads, but 6-8 times faster.<br/>
+        /// Equivalent as the Unity <c>!=</c> and <c>!Equals()</c> overloads, but 6-8 times faster.<br/>
         /// Use this if you want to perform an equality check where :<br/>
         /// - a destroyed <c>UnityEngine.Object</c> instance is considered equal to <c>null</c><br/>
         /// - two different destroyed <c>UnityEngine.Object</c> instances are not considered equal
