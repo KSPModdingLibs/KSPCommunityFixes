@@ -122,11 +122,11 @@ namespace KSPCommunityFixes
                     {
                         if (__instance.upgrade != null)
                         {
-                            PartListTooltipWidget resourceWidget = __instance.GetNewTooltipWidget(__instance.extInfoRscWidgePrefab);
-                            resourceWidget.Setup(KSP.Localization.Localizer.Instance.ReplaceSingleTagIfFound("#autoLOC_140995"), " ");
-                            resourceWidget.transform.SetParent(__instance.extInfoListContainer.transform, false);
                             __instance.CreateExtendedUpgradeInfo(__instance.requiresEntryPurchase);
+
+                            // Hide spacers
                             __instance.extInfoListSpacer.gameObject.SetActive(false);
+                            __instance.extInfoListSpacerVariants.gameObject.SetActive(false);
                         }
                         else
                         {
