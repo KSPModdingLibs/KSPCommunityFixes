@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using HarmonyLib;
-using KSP.UI.Screens;
+using System.Collections;
 using KSP.UI.Screens.Editor;
-using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
 
@@ -130,6 +129,46 @@ namespace KSPCommunityFixes
                         }
                         else
                         {
+                            // Need to call OnStart for these things since otherwise some mods (i.e. Kerbalism) throw in GetInfo.
+                            if (UpgradesApplyToPrefabs._apToPart.TryGetValue(__instance.partInfo, out var tuple))
+                            {
+                                if (!tuple.Item2)
+                                {
+                                    UpgradesApplyToPrefabs._apToPart[__instance.partInfo] = new Tuple<Part, bool>(tuple.Item1, true);
+
+                                    var scene = HighLogic.LoadedScene;
+                                    var wasEd = HighLogic.LoadedSceneIsEditor;
+                                    HighLogic.LoadedScene = GameScenes.MAINMENU; // i.e. neither editor nor flight nor loading
+                                    HighLogic.LoadedSceneIsEditor = false;
+
+                                    foreach (PartModule pm in __instance.partRef.Modules)
+                                    {
+                                        try
+                                        {
+                                            pm.OnStart(PartModule.StartState.None);
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            Debug.LogError($"[KSPCommunityFixes] Exception starting partmodule {pm.name}: {e}");
+                                        }
+                                    }
+
+                                    foreach (PartModule pm in __instance.partRef.Modules)
+                                    {
+                                        try
+                                        {
+                                            pm.OnStartFinished(PartModule.StartState.None);
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            Debug.LogError($"[KSPCommunityFixes] Exception in OnStartFinished in partmodule {pm.name}: {e}");
+                                        }
+                                    }
+
+                                    HighLogic.LoadedScene = scene;
+                                    HighLogic.LoadedSceneIsEditor = wasEd;
+                                }
+                            }
                             __instance.CreateExtendedInfo(__instance.requiresEntryPurchase);
                         }
                         __instance.hasCreatedExtendedInfo = true;

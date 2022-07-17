@@ -11,7 +11,8 @@ namespace KSPCommunityFixes
 {
     public class UpgradesApplyToPrefabs : BasePatch
     {
-        private static readonly Dictionary<AvailablePart, Part> _apToPart = new Dictionary<AvailablePart, Part>();
+        public static readonly Dictionary<AvailablePart, Tuple<Part, bool>> _apToPart = new Dictionary<AvailablePart, Tuple<Part, bool>>();
+        private static GameObject _substitutePartRoot = null;
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
@@ -19,30 +20,27 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), "Setup", new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "Setup", new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), "CreateExtendedInfo"),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), "UpdateVariantText"),
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.UpdateVariantText)),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), "GetUpgradedPrimaryInfo"),
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.GetUpgradedPrimaryInfo)),
                 this));
         }
 
+        // We're not using UpgradesAvailable / FindUpgrades
+        // because we really only care about actually-available upgrades
         static bool PartHasUpgrades(AvailablePart availablePart)
         {
             foreach (var pm in availablePart.partPrefab.Modules)
@@ -65,33 +63,63 @@ namespace KSPCommunityFixes
             if (!PartUpgradeManager.Handler.UgpradesAllowed() || !PartHasUpgrades(ap))
                 return ap.partPrefab;
 
-            if (!_apToPart.TryGetValue(ap, out Part p))
+            if (!_apToPart.TryGetValue(ap, out var tuple))
             {
+                Debug.Log($"[KSPCommunityFixes] Creating substitute part for {ap.name}");
+
+                if (_substitutePartRoot == null)
+                {
+                    _substitutePartRoot = new GameObject("SubstitutePartHolder");
+                    var ondestComp = _substitutePartRoot.AddComponent<ClearSubsitutePartDictOnDestroy>();
+                    ondestComp.Setup(_apToPart);
+                }
+
                 ConfigNode savedModules = new ConfigNode("PART");
                 for (int i = 0; i < ap.partPrefab.modules.Count; ++i)
-                    ap.partPrefab.modules[i].Save(savedModules.AddNode("MODULE"));
-
-                p = GameObject.Instantiate(ap.partPrefab);
+                {
+                    var cn = savedModules.AddNode("MODULE");
+                    try
+                    {
+                        ap.partPrefab.modules[i].Save(cn);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("[KSPCommunityFixes] Exception saving partmodule " + ap.partPrefab.modules[i].name + ": " + e);
+                    }
+                }
+                Part p = GameObject.Instantiate(ap.partPrefab);
+                p.gameObject.transform.SetParent(_substitutePartRoot.transform, true);
                 p.partInfo = ap;
-                p.gameObject.SetActive(false);
-
-                p.gameObject.SetActive(true);
+                try
+                {
+                    p.gameObject.SetActive(true);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("[KSPCommunityFixes] Exception awaking part: " + e);
+                }
 
                 for (int i = 0; i < savedModules.nodes.Count; ++i)
-                    p.Modules[i].Load(savedModules.nodes[i]);
+                {
+                    try
+                    {
+                        p.Modules[i].Load(savedModules.nodes[i]);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("[KSPCommunityFixes] Exception loading partmodule " + p.modules[i].name + ": " + e);
+                    }
+                }
 
-                Debug.Log($"Reloaded modules.");
-
-                var ondestComp = p.gameObject.AddComponent<SubstitutePartRemoveFromDictOnDestroy>();
+                p.prefabMass = ap.partPrefab.mass;
 
                 p.gameObject.SetActive(false);
-
-                ondestComp.Setup(_apToPart, ap);
-                _apToPart[ap] = p;
-
-                Debug.Log($"Created substitute part for {ap.name}.");
+                
+                tuple = new Tuple<Part, bool>(p, false);
+                _apToPart[ap] = tuple;
+                Debug.Log($"[KSPCommunityFixes] Created substitute part for {ap.name}.");
             }
-            return p;
+            return tuple.Item1;
         }
 
         static IEnumerable<CodeInstruction> PartListTooltip_Setup_Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -141,13 +169,6 @@ namespace KSPCommunityFixes
             }
         }
 
-        static IEnumerable<CodeInstruction> PartListTooltip_CreateExtendedInfo_Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-            ReplacePartPrefabCallWithPartRef(code);
-            return code;
-        }
-
         static IEnumerable<CodeInstruction> PartListTooltip_UpdateVariantText_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
@@ -191,24 +212,18 @@ namespace KSPCommunityFixes
         }
     }
 
-    public class SubstitutePartRemoveFromDictOnDestroy : MonoBehaviour
+    public class ClearSubsitutePartDictOnDestroy : MonoBehaviour
     {
-        private Dictionary<AvailablePart, Part> _dict;
-        private AvailablePart _key;
+        private Dictionary<AvailablePart, Tuple<Part, bool>> _dict;
 
-        public void Setup(Dictionary<AvailablePart, Part> dict, AvailablePart key)
+        public void Setup(Dictionary<AvailablePart, Tuple<Part, bool>> dict)
         {
             _dict = dict;
-            _key = key;
         }
 
         private void OnDestroy()
         {
-            // Don't use Unity equality here
-            if (_dict != null && (object)_key != null)
-                _dict.Remove(_key);
-
-            Debug.Log($"Part name {_key.name} OnDestroy, removed from dict.");
+            _dict.Clear();
         }
     }
 }
