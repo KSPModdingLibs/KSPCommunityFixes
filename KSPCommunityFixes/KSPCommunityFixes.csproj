@@ -92,7 +92,7 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
-    <Compile Include="BugFixes\UpgradeLoadingApplying.cs" />
+    <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\UpgradesApplyToPrefabs.cs" />
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
@@ -150,7 +150,6 @@
     <Compile Include="QoL\PAWCollapsedInventories.cs" />
     <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
     <Compile Include="QoL\PAWStockGroups.cs" />
-    <Compile Include="QoL\HidePartUpgradeExtendedInfo.cs" />
     <Compile Include="QoL\UIFloatEditNumericInput.cs" />
     <Compile Include="Utility.cs" />
   </ItemGroup>
