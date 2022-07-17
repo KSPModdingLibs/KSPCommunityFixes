@@ -130,11 +130,11 @@ namespace KSPCommunityFixes
                         else
                         {
                             // Need to call OnStart for these things since otherwise some mods (i.e. Kerbalism) throw in GetInfo.
-                            if (UpgradesApplyToPrefabs._apToPart.TryGetValue(__instance.partInfo, out var tuple))
+                            if (PartTooltipUpgradesApplyToSubstituteParts._apToPart.TryGetValue(__instance.partInfo, out var tuple))
                             {
                                 if (!tuple.Item2)
                                 {
-                                    UpgradesApplyToPrefabs._apToPart[__instance.partInfo] = new Tuple<Part, bool>(tuple.Item1, true);
+                                    PartTooltipUpgradesApplyToSubstituteParts._apToPart[__instance.partInfo] = new Tuple<Part, bool>(tuple.Item1, true);
 
                                     var scene = HighLogic.LoadedScene;
                                     var wasEd = HighLogic.LoadedSceneIsEditor;

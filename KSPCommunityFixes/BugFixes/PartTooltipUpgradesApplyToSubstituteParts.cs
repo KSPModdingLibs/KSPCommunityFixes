@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace KSPCommunityFixes
 {
-    public class UpgradesApplyToPrefabs : BasePatch
+    public class PartTooltipUpgradesApplyToSubstituteParts : BasePatch
     {
         public static readonly Dictionary<AvailablePart, Tuple<Part, bool>> _apToPart = new Dictionary<AvailablePart, Tuple<Part, bool>>();
         private static GameObject _substitutePartRoot = null;
