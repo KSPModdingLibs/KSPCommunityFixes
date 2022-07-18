@@ -9,12 +9,23 @@ using UnityEngine;
 
 namespace KSPCommunityFixes
 {
+    [PatchPriority(Order = 30)]
     public class PartTooltipUpgradesApplyToSubstituteParts : BasePatch
     {
         public static readonly Dictionary<AvailablePart, Tuple<Part, bool>> _apToPart = new Dictionary<AvailablePart, Tuple<Part, bool>>();
         private static GameObject _substitutePartRoot = null;
 
         protected override Version VersionMin => new Version(1, 8, 0);
+
+        protected override bool CanApplyPatch(out string reason)
+        {
+            if (KSPCommunityFixes.GetPatchInstance<UpgradeBugs>() == null)
+            {
+                reason = "PartTooltipUpgradesApplyToSubstituteParts requires patch UpgradeBugs to be enabled";
+                return false;
+            }
+            return base.CanApplyPatch(out reason);
+        }
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {

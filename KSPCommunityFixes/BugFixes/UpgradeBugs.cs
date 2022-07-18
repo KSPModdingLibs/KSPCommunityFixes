@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace KSPCommunityFixes
 {
+    [PatchPriority(Order = 25)]
     public class UpgradeBugs : BasePatch
     {
         protected override Version VersionMin => new Version(1, 8, 0);
