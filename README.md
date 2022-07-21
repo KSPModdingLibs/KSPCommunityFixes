@@ -23,7 +23,9 @@ Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 ### Features
 
-Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
+Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. 
+
+While all KSP versions from 1.8.0 to 1.12.3 are supported, using the latest one (1.12.3) is highly recommended, as many patches only apply to the most recent KSP versions. When a bug fix patch doesn't apply to an older KSP version, this **doesn't** mean those bugs don't exist there.
 
 User options are available from the "ESC" in-game settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.gif"/>
 
@@ -64,6 +66,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48)** [KSP 1.8.0 - 1.12.3]<br/> Fix rescaled robotics parts propagating their scale to childrens after actuating the servo in the editor
 - **[EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52)** [KSP 1.11.0 - 1.12.3]<br/>Fix engine plates causing the part attached above them to be incorrectly shielded from airstream.
 - **[AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51)** [KSP 1.10.0 - 1.12.3]<br/>Fix asteroid/comet mass being restored to 100% when reloading after having mined it down to 0%.
+- **[CometMiningNotRemovingMass](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/66)** [KSP 1.12.2 - 1.12.3]<br/>Fix mass of comets not actually reducing when mining them, despite the PAW saying so.
 
 #### Quality of Life tweaks 
 
@@ -140,6 +143,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.21.0
+- New KSP bugfix : CometMiningNotRemovingMass  // Fix mass of comets not actually reducing when mining them, despite the PAW saying so.
 
 ##### 1.20.0
 - OnSymmetryFieldChanged : fixed mistakenly inverted "changed" condition resulting in the patch not actually preventing symmetry events to be fired when the value hasn't changed.
