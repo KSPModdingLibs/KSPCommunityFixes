@@ -96,6 +96,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.3]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapUpdateInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.3]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
 - [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) [KSP 1.12.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Prevent full CommNet network updates from happening every frame, but instead to happen at a regular real-world time interval of 5 seconds while in flight. Enabling this can provide a decent performance uplift in games having an large amount of celestial bodies and/or vessels, but has a detrimental impact on the precision of the simulation and can potentially cause issues with mods relying on the stock behavior.
+- [**AsteroidAndCometDrillCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67) [KSP 1.12.3]<br/>Reduce constant overhead of ModuleAsteroidDrill and ModuleCometDrill by using the cached asteroid/comet part lookup results from ModuleResourceHarvester. Improves performance with large part count vessels having at least one drill part.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -145,7 +146,8 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.21.0
-- New KSP bugfix : CometMiningNotRemovingMass  // Fix mass of comets not actually reducing when mining them, despite the PAW saying so.
+- New KSP bugfix : CometMiningNotRemovingMass
+- New performance patch : AsteroidAndCometDrillCache (Contributed by @JonnyOThan)
 
 ##### 1.20.0
 - OnSymmetryFieldChanged : fixed mistakenly inverted "changed" condition resulting in the patch not actually preventing symmetry events to be fired when the value hasn't changed.
