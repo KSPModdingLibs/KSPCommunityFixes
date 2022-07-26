@@ -33,8 +33,8 @@ namespace KSPCommunityFixes.Modding
                         {
                             partModule = part.Modules[moduleIndex];
                             object oldValue = partModule.Fields.GetValue(__instance.field.name);
-                            bool changed = object.Equals(oldValue, value);
-                            __result = __result || !changed;
+                            bool changed = !object.Equals(oldValue, value);
+                            __result = __result || changed;
                             if (changed)
                             {
                                 partModule.Fields.SetValue(__instance.field.name, value);
@@ -46,8 +46,8 @@ namespace KSPCommunityFixes.Modding
                         if (partModule.IsNotNullOrDestroyed())
                         {
                             object oldValue = partModule.Fields.GetValue(__instance.field.name);
-                            bool changed = object.Equals(oldValue, value);
-                            __result = __result || !changed;
+                            bool changed = !object.Equals(oldValue, value);
+                            __result = __result || changed;
                             if (changed)
                             {
                                 partModule.Fields.SetValue(__instance.field.name, value);
@@ -64,8 +64,8 @@ namespace KSPCommunityFixes.Modding
                 {
                     Part part = __instance.part.symmetryCounterparts[j];
                     object oldValue = part.Fields.GetValue(__instance.field.name);
-                    bool changed = object.Equals(oldValue, value);
-                    __result = __result || !changed;
+                    bool changed = !object.Equals(oldValue, value);
+                    __result = __result || changed;
                     if (changed)
                     {
                         part.Fields.SetValue(__instance.field.name, value);

@@ -94,7 +94,9 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />
+    <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
+    <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />

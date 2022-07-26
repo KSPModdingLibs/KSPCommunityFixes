@@ -23,7 +23,9 @@ Compatible with **KSP 1.8.0** to **1.12.3** - Available on [CKAN]
 
 ### Features
 
-Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. Some patches will be applied only to specific KSP versions.
+Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. 
+
+While all KSP versions from 1.8.0 to 1.12.3 are supported, using the latest one (1.12.3) is highly recommended, as many patches only apply to the most recent KSP versions. When a bug fix patch doesn't apply to an older KSP version, this **doesn't** mean those bugs don't exist there.
 
 User options are available from the "ESC" in-game settings menu :<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/settings.gif"/>
 
@@ -64,6 +66,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[RescaledRoboticParts](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/48)** [KSP 1.8.0 - 1.12.3]<br/> Fix rescaled robotics parts propagating their scale to childrens after actuating the servo in the editor
 - **[EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52)** [KSP 1.11.0 - 1.12.3]<br/>Fix engine plates causing the part attached above them to be incorrectly shielded from airstream.
 - **[AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51)** [KSP 1.10.0 - 1.12.3]<br/>Fix asteroid/comet mass being restored to 100% when reloading after having mined it down to 0%.
+- **[CometMiningNotRemovingMass](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/66)** [KSP 1.12.2 - 1.12.3]<br/>Fix mass of comets not actually reducing when mining them, despite the PAW saying so.
 
 #### Quality of Life tweaks 
 
@@ -93,6 +96,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.3]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapUpdateInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.3]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
 - [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) [KSP 1.12.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Prevent full CommNet network updates from happening every frame, but instead to happen at a regular real-world time interval of 5 seconds while in flight. Enabling this can provide a decent performance uplift in games having an large amount of celestial bodies and/or vessels, but has a detrimental impact on the precision of the simulation and can potentially cause issues with mods relying on the stock behavior.
+- [**AsteroidAndCometDrillCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67) [KSP 1.12.3]<br/>Reduce constant overhead of ModuleAsteroidDrill and ModuleCometDrill by using the cached asteroid/comet part lookup results from ModuleResourceHarvester. Improves performance with large part count vessels having at least one drill part.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -103,6 +107,9 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **PersistentIConfigNode** [KSP 1.8.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Implement `IConfigNode` members marked as `[Persistent]` serialization support when using the `CreateObjectFromConfig()`, `LoadObjectFromConfig()` and `CreateConfigFromObject()` methods. Also implements `Guid` serialization support for those methods.
 - **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.3]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 - **[DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47)** [KSP 1.8.0 - 1.12.3]<br/> Fix administration building custom departement head image not being used when added by a mod.
+
+#### Stock configs tweaks
+- **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
 
 ### License
 
@@ -137,6 +144,15 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.21.0
+- New KSP bugfix : CometMiningNotRemovingMass
+- New performance patch : AsteroidAndCometDrillCache (Contributed by @JonnyOThan)
+
+##### 1.20.0
+- OnSymmetryFieldChanged : fixed mistakenly inverted "changed" condition resulting in the patch not actually preventing symmetry events to be fired when the value hasn't changed.
+- Added russian localization (contributed by @sunnypunny)
+- New stock configs tweak : ManufacturerFixes (contributed by @sunnypunny)
 
 ##### 1.19.1
 - DisableMapUpdateInFlight : fixed phantom map markers on flight scene load
