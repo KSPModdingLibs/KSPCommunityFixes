@@ -67,6 +67,9 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[EnginePlateAirstreamShieldedTopPart](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/52)** [KSP 1.11.0 - 1.12.3]<br/>Fix engine plates causing the part attached above them to be incorrectly shielded from airstream.
 - **[AsteroidInfiniteMining](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/51)** [KSP 1.10.0 - 1.12.3]<br/>Fix asteroid/comet mass being restored to 100% when reloading after having mined it down to 0%.
 - **[CometMiningNotRemovingMass](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/66)** [KSP 1.12.2 - 1.12.3]<br/>Fix mass of comets not actually reducing when mining them, despite the PAW saying so.
+- **[DoubleCurvePreserveTangents](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/68)** [KSP 1.8.0 - 1.12.3]<br/>Fix DoubleCurve flattening the tangents of the first keyframe regardless of whether tangents are supplied.
+- **[StrategyDuration](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/70)** [KSP 1.8.0 - 1.12.3]<br/>Fix Strategies not using Duration settings.
+- **[UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/63)** [KSP 1.8.0 - 1.12.3]<br/>Fix various bugs with upgrades, like the part stats upgrade module breaking, upgrades not properly applying in the editor, upgrade cost not being applied to part cost, and various issues int the public API.
 
 #### Quality of Life tweaks 
 
@@ -145,14 +148,16 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
-##### 1.21.0
-- New KSP bugfix : CometMiningNotRemovingMass
-- New performance patch : AsteroidAndCometDrillCache (Contributed by @JonnyOThan)
-
 ##### 1.20.0
+- New KSP bugfix : [UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/63) (contributed by @NathanKell)
+- New KSP bugfix : [DoubleCurvePreserveTangents](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/68) (contributed by @NathanKell)
+- New KSP bugfix : [StrategyDuration](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/70) (contributed by @NathanKell)
+- PersistentIConfigNode patch : fixed incorrect serialization in some corner cases(contributed by @NathanKell)
+- New KSP bugfix : [CometMiningNotRemovingMass](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/66)
+- New performance patch : [AsteroidAndCometDrillCache](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67) (contributed by @JonnyOThan)
 - OnSymmetryFieldChanged : fixed mistakenly inverted "changed" condition resulting in the patch not actually preventing symmetry events to be fired when the value hasn't changed.
 - Added russian localization (contributed by @sunnypunny)
-- New stock configs tweak : ManufacturerFixes (contributed by @sunnypunny)
+- New stock configs tweak : [ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/64) (contributed by @sunnypunny)
 
 ##### 1.19.1
 - DisableMapUpdateInFlight : fixed phantom map markers on flight scene load
