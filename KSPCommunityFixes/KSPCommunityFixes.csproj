@@ -96,6 +96,7 @@
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="BugFixes\StrategyDuration.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
+    <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
