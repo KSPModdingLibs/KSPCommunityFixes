@@ -79,7 +79,11 @@ namespace KSPCommunityFixes.Modding
                             WriteValue(fieldName, typeof(int), writeLinks.AssignLink(value), node);
                         }
                     }
-                    // begin edit 1
+                    // begin edit
+                    else if (IsIConfigNode(fieldType))
+                    {
+                        WriteIConfigNode(fieldName, value, node);
+                    }
                     else if (fieldType == typeof(Guid))
                     {
                         node.AddValue(fieldName, ((Guid)value).ToString());
@@ -93,12 +97,6 @@ namespace KSPCommunityFixes.Modding
                     {
                         WriteArrayTypes(fieldName, fieldType, value, node, persistent);
                     }
-                    // begin edit 2
-                    else if (IsIConfigNode(fieldType))
-                    {
-                        WriteIConfigNode(fieldName, value, node);
-                    }
-                    // end edit
                     else
                     {
                         WriteStruct(fieldName, field, value, node, pass);
