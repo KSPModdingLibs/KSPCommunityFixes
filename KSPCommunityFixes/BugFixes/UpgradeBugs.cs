@@ -16,6 +16,11 @@ namespace KSPCommunityFixes
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Constructor(typeof(PartModule)),
+                this, "PartModule_ctor_Postfix"));
+
+            patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.SetupUpgradeInfo)),
                 this));
@@ -70,6 +75,11 @@ namespace KSPCommunityFixes
                 AccessTools.Method(typeof(PartUpgradeHandler.Upgrade), nameof(PartUpgradeHandler.Upgrade.GetUsedByStrings)),
                 this,
                 "GetUsedBy_Prefix"));
+        }
+
+        static void PartModule_ctor_Postfix(PartModule __instance)
+        {
+            __instance.upgrades = new List<ConfigNode>();
         }
 
         // This was doing weird stuff with PartStatsUpgradeModules where it only applied its upgrades' costs.
