@@ -148,6 +148,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.20.2
+- Fix an issue with the DoubleCurve transpiler (contributed by @NathanKell, bug also contributed by @NathanKell)
+
 ##### 1.20.1
 - Fix an issue with the DoubleCurve patch : [fix to DoubleCurvePreserveTangents](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/73) (contributed by @NathanKell)
 - Fix a stock issue where PartModules added via code would have a null upgrades List : [extension to UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/74) (contributed by @NathanKell)
