@@ -27,9 +27,9 @@ namespace KSPCommunityFixes.BugFixes
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
             for (int i = 1; i < code.Count; ++i)
             {
-                if (code[i].opcode == OpCodes.Ldc_I4_1 && code[i-1].opcode == OpCodes.Ldloc_1)
+                if (code[i].opcode == OpCodes.Ldc_I4_1 && code[i - 1].opcode == OpCodes.Ldloc_1)
                 {
-                    code[i].opcode = OpCodes.Ldc_I4_M1;
+                    code[i + 1] = new CodeInstruction(OpCodes.Ret);
                     break;
                 }
             }
