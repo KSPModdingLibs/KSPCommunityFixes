@@ -148,6 +148,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.20.3
+- New performance patch : [FewerSaves](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/80) (contributed by @siimav)
+- StrategyDuration had an incorrect transpiler linkage.
+
 ##### 1.20.2
 - Fix an issue with the DoubleCurve transpiler (contributed by @NathanKell, bug also contributed by @NathanKell)
 
