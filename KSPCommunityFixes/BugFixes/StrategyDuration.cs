@@ -40,7 +40,7 @@ namespace KSPCommunityFixes.BugFixes
             return false;
         }
 
-        internal static IEnumerable<CodeInstruction> Strategy_CanBeActivated_Transpiler(IEnumerable<CodeInstruction> instructions)
+        internal static IEnumerable<CodeInstruction> Strategy_CanBeDeactivated_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
             for (int i = 9; i < code.Count; ++i)
