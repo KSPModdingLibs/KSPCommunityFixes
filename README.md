@@ -70,6 +70,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[DoubleCurvePreserveTangents](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/68)** [KSP 1.8.0 - 1.12.3]<br/>Fix DoubleCurve flattening the tangents of the first keyframe regardless of whether tangents are supplied.
 - **[StrategyDuration](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/70)** [KSP 1.8.0 - 1.12.3]<br/>Fix Strategies not using Duration settings.
 - **[UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/63)** [KSP 1.12.0 - 1.12.3]<br/>Fix various bugs with upgrades, like the part stats upgrade module breaking, upgrades not properly applying in the editor, upgrade cost not being applied to part cost, and various issues int the public API.
+- **[MapSOCorrectWrapping](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/83)** [KSP 1.10.0 - 1.12.3]<br/>Fixes issues with biomes crossing the poles (South pole biome at north pole and vice versa). Fixes "polar spikes" in the terrain for 8-bit heightmaps.
 
 #### Quality of Life tweaks 
 
@@ -151,6 +152,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.20.4
 - Restrict UpgradeBugs to KSP 1.12+ since it is compiled against the new combined editor class.
+- New KSP bufix : [MapSOCorrectWrapping](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/83) (contributed by @RCrockford)
 
 ##### 1.20.3
 - New performance patch : [FewerSaves](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/80) (contributed by @siimav)
