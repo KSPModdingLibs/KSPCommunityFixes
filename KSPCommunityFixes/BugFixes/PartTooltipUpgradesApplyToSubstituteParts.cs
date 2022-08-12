@@ -15,7 +15,7 @@ namespace KSPCommunityFixes
         public static readonly Dictionary<AvailablePart, Tuple<Part, bool>> _apToPart = new Dictionary<AvailablePart, Tuple<Part, bool>>();
         private static GameObject _substitutePartRoot = null;
 
-        protected override Version VersionMin => new Version(1, 8, 0);
+        protected override Version VersionMin => new Version(1, 12, 0);
 
         protected override bool CanApplyPatch(out string reason)
         {

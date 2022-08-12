@@ -11,7 +11,7 @@ namespace KSPCommunityFixes
     [PatchPriority(Order = 25)]
     public class UpgradeBugs : BasePatch
     {
-        protected override Version VersionMin => new Version(1, 8, 0);
+        protected override Version VersionMin => new Version(1, 12, 0);
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
