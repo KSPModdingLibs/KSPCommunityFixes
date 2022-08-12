@@ -92,6 +92,7 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
+    <Compile Include="BugFixes\MapSOWrapping.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />
     <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
