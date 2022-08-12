@@ -127,6 +127,7 @@
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
+    <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
