@@ -96,6 +96,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.3]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 - **TextureLoaderOptimizations** [KSP 1.10.0 - 1.12.3]<br/> Speedup loading time by caching on disk the PNG textures KSP converts to DXT5 on every launch. Also make PNG `@thumbs` cargo part textures non-readable to free some RAM. This patch has no entry in `settings.cfg`, but is opt-in (a popup is shown on first KSP launch) and can be disabled latter in the in-game settings menu.
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.3]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
+- [**PQSCoroutineLeak**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) [KSP 1.8.0 - 1.12.3]<br/>Prevent KSP from spawning multiple PQS update coroutines for the same PQS after scene switches and on other occasions, wasting a ton of CPU processing time.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.3]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.3]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapUpdateInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.3]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
@@ -149,6 +150,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.21.0
+- New performance / KSP bugfix patch : [PQSCoroutineLeak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) (issue discovered by @Gameslinx)
+- Fixed the ToolbarShowHide patch partially failing due to an ambigious match exception when searching the no args `ApplicationLauncher.ShouldItHide()` method overload.
 
 ##### 1.20.4
 - Restrict UpgradeBugs to KSP 1.12+ since it is compiled against the new combined editor class.

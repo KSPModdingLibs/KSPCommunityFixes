@@ -46,7 +46,7 @@ namespace KSPCommunityFixes.QoL
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide)),
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), Type.EmptyTypes),
                 this));
 
             patches.Add(new PatchInfo(
