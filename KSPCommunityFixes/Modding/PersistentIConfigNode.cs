@@ -95,6 +95,30 @@ namespace KSPCommunityFixes.Modding
             readLinks = __state.links;
         }
 
+        private static bool ConfigNode_WriteObject_Prefix(object obj, ConfigNode node, int pass)
+        {
+            __state = writeLinks;
+        }
+
+        // and restore it
+        private static void ConfigNode_CreateConfigFromObject_Postfix(WriteLinkList __state)
+        {
+            writeLinks = __state;
+        }
+
+        // This will fail if nested, so we cache off the old readlinks and remove.
+        private static void ConfigNode_LoadObjectFromConfig_Prefix(out LoadState __state)
+        {
+            __state = new LoadState(removeAfterUse, readLinks);
+        }
+
+        // and restore them
+        private static void ConfigNode_LoadObjectFromConfig_Postfix(LoadState __state)
+        {
+            removeAfterUse = __state.wasRemove;
+            readLinks = __state.links;
+        }
+
         // used by TypeCache since we can't make the below method return a value.
         public static bool WriteSuccess;
 
