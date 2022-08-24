@@ -13,6 +13,17 @@ namespace KSPCommunityFixes.Modding
 {
     class PersistentIConfigNode : BasePatch
     {
+        private struct LoadState
+        {
+            public bool wasRemove;
+            public ReadLinkList links;
+            public LoadState(bool r, ReadLinkList l)
+            {
+                wasRemove = r;
+                links = l;
+            }
+        }
+
         protected override Version VersionMin => new Version(1, 8, 0);
 
         protected override void ApplyPatches(List<PatchInfo> patches)
@@ -35,6 +46,51 @@ namespace KSPCommunityFixes.Modding
                 PatchMethodType.Prefix,
                 ConfigNode_WriteObject,
                 this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) }),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) }),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) }),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) }),
+                this));
+        }
+
+        // This will fail if nested, so we cache off the old writeLinks.
+        private static void ConfigNode_CreateConfigFromObject_Prefix(out WriteLinkList __state)
+        {
+            __state = writeLinks;
+        }
+
+        // and restore it
+        private static void ConfigNode_CreateConfigFromObject_Postfix(WriteLinkList __state)
+        {
+            writeLinks = __state;
+        }
+
+        // This will fail if nested, so we cache off the old readlinks and remove.
+        private static void ConfigNode_LoadObjectFromConfig_Prefix(out LoadState __state)
+        {
+            __state = new LoadState(removeAfterUse, readLinks);
+        }
+
+        // and restore them
+        private static void ConfigNode_LoadObjectFromConfig_Postfix(LoadState __state)
+        {
+            removeAfterUse = __state.wasRemove;
+            readLinks = __state.links;
         }
 
         private static bool ConfigNode_WriteObject_Prefix(object obj, ConfigNode node, int pass)
