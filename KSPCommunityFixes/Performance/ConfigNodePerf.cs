@@ -10,6 +10,7 @@ using UnityEngine;
 using static ConfigNode;
 using UniLinq;
 using System.Runtime.CompilerServices;
+using System.IO;
 
 namespace KSPCommunityFixes.Modding
 {
@@ -52,6 +53,11 @@ namespace KSPCommunityFixes.Modding
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ConfigNode), nameof(PreFormatConfig)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteNode)),
                 this));
         }
 
@@ -121,6 +127,55 @@ namespace KSPCommunityFixes.Modding
             }
 #endif
             return false;
+        }
+
+        private static bool ConfigNode_WriteNode_Prefix(ConfigNode __instance, StreamWriter sw)
+        {
+            _WriteRootNode(__instance, sw);   
+            return false;
+        }
+
+        private static void _WriteRootNode(ConfigNode __instance, StreamWriter sw)
+        {
+            string line;
+            for (int i = 0, count = __instance.values.Count; i < count; ++i)
+            {
+                Value value = __instance.values[i];
+                line = value.name + " = " + value.value;
+                if (!string.IsNullOrEmpty(value.comment))
+                    line += $" // {value.comment}";
+                sw.WriteLine(line);
+            }
+            for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+            {
+                _WriteNodeString(__instance.nodes[i], sw, string.Empty);
+            }
+        }
+
+        private static void _WriteNodeString(ConfigNode __instance, StreamWriter sw, string indent)
+        {
+            string line = __instance.name;
+            if (!string.IsNullOrEmpty(indent))
+                line = indent + line;
+            if (!string.IsNullOrEmpty(__instance.comment))
+                line += $" // {__instance.comment}";
+            sw.WriteLine(line);
+            sw.WriteLine(indent + "{");
+            string newIndent = indent + "\t";
+            for (int i = 0, count = __instance.values.Count; i < count; ++i)
+            {
+                Value value = __instance.values[i];
+                line = newIndent + value.name + " = " + value.value;
+                if (!string.IsNullOrEmpty(value.comment))
+                    line += $" // {value.comment}";
+                sw.WriteLine(line);
+            }
+            for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+            {
+                _WriteNodeString(__instance.nodes[i], sw, newIndent);
+            }
+            sw.WriteLine(indent + "}");
+            sw.Flush();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -489,11 +544,31 @@ namespace KSPCommunityFixes.Modding
             // Insert your own tests here.
 
             //Debug.Log("(((((Loading craft, 30k lines");
-            //ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\Ships\\VAB\\Dolphin Lunar Orbital.craft");
+            //var craft = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\Ships\\VAB\\Dolphin Lunar Orbital.craft");
             //Debug.Log("Loading save, 1.2m lines");
-            //ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
+            //var bigSave = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
             //Debug.Log("Loading save, 364k lines w/ Principia");
-            //ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
+            //var princSave = ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
+
+            //var sw = System.Diagnostics.Stopwatch.StartNew();
+            //bigSave.Save("c:\\temp\\t1.cfg");
+            //var ours = sw.ElapsedMilliseconds;
+            //sw.Restart();
+            //StreamWriter streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
+            //bigSave.WriteRootNode(streamWriter);
+            //streamWriter.Close();
+            //var old = sw.ElapsedMilliseconds;
+            //Debug.Log($"%%% Big save Write perf: ours: {ours}, old: {old}");
+
+            //sw.Restart();
+            //princSave.Save("c:\\temp\\t1.cfg");
+            //ours = sw.ElapsedMilliseconds;
+            //sw.Restart();
+            //streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
+            //princSave.WriteRootNode(streamWriter);
+            //streamWriter.Close();
+            //old = sw.ElapsedMilliseconds;
+            //Debug.Log($"%%% Princ save Write perf: ours: {ours}, old: {old}");
 
             string keys = "With keys:";
             foreach (var s in ConfigNodePerf._skipKeys)
