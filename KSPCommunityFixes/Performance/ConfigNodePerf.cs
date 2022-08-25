@@ -11,20 +11,49 @@ using static ConfigNode;
 using UniLinq;
 using System.Runtime.CompilerServices;
 using System.IO;
+using System.Collections;
 
-namespace KSPCommunityFixes.Modding
+namespace KSPCommunityFixes.Performance
 {
-    class ConfigNodePerf : BasePatch
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    public class ConfigNodePerf : MonoBehaviour
     {
-        public static string[] _skipKeys;
-        public static string[] _skipPrefixes;
+#if DEBUG_CONFIGNODE_PERF
+        public 
+#endif
+        static string[] _skipKeys;
+
+#if DEBUG_CONFIGNODE_PERF
+        public 
+#endif
+        static string[] _skipPrefixes;
         static bool _valid = false;
         const int _MinLinesForParallel = 100000;
 
-        protected override Version VersionMin => new Version(1, 8, 0);
-
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        public void Awake()
         {
+            GameObject.DontDestroyOnLoad(this);
+
+            Harmony harmony = new Harmony("ConfigNodePerf");
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(PreFormatConfig)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_PreFormatConfig_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteNode)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_WriteNode_Prefix))));
+        }
+
+        public void ModuleManagerPostLoad()
+        {
+            StartCoroutine(LoadRoutine());
+        }
+
+        public IEnumerator LoadRoutine()
+        {
+            yield return null;
+
             ConfigNode settingsNodeKeys = KSPCommunityFixes.SettingsNode.GetNode("CONFIGNODE_PERF_SKIP_PROCESSING_KEYS");
             ConfigNode settingsNodePrefixes = KSPCommunityFixes.SettingsNode.GetNode("CONFIGNODE_PERF_SKIP_PROCESSING_SUBSTRINGS");
 
@@ -49,19 +78,8 @@ namespace KSPCommunityFixes.Modding
                 _skipPrefixes = new string[0];
 
             _valid = _skipKeys.Length > 0 || _skipPrefixes.Length > 0;
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(PreFormatConfig)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteNode)),
-                this));
         }
 
-        // This will fail if nested, so we cache off the old writeLinks.
         private static bool ConfigNode_PreFormatConfig_Prefix(string[] cfgData, ref List<string[]> __result)
         {
 #if DEBUG_CONFIGNODE_PERF
@@ -381,7 +399,7 @@ namespace KSPCommunityFixes.Modding
             {
                 // See if we should skip further processing.
                 int keyLen = idxKeyLast - idxKeyStart + 1;
-                if (keyLen > 0)
+                if (_valid && keyLen > 0)
                 {
                     foreach (string s in _skipKeys)
                     {
