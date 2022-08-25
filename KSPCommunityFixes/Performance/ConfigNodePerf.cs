@@ -1,22 +1,24 @@
-﻿// - Add support for IConfigNode serialization
-// - Add support for Guid serialization
-
+﻿//#define DEBUG_CONFIGNODE_PERF
 using HarmonyLib;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using UnityEngine;
 using static ConfigNode;
-using Random = System.Random;
+using UniLinq;
+using System.Runtime.CompilerServices;
 
 namespace KSPCommunityFixes.Modding
 {
     class ConfigNodePerf : BasePatch
     {
-        static string[] _skipKeys;
-        static string[] _skipPrefixes;
+        public static string[] _skipKeys;
+        public static string[] _skipPrefixes;
         static bool _valid = false;
+        const int _MinLinesForParallel = 20000;
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
@@ -56,9 +58,17 @@ namespace KSPCommunityFixes.Modding
         // This will fail if nested, so we cache off the old writeLinks.
         private static bool ConfigNode_PreFormatConfig_Prefix(string[] cfgData, ref List<string[]> __result)
         {
+#if DEBUG_CONFIGNODE_PERF
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+#endif
             __result = _PreFormatConfig(cfgData);
 #if DEBUG_CONFIGNODE_PERF
+            var ourTime = sw.ElapsedMilliseconds;
+            sw.Restart();
             var old = OldPreFormat(cfgData);
+            var oldTime = sw.ElapsedMilliseconds;
+            Debug.Log($"%%% Ours: {ourTime}, old: {oldTime}");
+
             string str = string.Empty;
             if (__result.Count != old.Count)
             {
@@ -113,6 +123,7 @@ namespace KSPCommunityFixes.Modding
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void AddKVP(List<string[]> output, string line, int keyStart, int keyLast, int valueStart, int valueLast)
         {
             var pair = new string[2];
@@ -129,6 +140,7 @@ namespace KSPCommunityFixes.Modding
             output.Add(pair);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void ProcessValueRaw(List<string[]> output, string line, char* pszLine, int start, int lineLen, int idxKeyStart, int idxKeyLast)
         {
             int idxValueStart = start;
@@ -351,16 +363,44 @@ namespace KSPCommunityFixes.Modding
             {
                 int lineCount = cfgData.Length;
                 List<string[]> output = new List<string[]>(lineCount);
-
-                for (int i = 0; i < lineCount; ++i)
+#if CONFIGNODE_PERF_USE_PARALLEL
+                if (lineCount < _MinLinesForParallel)
                 {
-                    fixed (char* pszLine = cfgData[i])
+#endif
+                    for (int i = 0; i < lineCount; ++i)
                     {
-                        ProcessLine(output, cfgData[i], pszLine, 0, cfgData[i].Length);
+                        fixed (char* pszLine = cfgData[i])
+                        {
+                            ProcessLine(output, cfgData[i], pszLine, 0, cfgData[i].Length);
+                        }
                     }
+                    return output;
+#if CONFIGNODE_PERF_USE_PARALLEL
+                }
+
+                var listOfLists = new ConcurrentBag<Tuple<int, List<string[]>>>();
+                Parallel.ForEach(Partitioner.Create(0, lineCount), range =>
+                {
+                    int span = range.Item2 - range.Item1;
+                    List<string[]> tmpList = new List<string[]>(span);
+
+                    for (int i = range.Item1; i < range.Item2; ++i)
+                    {
+                        fixed (char* pszLine = cfgData[i])
+                        {
+                            ProcessLine(tmpList, cfgData[i], pszLine, 0, cfgData[i].Length);
+                        }
+                    }
+                    listOfLists.Add(new Tuple<int, List<string[]>>(range.Item1, tmpList));
+                });
+
+                foreach (var tuple in listOfLists.OrderBy(l => l.Item1))
+                {
+                    output.AddRange(tuple.Item2);
                 }
 
                 return output;
+#endif
             }
             Debug.LogError("Error: Empty part config file");
             return null;
@@ -439,4 +479,31 @@ namespace KSPCommunityFixes.Modding
             return null;
         }
     }
+
+#if DEBUG_CONFIGNODE_PERF
+    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
+    public class ConfigNodePerfTestser : MonoBehaviour
+    {
+        public void Awake()
+        {
+            // Insert your own tests here.
+
+            //Debug.Log("(((((Loading craft, 30k lines");
+            //ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\Ships\\VAB\\Dolphin Lunar Orbital.craft");
+            //Debug.Log("Loading save, 1.2m lines");
+            //ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
+            //Debug.Log("Loading save, 364k lines w/ Principia");
+            //ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
+
+            string keys = "With keys:";
+            foreach (var s in ConfigNodePerf._skipKeys)
+                keys += " " + s;
+            keys += " and prefixes";
+            foreach (var s in ConfigNodePerf._skipPrefixes)
+                keys += " " + s;
+            Debug.Log(keys);
+            Debug.Log("end");
+        }
+    }
+#endif
 }
