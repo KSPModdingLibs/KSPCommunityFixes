@@ -19,7 +19,7 @@ namespace KSPCommunityFixes.Modding
         public static string[] _skipKeys;
         public static string[] _skipPrefixes;
         static bool _valid = false;
-        const int _MinLinesForParallel = 20000;
+        const int _MinLinesForParallel = 100000;
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
@@ -79,10 +79,27 @@ namespace KSPCommunityFixes.Modding
             if (__result.Count != old.Count)
             {
                 str = $"\nMismatch in length! Ours {__result.Count}, old {old.Count}";
-                for (int i = 0; i < old.Count; ++i)
+                for (int i = 0; i < Math.Max(__result.Count, old.Count); ++i)
                 {
-                    int rL = __result[i].Length;
-                    int oL = old[i].Length;
+                    string[] rArr = null;
+                    string[] oldArr = null;
+                    if (i == __result.Count)
+                    {
+                        oldArr = old[i];
+                        rArr = new string[0];
+                    }
+                    else if (i == old.Count)
+                    {
+                        rArr = __result[i];
+                        oldArr = new string[0];
+                    }
+                    else
+                    {
+                        rArr = __result[i];
+                        oldArr = old[i];
+                    }
+                    int rL = rArr.Length;
+                    int oL = oldArr.Length;
                     str += $"\nLine {i}:";
                     for (int j = 0; j < Math.Max(rL, oL); ++j)
                     {
@@ -261,23 +278,37 @@ namespace KSPCommunityFixes.Modding
             else
             {
                 idxValueLast = idxValueStart;
-                for (; idxValueLast < lineLen - 1; ++idxValueLast)
+                for (; idxValueLast < lineLen; ++idxValueLast)
                 {
                     char c = pszLine[idxValueLast];
                     if (c == '{' || c == '}')
                     {
+                        int idxBrace = idxValueLast;
+
+                        --idxValueLast; // to get one back from the brace
+                        // remove ws
+                        for (; idxValueLast > idxValueStart; --idxValueLast)
+                        {
+                            if (!char.IsWhiteSpace(pszLine[idxValueLast]))
+                                break;
+                        }
+
                         // Welp, we found the end of the value.
-                        AddKVP(output, line, idxKeyStart, idxKeyLast, idxValueStart, idxValueLast - 1);
+                        AddKVP(output, line, idxKeyStart, idxKeyLast, idxValueStart, idxValueLast);
                         // next, add the brace.
                         output.Add(new string[1] { c.ToString() }); // hopefully this is faster than substring
                         // finally, process the rest of the line.
-                        ProcessLine(output, line, pszLine, idxValueStart + 1, lineLen);
+                        ProcessLine(output, line, pszLine, idxBrace + 1, lineLen);
                         return;
                     }
 
-                    if (c == '/' && pszLine[idxValueLast + 1] == '/')
+                    if (idxValueLast < lineLen - 1 && c == '/' && pszLine[idxValueLast + 1] == '/')
                     {
                         --idxValueLast;
+                        break;
+                    }
+                    if (idxValueLast == lineLen - 1)
+                    {
                         break;
                     }
                 }
@@ -424,6 +455,7 @@ namespace KSPCommunityFixes.Modding
 #endif
                     for (int i = 0; i < lineCount; ++i)
                     {
+                        string line = cfgData[i];
                         fixed (char* pszLine = cfgData[i])
                         {
                             ProcessLine(output, cfgData[i], pszLine, 0, cfgData[i].Length);
@@ -549,6 +581,21 @@ namespace KSPCommunityFixes.Modding
             //var bigSave = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
             //Debug.Log("Loading save, 364k lines w/ Principia");
             //var princSave = ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
+
+            //Debug.Log("((((Loading tree-parts");
+            //ConfigNode.Load("C:\\Games\\R112\\GameData\\RP-0\\Tree\\TREE-Parts.cfg");
+
+            //Debug.Log("Loading Downrange");
+            //ConfigNode.Load("C:\\Games\\R112\\GameData\\RP-0\\Contracts\\Sounding Rockets\\DistanceSoundingDifficult.cfg");
+
+            //Debug.Log("Loading dictionary");
+            //ConfigNode.Load("C:\\Games\\R112\\GameData\\Squad\\Localization\\dictionary.cfg");
+
+            //Debug.Log("Loading gravity-model");
+            //ConfigNode.Load("C:\\Games\\R112\\GameData\\Principia\\real_solar_system\\gravity_model.cfg");
+
+            //Debug.Log("Loading mj loc fr");
+            //ConfigNode.Load("C:\\Games\\R112\\GameData\\MechJeb2\\Localization\\fr-fr.cfg");
 
             //var sw = System.Diagnostics.Stopwatch.StartNew();
             //bigSave.Save("c:\\temp\\t1.cfg");
