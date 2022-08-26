@@ -180,6 +180,7 @@ namespace KSPCommunityFixes.Performance
                 sw.Write("// ");
                 sw.Write(header);
                 sw.Write(_Newline);
+                sw.Write(_Newline);
             }
             _WriteRootNode(__instance, sw);
             sw.Close();
