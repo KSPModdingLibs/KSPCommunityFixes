@@ -1,4 +1,5 @@
 ﻿//#define DEBUG_CONFIGNODE_PERF
+//#define COMPARE_LOAD_RESULTS
 using HarmonyLib;
 using System;
 using System.Collections.Concurrent;
@@ -12,25 +13,23 @@ using UniLinq;
 using System.Runtime.CompilerServices;
 using System.IO;
 using System.Collections;
+using KSP.Localization;
 
 namespace KSPCommunityFixes.Performance
 {
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ConfigNodePerf : MonoBehaviour
     {
-#if DEBUG_CONFIGNODE_PERF
-        public 
-#endif
-        static string[] _skipKeys;
-
-#if DEBUG_CONFIGNODE_PERF
-        public 
-#endif
-        static string[] _skipPrefixes;
+        static string[] _skipKeys = new string[0];
+        static string[] _skipPrefixes = new string[0];
+        static string[] _skipBlacklist = new string[0];
+        static readonly string[] _CraftKeys = new string[] { "ship", "description" }; // stock craft have comments in these.
         static bool _valid = false;
-        const int _MinLinesForParallel = 100000;
+        static bool _overrideSkip = false;
+        static bool _hasBlacklist = false;
         static readonly System.Text.UTF8Encoding _UTF8NoBOM = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
+        
 
         public void Awake()
         {
@@ -39,12 +38,44 @@ namespace KSPCommunityFixes.Performance
             Harmony harmony = new Harmony("ConfigNodePerf");
 
             harmony.Patch(
-                AccessTools.Method(typeof(ConfigNode), nameof(PreFormatConfig)),
-                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_PreFormatConfig_Prefix))));
+                AccessTools.Method(typeof(ConfigNode), nameof(LoadFromStringArray), new Type[] { typeof(string[]), typeof(bool) } ),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_LoadFromStringArray_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(Load), new Type[] { typeof(string[]), typeof(bool) }),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Load_Prefix))));
 
             harmony.Patch(
                 AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.Save), new Type[] { typeof(string), typeof(string) }),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Save_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.CleanupInput)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_CleanupInput_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Constructor(typeof(ConfigNode), new Type[] { typeof(string) }),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Ctor1_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Constructor(typeof(ConfigNode), new Type[] { typeof(string), typeof(string) }),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Ctor2_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.AddValue), new Type[] { typeof(string), typeof(string), typeof(string) }),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_AddValue_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.AddValue), new Type[] { typeof(string), typeof(string) }),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_AddValue2_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode.Value), nameof(ConfigNode.Value.Sanitize)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNodeValue_Sanitize_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode.ValueList), nameof(ConfigNode.ValueList.Add)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNodeValueList_Add_Prefix))));
         }
 
         public void ModuleManagerPostLoad()
@@ -58,117 +89,487 @@ namespace KSPCommunityFixes.Performance
 
             ConfigNode settingsNodeKeys = KSPCommunityFixes.SettingsNode.GetNode("CONFIGNODE_PERF_SKIP_PROCESSING_KEYS");
             ConfigNode settingsNodePrefixes = KSPCommunityFixes.SettingsNode.GetNode("CONFIGNODE_PERF_SKIP_PROCESSING_SUBSTRINGS");
+            ConfigNode settingsNodeBlacklist = KSPCommunityFixes.SettingsNode.GetNode("CONFIGNODE_PERF_SKIP_PROCESSING_BLACKLIST");
 
             if (settingsNodeKeys != null)
             {
                 _skipKeys = new string[settingsNodeKeys.values.Count];
                 int i = 0;
                 foreach (ConfigNode.Value v in settingsNodeKeys.values)
-                    _skipKeys[i++] = v.value;
+                    _skipKeys[i++] = v.name;
             }
-            else
-                _skipKeys = new string[0];
 
             if (settingsNodePrefixes != null)
             {
                 _skipPrefixes = new string[settingsNodePrefixes.values.Count];
                 int i = 0;
                 foreach (ConfigNode.Value v in settingsNodePrefixes.values)
-                    _skipPrefixes[i++] = v.value;
+                    _skipPrefixes[i++] = v.name;
             }
-            else
-                _skipPrefixes = new string[0];
+
+            if (settingsNodeBlacklist != null)
+            {
+                _skipBlacklist = new string[settingsNodeBlacklist.values.Count];
+                int i = 0;
+                foreach (ConfigNode.Value v in settingsNodeBlacklist.values)
+                    _skipBlacklist[i++] = v.name;
+            }
 
             _valid = _skipKeys.Length > 0 || _skipPrefixes.Length > 0;
+            if (settingsNodeBlacklist != null)
+                _hasBlacklist = true;
         }
 
-        private static bool ConfigNode_PreFormatConfig_Prefix(string[] cfgData, ref List<string[]> __result)
+        private static unsafe bool ConfigNode_Ctor1_Prefix(ConfigNode __instance, string name)
         {
+            __instance._values = new ValueList();
+            __instance._nodes = new ConfigNodeList();
+
+            int len;
+            if (name == null || (len = name.Length) == 0)
+            {
+                __instance.name = string.Empty;
+                return false;
+            }
+
+            // Would be faster to cleanup in place along with detection
+            // but I don't think it's worth it in this case.
+            ConfigNode_CleanupInput_Prefix(name, ref name);
+
+            // Split
+            fixed (char* pszName = name)
+            {
+                int nameLen = 0;
+                for (;  nameLen < len; ++nameLen)
+                {
+                    char c = pszName[nameLen];
+                    if (c == '(' || c == ')' || c == ' ')
+                        break;
+                }
+                if (nameLen == len)
+                {
+                    __instance.name = name;
+                    return false;
+                }
+                __instance.name = new string(pszName, 0, nameLen);
+
+                int idStart = nameLen;
+                for (; idStart < len; ++idStart)
+                {
+                    char c = pszName[idStart];
+                    if (c == '(' || c == ')' || c == ' ')
+                        break;
+                }
+                if (idStart == nameLen)
+                {
+                    return false;
+                }
+
+                // We have at least 1 valid character, let's work backwards
+                int idEnd = len - 1;
+                for (; idEnd > idStart; --idEnd)
+                {
+                    char c = pszName[idEnd];
+                    if (c != '(' && c != ')' && c != ' ')
+                        break;
+                }
+
+                __instance.id = new string(pszName, idStart, idEnd - idStart + 1);
+            }
+            return false;
+        }
+
+        private static unsafe bool ConfigNode_Ctor2_Prefix(ConfigNode __instance, string name, string vcomment)
+        {
+            ConfigNode_Ctor1_Prefix(__instance, name);
+            __instance.comment = vcomment;
+            return false;
+        }
+
+        private static bool ConfigNode_LoadFromStringArray_Prefix(string[] cfgData, bool bypassLocalization, ref ConfigNode __result)
+        {
+            __result = _LoadFromStringArray(cfgData, bypassLocalization);
+#if DEBUG_CONFIGNODE_PERF
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var old = OldLoadFromStringArray(cfgData, bypassLocalization);
+            var oldTime = sw.ElapsedMilliseconds;
+            Debug.Log($"%%% Ours: {_ourTime}, old: {oldTime}");
+#if COMPARE_LOAD_RESULTS
+            if (!AreNodesEqual(__result, old))
+            {
+                Debug.LogError("@@@@ Mismatch in data!");
+                AreNodesEqual(__result, old);
+            }
+#endif
+#endif
+            return false;
+        }
+
+        private static unsafe bool ConfigNode_Load_Prefix(string fileFullName, bool bypassLocalization, ref ConfigNode __result)
+        {
+            __result = null;
+            if (!File.Exists(fileFullName))
+            {
+                Debug.LogWarning("File '" + fileFullName + "' does not exist");
+                return false;
+            }
 #if DEBUG_CONFIGNODE_PERF
             var sw = System.Diagnostics.Stopwatch.StartNew();
 #endif
-            __result = _PreFormatConfig(cfgData);
-#if DEBUG_CONFIGNODE_PERF
-            var ourTime = sw.ElapsedMilliseconds;
-            sw.Restart();
-            var old = OldPreFormat(cfgData);
-            var oldTime = sw.ElapsedMilliseconds;
-            Debug.Log($"%%% Ours: {ourTime}, old: {oldTime}");
+            string ext = Path.GetExtension(fileFullName);
+            var oldBlacklist = _skipBlacklist;
+            var oldHasBlacklist = _hasBlacklist;
+            switch (ext)
+            {
+                case "ConfigCache":
+                    _overrideSkip = true;
+                    break;
+                case "craft":
+                    var list = new List<string>(_skipBlacklist);
+                    list.AddRange(_CraftKeys);
+                    _skipBlacklist = list.ToArray();
+                    break;
+                case "sfs":
+                    // sfs uses regular blacklist, if user has enabled that optimization
+                    break;
+                default:
+                    // can't risk a blacklist with arbitrary mod-loaded cfg files
+                    _hasBlacklist = false;
+                    break;
+            }
+            StreamReader sr = new StreamReader(fileFullName);
+            var configNode = new ConfigNode("root");
+            _nodeStack.Push(configNode);
+            while (!sr.EndOfStream)
+            {
+                string line = sr.ReadLine();
+                fixed (char* pszLine = line)
+                {
+                    ProcessLine(pszLine, 0, line.Length);
+                }
+            }
+            sr.Close();
+            _nodeStack.Clear();
+            _lastStr = string.Empty;
+            bool hasData = configNode._nodes.nodes.Count > 0 || configNode._values.values.Count > 0;
 
-            string str = string.Empty;
-            if (__result.Count != old.Count)
+            if (hasData && !bypassLocalization && Localizer.Instance != null)
             {
-                str = $"\nMismatch in length! Ours {__result.Count}, old {old.Count}";
-                for (int i = 0; i < Math.Max(__result.Count, old.Count); ++i)
-                {
-                    string[] rArr = null;
-                    string[] oldArr = null;
-                    if (i == __result.Count)
-                    {
-                        oldArr = old[i];
-                        rArr = new string[0];
-                    }
-                    else if (i == old.Count)
-                    {
-                        rArr = __result[i];
-                        oldArr = new string[0];
-                    }
-                    else
-                    {
-                        rArr = __result[i];
-                        oldArr = old[i];
-                    }
-                    int rL = rArr.Length;
-                    int oL = oldArr.Length;
-                    str += $"\nLine {i}:";
-                    for (int j = 0; j < Math.Max(rL, oL); ++j)
-                    {
-                        str += "\n";
-                        str += j < rL ? __result[i][j] : "<>";
-                        str += " |||| ";
-                        str += j < oL ? old[i][j] : "<>";
-                    }
-                }
+                Localizer.TranslateBranch(configNode);
             }
-            else
+            if (hasData)
+                __result = configNode;
+#if DEBUG_CONFIGNODE_PERF
+            _ourTime = sw.ElapsedMilliseconds;
+            sw.Restart();
+            var old = OldLoadFromStringArray(File.ReadAllLines(fileFullName), bypassLocalization);
+            var oldTime = sw.ElapsedMilliseconds;
+            Debug.Log($"%%% Ours: {_ourTime}, old: {oldTime}");
+#if COMPARE_LOAD_RESULTS
+            if (!AreNodesEqual(__result, old))
             {
-                for (int i = 0; i < old.Count; ++i)
-                {
-                    int rL = __result[i].Length;
-                    int oL = old[i].Length;
-                    if (rL != oL)
-                    {
-                        str += $"\nLength mismatch on line {i}. Dumping:";
-                        for (int j = 0; j < Math.Max(rL, oL); ++j)
-                        {
-                            str += "\n";
-                            str += j < rL ? __result[i][j] : "<>";
-                            str += " |||| ";
-                            str += j < oL ? old[i][j] : "<>";
-                        }
-                        break;
-                    }
-                    for (int j = 0; j < rL; ++j)
-                    {
-                        if (__result[i][j] != old[i][j])
-                        {
-                            str += $"\nValue mismatch on line {i}, value {j}:\n{__result[i][j]} |||| {old[i][j]}";
-                        }
-                    }
-                }
-            }
-            if (str != string.Empty)
-            {
-                Debug.Log("$$$$ mismatch:" + str);
-                __result = old;
+                Debug.LogError("@@@@ Mismatch in data!");
+                AreNodesEqual(__result, old);
             }
 #endif
+#endif
+            _overrideSkip = false;
+            _skipBlacklist = oldBlacklist;
             return false;
         }
 
         private static bool ConfigNode_Save_Prefix(ConfigNode __instance, string fileFullName, string header, ref bool __result)
         {
             __result = Save(__instance, fileFullName, header);
+            return false;
+        }
+
+        private static unsafe bool ConfigNodeValue_Sanitize_Prefix(ConfigNode.Value __instance, bool sanitizeName)
+        {
+            if (sanitizeName)
+            {
+                fixed (char* pszSanitize = __instance.name)
+                {
+                    // It's cheaper to just do this than to do a skipcheck.
+                    int len = __instance.name.Length;
+                    bool sanitize = false;
+                    for (int i = 0; i < len; ++i)
+                    {
+                        switch (pszSanitize[i])
+                        {
+                            case '{':
+                            case '}':
+                            case '=':
+                                sanitize = true;
+                                break;
+                        }
+                    }
+                    if (sanitize)
+                    {
+                        char[] newStr = new char[len];
+                        for (int i = 0; i < len; ++i)
+                        {
+                            char c = pszSanitize[i];
+                            switch (c)
+                            {
+                                case '{': newStr[i] = '['; break;
+                                case '}': newStr[i] = ']'; break;
+                                case '=': newStr[i] = '-'; break;
+                                default: newStr[i] = c; break;
+                            }
+                        }
+                        __instance.name = new string(newStr);
+                    }
+                }
+            }
+            else
+            {
+                if (_overrideSkip)
+                    return false;
+
+                fixed (char* pszName = __instance.name)
+                {
+                    if (_valid && IsSkip(pszName, __instance.name.Length))
+                        return false;
+                }
+
+                fixed (char* pszSanitize = __instance.value)
+                {
+                    int len = __instance.name.Length;
+                    bool sanitize = false;
+                    for (int i = 0; i < len; ++i)
+                    {
+                        switch (pszSanitize[i])
+                        {
+                            case '{':
+                            case '}':
+                                sanitize = true;
+                                break;
+                        }
+                    }
+                    if (sanitize)
+                    {
+                        char[] newStr = new char[len];
+                        for (int i = 0; i < len; ++i)
+                        {
+                            char c = pszSanitize[i];
+                            switch (c)
+                            {
+                                case '{': newStr[i] = '['; break;
+                                case '}': newStr[i] = ']'; break;
+                                default: newStr[i] = c; break;
+                            }
+                        }
+                        __instance.value = new string(newStr);
+                    }
+                }
+            }
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe bool IsSkip(char* pszKeyStart, int keyLen)
+        {
+            if (_hasBlacklist)
+            {
+                for (int k = _skipBlacklist.Length; k-- > 0;)
+                {
+                    string s = _skipBlacklist[k];
+                    if (keyLen != s.Length)
+                        continue;
+
+                    fixed (char* pszComp = s)
+                    {
+                        int i = 0;
+                        for (; i < keyLen; ++i)
+                        {
+                            if (pszKeyStart[i] != pszComp[i])
+                                break;
+                        }
+                        if (i == keyLen)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            for (int k = _skipKeys.Length; k-- > 0;)
+            {
+                string s = _skipKeys[k];
+                if (keyLen != s.Length)
+                    continue;
+
+                fixed (char* pszComp = s)
+                {
+                    int i = 0;
+                    for (; i < keyLen; ++i)
+                    {
+                        if (pszKeyStart[i] != pszComp[i])
+                            break;
+                    }
+                    if (i == keyLen)
+                    {
+                        return true;
+                    }
+                }
+            }
+            for (int k = _skipPrefixes.Length; k-- > 0;)
+            {
+                string s = _skipPrefixes[k];
+                int sLen = s.Length;
+                if (keyLen < sLen)
+                    continue;
+
+                fixed (char* pszComp = s)
+                {
+                    int i = 0;
+                    for (; i < sLen; ++i)
+                    {
+                        if (pszKeyStart[i] != pszComp[i])
+                            break;
+                    }
+                    if (i == sLen)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static unsafe bool ConfigNode_AddValue_Prefix(ConfigNode __instance, string name, string value, string vcomment)
+        {
+            if (value == null)
+            {
+                Debug.LogError(StringBuilderCache.Format("Input is null for field '{0}' in config node '{1}'\n{2}", name, __instance.name, Environment.StackTrace));
+                value = string.Empty;
+            }
+            bool sanitize = true;
+            if (name != null && name.Length > 0)
+            {
+                if (_overrideSkip)
+                {
+                    sanitize = false;
+                }
+                else
+                {
+                    fixed (char* pszName = name)
+                    {
+                        if (_valid && IsSkip(pszName, name.Length))
+                            sanitize = false;
+                        else
+                            ConfigNode_CleanupInput_Prefix(value, ref value);
+                    }
+                }
+            }
+            else
+                ConfigNode_CleanupInput_Prefix(value, ref value);
+
+            var v = new Value(name, value, vcomment);
+            if (sanitize)
+                ConfigNodeValue_Sanitize_Prefix(v, true);
+            __instance._values.values.Add(v);
+            return false;
+        }
+
+        private static unsafe bool ConfigNode_AddValue2_Prefix(ConfigNode __instance, string name, string value)
+        {
+            if (value == null)
+            {
+                Debug.LogError(StringBuilderCache.Format("Input is null for field '{0}' in config node '{1}'\n{2}", name, __instance.name, Environment.StackTrace));
+                value = string.Empty;
+            }
+            bool sanitize = true;
+            if (name != null && name.Length > 0)
+            {
+                if (_overrideSkip)
+                {
+                    sanitize = false;
+                }
+                else
+                {
+                    fixed (char* pszName = name)
+                    {
+                        if (_valid && IsSkip(pszName, name.Length))
+                            sanitize = false;
+                        else
+                            ConfigNode_CleanupInput_Prefix(value, ref value);
+                    }
+                }
+            }
+            else
+                ConfigNode_CleanupInput_Prefix(value, ref value);
+
+            var v = new Value(name, value);
+            if (sanitize)
+                ConfigNodeValue_Sanitize_Prefix(v, true);
+            __instance._values.values.Add(v);
+            return false;
+        }
+
+        private static unsafe bool ConfigNode_CleanupInput_Prefix(string value, ref string __result)
+        {
+            fixed (char* pszSanitize = value)
+            {
+                int len = value.Length;
+                bool ok = true;
+                int removed = 0;
+                for (int i = 0; i < len; ++i)
+                {
+                    char c = pszSanitize[i];
+                    if (c == '\t')
+                    {
+                        ok = false;
+                    }
+                    else
+                    {
+                        if (c == '\n' || c == '\r')
+                        {
+                            ++removed;
+                            ok = false;
+                        }
+                    }
+                }
+                if (ok)
+                {
+                    __result = value;
+                    return false;
+                }
+
+                if (len == removed)
+                {
+                    __result = string.Empty;
+                    return false;
+                }
+
+                __result = new string(' ', len - removed);
+                fixed (char* pszResult = __result)
+                {
+                    for (int i = 0, j = 0; i < len; ++i)
+                    {
+                        char c = pszSanitize[i];
+                        switch (c)
+                        {
+                            case '\n':
+                            case '\r':
+                                break;
+                            case '\t': pszResult[j++] = ' '; break;
+                            default: pszResult[j++] = c; break;
+                        }
+                    }
+                }
+                return false;
+            }
+        }
+
+        private static bool ConfigNodeValueList_Add_Prefix(ValueList __instance, Value v)
+        {
+            ConfigNodeValue_Sanitize_Prefix(v, true);
+            __instance.values.Add(v);
+            // skip the weird capacity stuff
             return false;
         }
 
@@ -195,7 +596,7 @@ namespace KSPCommunityFixes.Performance
                 sw.Write(value.name);
                 sw.Write(" = ");
                 sw.Write(value.value);
-                if (!string.IsNullOrEmpty(value.comment))
+                if (value.comment != null && value.comment.Length > 0)
                 {
                     sw.Write(" // ");
                     sw.Write(value.comment);
@@ -212,7 +613,7 @@ namespace KSPCommunityFixes.Performance
         {
             sw.Write(indent);
             sw.Write(__instance.name);
-            if (!string.IsNullOrEmpty(__instance.comment))
+            if (__instance.comment != null && __instance.comment.Length > 0)
             {
                 sw.Write(" // ");
                 sw.Write(__instance.comment);
@@ -232,7 +633,7 @@ namespace KSPCommunityFixes.Performance
                 sw.Write(value.name);
                 sw.Write(" = ");
                 sw.Write(value.value);
-                if (!string.IsNullOrEmpty(value.comment))
+                if (value.comment != null && value.comment.Length > 0)
                 {
                     sw.Write(" // ");
                     sw.Write(value.comment);
@@ -248,171 +649,94 @@ namespace KSPCommunityFixes.Performance
             sw.Write(_Newline);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void AddKVP(List<string[]> output, string line, int keyStart, int keyLast, int valueStart, int valueLast)
+        // Helper statics
+        static Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
+        static string _lastStr = string.Empty;
+#if DEBUG_CONFIGNODE_PERF
+        static long _ourTime = 0;
+#endif
+        private static unsafe ConfigNode _LoadFromStringArray(string[] cfgData, bool bypassLocalization)
         {
-            var pair = new string[2];
-            if (keyLast < keyStart)
-                pair[0] = string.Empty;
-            else
-                pair[0] = line.Substring(keyStart, keyLast - keyStart + 1);
-
-            if (valueLast < valueStart)
-                pair[1] = string.Empty;
-            else
-                pair[1] = line.Substring(valueStart, valueLast - valueStart + 1);
-
-            output.Add(pair);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe void ProcessValueRaw(List<string[]> output, string line, char* pszLine, int start, int lineLen, int idxKeyStart, int idxKeyLast)
-        {
-            int idxValueStart = start;
-            for (; idxValueStart < lineLen; ++idxValueStart)
+            if (cfgData == null || cfgData.Length == 0)
             {
-                if (!char.IsWhiteSpace(pszLine[idxValueStart]))
-                    break;
+                Debug.LogError("Error: Empty part config file");
+                return null;
             }
-
-            int idxValueLast;
-            if (idxValueStart == lineLen)
+#if DEBUG_CONFIGNODE_PERF
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+#endif
+            var configNode = new ConfigNode("root");
+            int lineCount = cfgData.Length;
+            _nodeStack.Push(configNode);
+            for (int i = 0; i < lineCount; ++i)
             {
-                // Empty value
-                idxValueLast = -1;
-            }
-            else
-            {
-                idxValueLast = lineLen - 1;
-                for (; idxValueLast > idxValueStart; --idxValueLast)
+                fixed (char* pszLine = cfgData[i])
                 {
-                    if (!char.IsWhiteSpace(pszLine[idxValueLast]))
-                        break;
+                    ProcessLine(pszLine, 0, cfgData[i].Length);
                 }
             }
-
-            AddKVP(output, line, idxKeyStart, idxKeyLast, idxValueStart, idxValueLast);
+            _nodeStack.Clear();
+            _lastStr = string.Empty;
+            if (!bypassLocalization && Localizer.Instance != null)
+            {
+                Localizer.TranslateBranch(configNode);
+            }
+#if DEBUG_CONFIGNODE_PERF
+            _ourTime = sw.ElapsedMilliseconds;
+#endif
+            return configNode;
         }
 
-        private static unsafe void ProcessValue(List<string[]> output, string line, char* pszLine, int start, int lineLen, int idxKeyStart, int idxKeyLast)
+        private static unsafe void ProcessLine(char* pszLine, int idxKeyStart, int lineLen)
         {
-            int idxValueStart = start;
-
-            for (; idxValueStart < lineLen; ++idxValueStart)
+            bool doChecks = true;
+        ProcessStart:
+            if (doChecks) // we might not need to do this stuff if we found a { midline.
             {
-                char c = pszLine[idxValueStart];
-                if (c == '{' || c == '}')
-                {
-                    // There is nothing left of the brace, so add an empty value.
-                    AddKVP(output, line, idxKeyStart, idxKeyLast, 0, -1);
-                    // next, add the brace.
-                    output.Add(new string[1] { c.ToString() }); // hopefully this is faster than substring
-                    // finally, process the rest of the line.
-                    ProcessLine(output, line, pszLine, idxValueStart + 1, lineLen);
+                if (idxKeyStart == lineLen)
                     return;
-                }
-
-                if (idxValueStart < lineLen - 1 && c == '/' && pszLine[idxValueStart + 1] == '/')
+                
+                // Find first nonwhitespace char
+                for (; idxKeyStart < lineLen; ++idxKeyStart)
                 {
-                    lineLen = idxValueStart; // ignore whatever follows
-                    break;
-                }
-
-                if (!char.IsWhiteSpace(c))
-                    break;
-            }
-
-            int idxValueLast;
-            if (idxValueStart == lineLen)
-            {
-                // Empty value
-                idxValueLast = -1;
-            }
-            else
-            {
-                idxValueLast = idxValueStart;
-                for (; idxValueLast < lineLen; ++idxValueLast)
-                {
-                    char c = pszLine[idxValueLast];
-                    if (c == '{' || c == '}')
-                    {
-                        int idxBrace = idxValueLast;
-
-                        --idxValueLast; // to get one back from the brace
-                        // remove ws
-                        for (; idxValueLast > idxValueStart; --idxValueLast)
-                        {
-                            if (!char.IsWhiteSpace(pszLine[idxValueLast]))
-                                break;
-                        }
-
-                        // Welp, we found the end of the value.
-                        AddKVP(output, line, idxKeyStart, idxKeyLast, idxValueStart, idxValueLast);
-                        // next, add the brace.
-                        output.Add(new string[1] { c.ToString() }); // hopefully this is faster than substring
-                        // finally, process the rest of the line.
-                        ProcessLine(output, line, pszLine, idxBrace + 1, lineLen);
-                        return;
-                    }
-
-                    if (idxValueLast < lineLen - 1 && c == '/' && pszLine[idxValueLast + 1] == '/')
-                    {
-                        --idxValueLast;
-                        break;
-                    }
-                    if (idxValueLast == lineLen - 1)
-                    {
-                        break;
-                    }
-                }
-
-                for (; idxValueLast > idxValueStart; --idxValueLast)
-                {
-                    if (!char.IsWhiteSpace(pszLine[idxValueLast]))
+                    char c = pszLine[idxKeyStart];
+                    if (!char.IsWhiteSpace(c))
                         break;
                 }
+
+                // If we didn't find any non-whitespace, or it's only a comment,
+                // bail: it's a blank line.
+                if (idxKeyStart == lineLen
+                    || (idxKeyStart < lineLen - 1 && pszLine[idxKeyStart] == '/' && pszLine[idxKeyStart + 1] == '/'))
+                    return;
             }
-
-            AddKVP(output, line, idxKeyStart, idxKeyLast, idxValueStart, idxValueLast);
-        }
-
-        private static unsafe void ProcessLine(List<string[]> output, string line, char* pszLine, int start, int lineLen)
-        {
-            if (start == lineLen)
-                return;
-
-            // Find first nonwhitespace char
-            int idxKeyStart = start;
-            for (; idxKeyStart < lineLen; ++idxKeyStart)
-            {
-                char c = pszLine[idxKeyStart];
-                if (!char.IsWhiteSpace(c))
-                    break;
-            }
-
-            // If we didn't find any non-whitespace, or it's only a comment, bail
-            if (idxKeyStart == lineLen
-                || (idxKeyStart < lineLen - 1 && pszLine[idxKeyStart] == '/' && pszLine[idxKeyStart + 1] == '/'))
-                return;
+            doChecks = true; // always reset
 
             // Find equals, if it exists. We'll divert if we find a brace, and truncate if we find a comment.
             int idxEquals = idxKeyStart;
-            int idxKeyLast = idxEquals;
+            int idxKeyLast = idxEquals - 1; // this sets up for a zero-length string
             for (; idxEquals < lineLen; ++idxEquals)
             {
                 char c = pszLine[idxEquals];
                 if (c == '=')
                     break;
 
-                if (c == '{' || c == '}')
+                if (c == '{')
                 {
-                    // First, process what's left of the brace, using our known first-non-whitespace char
-                    ProcessLine(output, line, pszLine, idxKeyStart, idxEquals);
-                    // next, add the brace.
-                    output.Add(new string[1] { pszLine[idxEquals].ToString() }); // hopefully this is faster than substring
-                    // finally, process the rest of the line.
-                    ProcessLine(output, line, pszLine, idxEquals + 1, lineLen);
-                    return;
+                    // add a new node and restart processing
+                    int nameLen = idxKeyLast - idxKeyStart + 1;
+                    string name = nameLen > 0 ? new string(pszLine + idxKeyStart, 0, nameLen) : _lastStr;
+                    _nodeStack.Push(_nodeStack.Peek().AddNode(name));
+                    idxKeyStart = idxEquals + 1;
+                    _lastStr = string.Empty;
+                    goto ProcessStart;
+                }
+
+                if (c == '}')
+                {
+                    _nodeStack.Pop();
+                    idxKeyStart = idxEquals + 1;
+                    goto ProcessStart;
                 }
 
                 if (idxEquals < lineLen - 1 && c == '/' && pszLine[idxEquals + 1] == '/')
@@ -425,215 +749,322 @@ namespace KSPCommunityFixes.Performance
             }
             if (idxEquals == lineLen)
             {
-                // this is a nonempty line with no equals, and we've already stripped the comment and any braces.
-                // We know the last non-WS character index, too, so let's just add it and return.
-                output.Add(new string[1] { line.Substring(idxKeyStart, idxKeyLast - idxKeyStart + 1) });
+                // this is a nonempty line with no equals, and we've already stripped the comment (and there are no braces)
+                // We know the last non-WS character index, too.
+                // This is our candidate string for a node name, so let's just return it.
+                _lastStr = new string(pszLine + idxKeyStart, 0, idxKeyLast - idxKeyStart + 1);
                 return;
+            }
+
+            int keyLen = idxKeyLast - idxKeyStart + 1;
+
+            int idxValueStart = idxEquals + 1;
+            int valueLen = 0;
+            // See if we should skip further processing.
+            if (_overrideSkip)
+            {
+                Value v = new Value(keyLen == 0 ? string.Empty : new string(pszLine, idxKeyStart, keyLen), valueLen == 0 ? string.Empty : new string(pszLine, idxValueStart, valueLen));
+                _nodeStack.Peek()._values.values.Add(v);
+                _lastStr = string.Empty;
+                return;
+            }
+            if (_valid && keyLen > 0)
+            {
+                if (IsSkip(pszLine + idxKeyStart, keyLen))
+                {
+                    for (; idxValueStart < lineLen; ++idxValueStart)
+                    {
+                        if (!char.IsWhiteSpace(pszLine[idxValueStart]))
+                            break;
+                    }
+
+                    if (idxValueStart != lineLen)
+                    {
+                        int idxValueLast = lineLen - 1;
+                        for (; idxValueLast > idxValueStart; --idxValueLast)
+                        {
+                            if (!char.IsWhiteSpace(pszLine[idxValueLast]))
+                                break;
+                        }
+                        valueLen = idxValueLast - idxValueStart + 1;
+                    }
+
+                    Value v = new Value(new string(pszLine, idxKeyStart, keyLen), valueLen == 0 ? string.Empty : new string(pszLine, idxValueStart, valueLen));
+                    _nodeStack.Peek()._values.values.Add(v);
+                    _lastStr = string.Empty;
+                    return;
+                }
+            }
+
+            // Normal processing of the rest of the line
+            for (; idxValueStart < lineLen; ++idxValueStart)
+            {
+                char c = pszLine[idxValueStart];
+                if (c == '{' || c == '}')
+                {
+                    Value v = new Value(new string(pszLine, idxKeyStart, keyLen), string.Empty);
+                    _nodeStack.Peek()._values.values.Add(v);
+                    _lastStr = string.Empty;
+                    idxKeyStart = idxValueStart;
+                    doChecks = false; // we already have a valid char
+                    goto ProcessStart;
+                }
+
+                if (idxValueStart < lineLen - 1 && c == '/' && pszLine[idxValueStart + 1] == '/')
+                {
+                    lineLen = idxValueStart; // ignore whatever follows
+                    break;
+                }
+
+                if (!char.IsWhiteSpace(c))
+                    break;
+            }
+
+            if (idxValueStart != lineLen)
+            {
+                int idxValueLast = idxValueStart - 1; // this sets up for a zero-length string
+                for (int i = idxValueStart; i < lineLen; ++i)
+                {
+                    char c = pszLine[i];
+                    if (c == '{' || c == '}')
+                    {
+                        valueLen = idxValueLast - idxValueStart + 1;
+                        Value v = new Value(keyLen == 0 ? string.Empty : new string(pszLine, idxKeyStart, keyLen),
+                            valueLen == 0 ? string.Empty : new string(pszLine, idxValueStart, valueLen));
+                        _nodeStack.Peek()._values.values.Add(v);
+                        _lastStr = string.Empty;
+                        idxKeyStart = i;
+                        doChecks = false; // we already have a valid char
+                        goto ProcessStart;
+                    }
+
+                    if (i < lineLen - 1 && c == '/' && pszLine[i + 1] == '/')
+                    {
+                        break;
+                    }
+
+                    if (!char.IsWhiteSpace(c))
+                        idxValueLast = i;
+                }
+                valueLen = idxValueLast - idxValueStart + 1;
+            }
+            // We reached the end of the line. Add the value and we're done.
+            {
+                Value v = new Value(keyLen == 0 ? string.Empty : new string(pszLine, idxKeyStart, keyLen),
+                    valueLen == 0 ? string.Empty : new string(pszLine, idxValueStart, valueLen));
+                _nodeStack.Peek()._values.values.Add(v);
+                _lastStr = string.Empty;
+            }
+        }
+
+        // From Mono
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe bool EqualsHelper(char* pszA, char* pszB, int len)
+        {
+            char* pchA = pszA;
+            char* pchB = pszB;
+            if (Environment.Is64BitProcess)
+            {
+                while (len >= 12)
+                {
+                    if (*(long*)pchA != *(long*)pchB)
+                    {
+                        return false;
+                    }
+                    if (*(long*)(pchA + 4) != *(long*)(pchB + 4))
+                    {
+                        return false;
+                    }
+                    if (*(long*)(pchA + 8) != *(long*)(pchB + 8))
+                    {
+                        return false;
+                    }
+                    pchA += 12;
+                    pchB += 12;
+                    len -= 12;
+                }
             }
             else
             {
-                // See if we should skip further processing.
-                int keyLen = idxKeyLast - idxKeyStart + 1;
-                if (_valid && keyLen > 0)
+                while (len >= 10)
                 {
-                    foreach (string s in _skipKeys)
+                    if (*(int*)pchA != *(int*)pchB)
                     {
-                        if (keyLen != s.Length)
-                            continue;
-
-                        bool match = true;
-                        fixed (char* pszComp = s)
-                        {
-                            for (int j = 0; j < keyLen; ++j)
-                            {
-                                if (pszLine[idxKeyStart + j] != pszComp[j])
-                                {
-                                    match = false;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (match)
-                        {
-#if DEBUG
-                            Debug.Log("$$$ Skipped processing key " + s);
-#endif
-                            ProcessValueRaw(output, line, pszLine, idxEquals + 1, lineLen, idxKeyStart, idxKeyLast);
-                            return;
-                        }
+                        return false;
                     }
-                    foreach (string s in _skipPrefixes)
+                    if (*(int*)(pchA + 2) != *(int*)(pchB + 2))
                     {
-                        if (keyLen < s.Length)
-                            continue;
-
-                        bool match = true;
-                        int sLen = s.Length;
-                        fixed (char* pszComp = s)
-                        {
-                            for (int j = 0; j < sLen; ++j)
-                            {
-                                if (pszLine[idxKeyStart + j] != pszComp[j])
-                                {
-                                    match = false;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (match)
-                        {
-#if DEBUG
-                            Debug.Log($"$$$ Skipped processing key matching {s} (full key is {line.Substring(idxKeyStart, idxKeyLast - idxKeyStart + 1)})");
-#endif
-                            ProcessValueRaw(output, line, pszLine, idxEquals + 1, lineLen, idxKeyStart, idxKeyLast);
-                            return;
-                        }
+                        return false;
                     }
+                    if (*(int*)(pchA + 4) != *(int*)(pchB + 4))
+                    {
+                        return false;
+                    }
+                    if (*(int*)(pchA + 6) != *(int*)(pchB + 6))
+                    {
+                        return false;
+                    }
+                    if (*(int*)(pchA + 8) != *(int*)(pchB + 8))
+                    {
+                        return false;
+                    }
+                    pchA += 10;
+                    pchB += 10;
+                    len -= 10;
                 }
-                ProcessValue(output, line, pszLine, idxEquals + 1, lineLen, idxKeyStart, idxKeyLast);
             }
+            while (len > 0 && *(int*)pchA == *(int*)pchB)
+            {
+                pchA += 2;
+                pchB += 2;
+                len -= 2;
+            }
+            return len <= 0;
         }
 
-        private static unsafe List<string[]> _PreFormatConfig(string[] cfgData)
+#if DEBUG_CONFIGNODE_PERF
+        private static string OldCleanupInput(string value)
         {
-            if (cfgData != null && cfgData.Length >= 1)
+            value = value.Replace("\n", "");
+            value = value.Replace("\r", "");
+            value = value.Replace("\t", " ");
+            return value;
+        }
+
+        private static ConfigNode OldLoadFromStringArray(string[] cfgData, bool bypassLocalization)
+        {
+            if (cfgData == null)
             {
-                int lineCount = cfgData.Length;
-                List<string[]> output = new List<string[]>(lineCount);
-#if CONFIGNODE_PERF_USE_PARALLEL
-                if (lineCount < _MinLinesForParallel)
-                {
-#endif
-                    for (int i = 0; i < lineCount; ++i)
-                    {
-                        string line = cfgData[i];
-                        fixed (char* pszLine = cfgData[i])
-                        {
-                            ProcessLine(output, cfgData[i], pszLine, 0, cfgData[i].Length);
-                        }
-                    }
-                    return output;
-#if CONFIGNODE_PERF_USE_PARALLEL
-                }
-
-                var listOfLists = new ConcurrentBag<Tuple<int, List<string[]>>>();
-                Parallel.ForEach(Partitioner.Create(0, lineCount), range =>
-                {
-                    int span = range.Item2 - range.Item1;
-                    List<string[]> tmpList = new List<string[]>(span);
-
-                    for (int i = range.Item1; i < range.Item2; ++i)
-                    {
-                        fixed (char* pszLine = cfgData[i])
-                        {
-                            ProcessLine(tmpList, cfgData[i], pszLine, 0, cfgData[i].Length);
-                        }
-                    }
-                    listOfLists.Add(new Tuple<int, List<string[]>>(range.Item1, tmpList));
-                });
-
-                foreach (var tuple in listOfLists.OrderBy(l => l.Item1))
-                {
-                    output.AddRange(tuple.Item2);
-                }
-
-                return output;
-#endif
+                return null;
             }
-            Debug.LogError("Error: Empty part config file");
+            List<string[]> list = PreFormatConfig(cfgData);
+            if (list != null && list.Count != 0)
+            {
+                ConfigNode configNode = RecurseFormat(list);
+                if (Localizer.Instance != null && !bypassLocalization)
+                {
+                    Localizer.TranslateBranch(configNode);
+                }
+                return configNode;
+            }
             return null;
         }
 
-        private static List<string[]> OldPreFormat(string[] cfgData)
+        private static bool IsHeaderEqual(ConfigNode a, ConfigNode b)
         {
-            if (cfgData != null && cfgData.Length >= 1)
+            if (a.name != b.name)
+                return false;
+            if (a.id != b.id)
+                return false;
+            if (a.comment != b.comment)
+                return false;
+
+            return true;
+        }
+
+        private static bool AreNodesEqual(ConfigNode a, ConfigNode b)
+        {
+            if (!IsHeaderEqual(a, b))
             {
-                List<string> list = new List<string>(cfgData);
-                int num = list.Count;
-                while (--num >= 0)
-                {
-                    list[num] = list[num];
-                    int num2;
-                    if ((num2 = list[num].IndexOf("//")) != -1)
-                    {
-                        if (num2 == 0)
-                        {
-                            list.RemoveAt(num);
-                            continue;
-                        }
-                        list[num] = list[num].Remove(num2);
-                    }
-                    list[num] = list[num].Trim();
-                    if (list[num].Length == 0)
-                    {
-                        list.RemoveAt(num);
-                    }
-                    else if ((num2 = list[num].IndexOf("}", 0)) != -1 && (num2 != 0 || list[num].Length != 1))
-                    {
-                        if (num2 > 0)
-                        {
-                            list.Insert(num, list[num].Substring(0, num2));
-                            num++;
-                            list[num] = list[num].Substring(num2);
-                            num2 = 0;
-                        }
-                        if (num2 < list[num].Length - 1)
-                        {
-                            list.Insert(num + 1, list[num].Substring(num2 + 1));
-                            list[num] = "}";
-                            num += 2;
-                        }
-                    }
-                    else if ((num2 = list[num].IndexOf("{", 0)) != -1 && (num2 != 0 || list[num].Length != 1))
-                    {
-                        if (num2 > 0)
-                        {
-                            list.Insert(num, list[num].Substring(0, num2));
-                            num++;
-                            list[num] = list[num].Substring(num2);
-                            num2 = 0;
-                        }
-                        if (num2 < list[num].Length - 1)
-                        {
-                            list.Insert(num + 1, list[num].Substring(num2 + 1));
-                            list[num] = "{";
-                            num += 2;
-                        }
-                    }
-                }
-                List<string[]> list2 = new List<string[]>(list.Count);
-                int i = 0;
-                for (int count = list.Count; i < count; i++)
-                {
-                    string[] array = CustomEqualSplit(list[i]);
-                    if (array != null && array.Length != 0)
-                    {
-                        list2.Add(array);
-                    }
-                }
-                return list2;
+                Debug.Log("Headers unequal!"
+                    + $"\nName: {a.name?.Length ?? -1} - {b.name?.Length ?? -1}: {a?.name ?? "<>"} | {b?.name ?? "<>"}"
+                    + $"\nID: {a.id?.Length ?? -1} - {b.id?.Length ?? -1}: {a?.id ?? "<>"} | {b?.id ?? "<>"}"
+                    + $"\nComment: {a.comment?.Length ?? -1} - {b.comment?.Length ?? -1}: {a?.comment ?? "<>"} | {b?.comment ?? "<>"}");
+                return false;
             }
-            Debug.LogError("Error: Empty part config file");
-            return null;
+
+            int c = a._values.values.Count;
+            if (c != b._values.values.Count)
+                return false;
+            while (c-- > 0)
+            {
+                if (a._values.values[c].name != b._values.values[c].name)
+                    return false;
+                if (a._values.values[c].value != b._values.values[c].value)
+                    return false;
+                if (a._values.values[c].comment != b._values.values[c].comment)
+                    return false;
+            }
+
+            c = a._nodes.nodes.Count;
+            if (c != b._nodes.nodes.Count)
+                return false;
+            while (c-- > 0)
+                if (!AreNodesEqual(a._nodes.nodes[c], b._nodes.nodes[c]))
+                    return false;
+
+            return true;
+        }
+
+        public static void Test()
+        {
+            const string testStr = "==sdfjiksd==lf{{}p=dsjf][]df}{{{";
+            const string cleanStr = "==sdfjik\nsd=\r=lf{\t{}p=d\tsjf][]df}{{{\n";
+            string ourClean = string.Empty;
+            ConfigNode_CleanupInput_Prefix(cleanStr, ref ourClean);
+            var oldClean = OldCleanupInput(cleanStr);
+            if (ourClean.Equals(oldClean))
+                Debug.Log("Cleans equal!");
+            else
+                Debug.Log($"Cleans not equal! Lengths {ourClean.Length} - {oldClean.Length}\nOur: {ourClean.Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t")}\nOld: " + oldClean);
+
+            Value ourV = new Value(testStr, testStr, "comment");
+            ourV.Sanitize(true);
+            ourV.Sanitize(false);
+            Value oldV = new Value(testStr, testStr, "comment");
+            oldV.SanitizeString(ref oldV.name, true);
+            oldV.SanitizeString(ref oldV.value, false);
+            if (ourV.name == oldV.name && ourV.value == oldV.value)
+                Debug.Log("Sanitize equal!");
+            else
+                Debug.Log($"Sanitize not equal!\n{ourV.name}\n{oldV.name}\n===\n{ourV.value}\n{oldV.value}");
+
+            if (_skipKeys.Length > 0)
+            {
+                ConfigNode skip = new ConfigNode();
+                skip.AddValue(_skipKeys[0], cleanStr);
+                Debug.Log("Skip test: " + (skip.values[0].value == cleanStr ? "ok!" : "fail"));
+            }
+
+            if (_skipPrefixes.Length > 0)
+            {
+                ConfigNode skip = new ConfigNode();
+                skip.AddValue(_skipPrefixes[0] + "skdjflsdkf", cleanStr);
+                Debug.Log("Prefix Skip test: " + (skip.values[0].value == cleanStr ? "ok!" : "fail"));
+            }
+
+            ConfigNode unskip = new ConfigNode();
+            unskip.AddValue("test", cleanStr);
+            Debug.Log("Non-skip test: " + (unskip.values[0].value != cleanStr ? "ok!" : "fail"));
+
+            string keys = "With keys:";
+            foreach (var s in ConfigNodePerf._skipKeys)
+                keys += " " + s;
+            keys += " and prefixes";
+            foreach (var s in ConfigNodePerf._skipPrefixes)
+                keys += " " + s;
+            Debug.Log(keys);
         }
     }
 
-#if DEBUG_CONFIGNODE_PERF
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class ConfigNodePerfTestser : MonoBehaviour
     {
         public void Awake()
         {
             // Insert your own tests here.
+            Debug.Log("(((((");
 
-            Debug.Log("(((((Loading craft, 30k lines");
+            Debug.Log("Loading craft, 30k lines");
             var craft = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\Ships\\VAB\\Dolphin Lunar Orbital.craft");
             Debug.Log("Loading save, 1.2m lines");
             var bigSave = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
+            Debug.Log("Loading save, 2.0m lines");
+            var scorpu = ConfigNode.Load("C:\\temp\\scorpu.sfs");
             Debug.Log("Loading save, 364k lines w/ Principia");
             var princSave = ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
+            Debug.Log("Loading save, 660k lines w/ Principia");
+            var meganoodle = ConfigNode.Load("C:\\temp\\meganoodle.sfs");
 
             Debug.Log("((((Loading tree-parts");
             ConfigNode.Load("C:\\Games\\R112\\GameData\\RP-0\\Tree\\TREE-Parts.cfg");
@@ -651,34 +1082,29 @@ namespace KSPCommunityFixes.Performance
             ConfigNode.Load("C:\\Games\\R112\\GameData\\MechJeb2\\Localization\\fr-fr.cfg");
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            bigSave.Save("c:\\temp\\t1.cfg");
+            scorpu.Save("c:\\temp\\t1.cfg");
             var ours = sw.ElapsedMilliseconds;
             sw.Restart();
             StreamWriter streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
-            bigSave.WriteRootNode(streamWriter);
+            scorpu.WriteRootNode(streamWriter);
             streamWriter.Close();
             var old = sw.ElapsedMilliseconds;
-            Debug.Log($"%%% Big save Write perf: ours: {ours}, old: {old}");
+            Debug.Log($"%%% Scorpu Write perf: ours: {ours}, old: {old}");
 
             sw.Restart();
-            princSave.Save("c:\\temp\\t1.cfg");
+            meganoodle.Save("c:\\temp\\t1.cfg");
             ours = sw.ElapsedMilliseconds;
             sw.Restart();
             streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
-            princSave.WriteRootNode(streamWriter);
+            meganoodle.WriteRootNode(streamWriter);
             streamWriter.Close();
             old = sw.ElapsedMilliseconds;
-            Debug.Log($"%%% Princ save Write perf: ours: {ours}, old: {old}");
+            Debug.Log($"%%% Meganoodle save Write perf: ours: {ours}, old: {old}");
 
-            string keys = "With keys:";
-            foreach (var s in ConfigNodePerf._skipKeys)
-                keys += " " + s;
-            keys += " and prefixes";
-            foreach (var s in ConfigNodePerf._skipPrefixes)
-                keys += " " + s;
-            Debug.Log(keys);
+            ConfigNodePerf.Test();
+
             Debug.Log("end");
         }
-    }
 #endif
+    }
 }
