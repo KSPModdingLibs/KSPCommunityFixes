@@ -152,6 +152,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.21.1
+- Further improve ConfigNode performance (@NathanKell)
+
 ##### 1.21.0
 - New performance / KSP bugfix patch : [PQSCoroutineLeak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) (issue discovered by @Gameslinx)
 - Fixed the ToolbarShowHide patch partially failing due to an ambigious match exception when searching the no args `ApplicationLauncher.ShouldItHide()` method overload.
