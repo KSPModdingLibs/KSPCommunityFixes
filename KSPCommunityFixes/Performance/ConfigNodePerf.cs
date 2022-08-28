@@ -1,5 +1,5 @@
-﻿//#define DEBUG_CONFIGNODE_PERF
-//#define COMPARE_LOAD_RESULTS
+﻿#define DEBUG_CONFIGNODE_PERF
+#define COMPARE_LOAD_RESULTS
 using HarmonyLib;
 using System;
 using System.Collections.Concurrent;
@@ -14,6 +14,8 @@ using System.Runtime.CompilerServices;
 using System.IO;
 using System.Collections;
 using KSP.Localization;
+using System.IO.MemoryMappedFiles;
+using System.Text;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -27,7 +29,7 @@ namespace KSPCommunityFixes.Performance
         static bool _valid = false;
         static bool _overrideSkip = false;
         static bool _hasBlacklist = false;
-        static readonly System.Text.UTF8Encoding _UTF8NoBOM = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
         
 
@@ -42,7 +44,7 @@ namespace KSPCommunityFixes.Performance
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_LoadFromStringArray_Prefix))));
 
             harmony.Patch(
-                AccessTools.Method(typeof(ConfigNode), nameof(Load), new Type[] { typeof(string[]), typeof(bool) }),
+                AccessTools.Method(typeof(ConfigNode), nameof(Load), new Type[] { typeof(string), typeof(bool) }),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Load_Prefix))));
 
             harmony.Patch(
@@ -198,7 +200,7 @@ namespace KSPCommunityFixes.Performance
             if (!AreNodesEqual(__result, old))
             {
                 Debug.LogError("@@@@ Mismatch in data!");
-                AreNodesEqual(__result, old);
+                // uncomment so you can break here: AreNodesEqual(__result, old);
             }
 #endif
 #endif
@@ -237,20 +239,8 @@ namespace KSPCommunityFixes.Performance
                     _hasBlacklist = false;
                     break;
             }
-            StreamReader sr = new StreamReader(fileFullName);
             var configNode = new ConfigNode("root");
-            _nodeStack.Push(configNode);
-            while (!sr.EndOfStream)
-            {
-                string line = sr.ReadLine();
-                fixed (char* pszLine = line)
-                {
-                    ProcessLine(pszLine, 0, line.Length);
-                }
-            }
-            sr.Close();
-            _nodeStack.Clear();
-            _lastStr = string.Empty;
+            ReadFile(configNode, fileFullName);
             bool hasData = configNode._nodes.nodes.Count > 0 || configNode._values.values.Count > 0;
 
             if (hasData && !bypassLocalization && Localizer.Instance != null)
@@ -672,7 +662,7 @@ namespace KSPCommunityFixes.Performance
             {
                 fixed (char* pszLine = cfgData[i])
                 {
-                    ProcessLine(pszLine, 0, cfgData[i].Length);
+                    ProcessLine(pszLine, cfgData[i].Length);
                 }
             }
             _nodeStack.Clear();
@@ -687,8 +677,9 @@ namespace KSPCommunityFixes.Performance
             return configNode;
         }
 
-        private static unsafe void ProcessLine(char* pszLine, int idxKeyStart, int lineLen)
+        private static unsafe void ProcessLine(char* pszLine, int lineLen)
         {
+            int idxKeyStart = 0;
             bool doChecks = true;
         ProcessStart:
             if (doChecks) // we might not need to do this stuff if we found a { midline.
@@ -857,6 +848,230 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        private enum ParseMode
+        {
+            SkipToKey,
+            ReadKey,
+            SkipToValue,
+            ReadValue,
+            EatComment,
+        }
+
+        static ParseMode _mode;
+        static Encoding _encoding;
+        static int _charWidth;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe void ProcessString(byte* pBase, int start, int stop)
+        {
+            if (_mode == ParseMode.ReadKey)
+            {
+                int len = stop - start + 1;
+                if (len > 0)
+                    _lastStr = _encoding.GetString(pBase + start * _charWidth, len * _charWidth);
+                else
+                    _lastStr = string.Empty;
+            }
+            else if (_mode == ParseMode.ReadValue || _mode == ParseMode.SkipToValue)
+            {
+                int len = stop - start + 1;
+                string val;
+                if (len > 0)
+                    val = _encoding.GetString(pBase + start * _charWidth, len * _charWidth);
+                else
+                    val = string.Empty;
+                _nodeStack.Peek()._values.values.Add(new Value(_lastStr, val));
+                _lastStr = string.Empty;
+            }
+        }
+
+        private static unsafe void ReadFile(ConfigNode node, string path)
+        {   
+            var fi = new FileInfo(path);
+            if (fi.Length > int.MaxValue)
+            {
+                Debug.LogError($"[KSPCommunityFixes] tried to read ConfigNode from file {path} but size was larger than 2GB");
+                return;
+            }
+
+            var file = MemoryMappedFile.CreateFromFile(path, FileMode.Open);
+            var accessor = file.CreateViewAccessor(0, fi.Length, MemoryMappedFileAccess.Read);
+
+            // default encoding is UTF8 with no BOM.
+            _encoding = _UTF8NoBOM;
+            _charWidth = 1;
+
+            // Read the BOM - taken from https://stackoverflow.com/questions/3825390/effective-way-to-find-any-files-encoding
+            var bom = new byte[4];
+            int offset = 0;
+            accessor.ReadArray(0, bom, 0, 4);
+
+            // Analyze the BOM
+            if (bom[0] == 0x2b && bom[1] == 0x2f && bom[2] == 0x76)
+            {
+                offset = 3;
+                _encoding = Encoding.UTF7;
+                _charWidth = 1;
+            }
+            else if (bom[0] == 0xef && bom[1] == 0xbb && bom[2] == 0xbf)
+            {
+                offset = 3;
+                _encoding = Encoding.UTF8;
+            }
+            else if (bom[0] == 0xff && bom[1] == 0xfe && bom[2] == 0 && bom[3] == 0)
+            {
+                offset = 4;
+                _encoding = Encoding.UTF32; //UTF-32LE
+                _charWidth = 4;
+            }
+            else if (bom[0] == 0xff && bom[1] == 0xfe)
+            {
+                offset = 2;
+                _encoding = Encoding.Unicode; //UTF-16LE
+                _charWidth = 2;
+            }
+            else if (bom[0] == 0xfe && bom[1] == 0xff)
+            {
+                offset = 2;
+                _encoding = Encoding.BigEndianUnicode; //UTF-16BE
+                _charWidth = 2;
+            }
+            else if (bom[0] == 0 && bom[1] == 0 && bom[2] == 0xfe && bom[3] == 0xff)
+            {
+                offset = 4;
+                _encoding = new UTF32Encoding(true, true);  //UTF-32BE
+                _charWidth = 4;
+            }
+
+            int pos = offset;
+            _mode = ParseMode.SkipToKey;
+            _lastStr = string.Empty;
+            _nodeStack.Push(node);
+
+            int numChars = (int)(fi.Length / _charWidth);
+            byte* pBase = (byte*)0;
+            accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref pBase);
+
+        ProcessStart:
+            int start = pos;
+            int lastNonWS = pos - 1;
+            int lastNonWSNonSlash = lastNonWS;
+
+            for (; pos < numChars; ++pos)
+            {
+                char c = _charWidth == 1 ? (char)accessor.ReadByte(pos) : accessor.ReadChar(pos * _charWidth);
+
+                // first eat the rest of the line, if it's a comment
+                if (_mode == ParseMode.EatComment)
+                {
+                    if (c == '\n')
+                    {
+                        _mode = ParseMode.SkipToKey;
+                        ++pos; // skip char
+                        goto ProcessStart;
+                    }
+                    continue;
+                }
+
+                if (char.IsWhiteSpace(c))
+                {
+                    // handle EOL
+                    if (c == '\n')
+                    {
+                        ProcessString(pBase, start, lastNonWS);
+                        _mode = ParseMode.SkipToKey;
+                        ++pos;
+                        goto ProcessStart;
+                    }
+                }
+                else
+                {
+                    // Detect if we're starting a comment
+                    if (c == '/')
+                    {
+                        if (pos < numChars - 1 && (_charWidth == 1 ? (char)accessor.ReadByte(pos + 1) : accessor.ReadChar(pos + _charWidth)) == '/')
+                        {
+                            // will do nothing if in linestart
+                            ProcessString(pBase, start, lastNonWSNonSlash);
+
+                            _mode = ParseMode.EatComment;
+                            ++pos;
+                            continue;
+                        }
+                        else
+                        {
+                            // are we done eating ws at start of line?
+                            if (_mode == ParseMode.SkipToKey)
+                            {
+                                _mode = ParseMode.ReadKey;
+                                start = pos;
+                            }
+                            else if (_mode == ParseMode.SkipToValue)
+                            {
+                                _mode = ParseMode.ReadValue;
+                                start = pos;
+                            }
+                            // update last non-ws but NOT
+                            // the last non-ws before a slash.
+                            lastNonWS = pos;
+                        }
+                    }
+                    else
+                    {
+                        // are we done eating ws at start of line?
+                        if (_mode == ParseMode.SkipToKey)
+                        {
+                            _mode = ParseMode.ReadKey;
+                            start = pos;
+                            lastNonWS = pos - 1; // zero-length string
+                        }
+                        else if (_mode == ParseMode.SkipToValue)
+                        {
+                            _mode = ParseMode.ReadValue;
+                            start = pos;
+                            lastNonWS = pos - 1; // zero-length string
+                        }
+
+                        if (c == '{')
+                        {
+                            // was there any string to grab, or is this a { on an empty line?
+                            if (lastNonWS >= start)
+                                ProcessString(pBase, start, lastNonWS);
+                            _mode = ParseMode.SkipToKey;
+                            _nodeStack.Push(_nodeStack.Peek().AddNode(_lastStr));
+                            ++pos;
+                            goto ProcessStart;
+                        }
+                        else if (c == '}')
+                        {
+                            // 'name' without = is discarded when finishing a node
+                            if (_mode == ParseMode.ReadValue && lastNonWS >= start)
+                                ProcessString(pBase, start, lastNonWS);
+                            _mode = ParseMode.SkipToKey;
+                            if (_nodeStack.Count > 1) // check for excess }
+                                _nodeStack.Pop();
+                            ++pos;
+                            goto ProcessStart;
+                        }
+                        else if (_mode == ParseMode.ReadKey && c == '=')
+                        {
+                            ProcessString(pBase, start, lastNonWS);
+                            _mode = ParseMode.SkipToValue;
+                            ++pos;
+                            goto ProcessStart;
+                        }
+
+                        lastNonWS = pos;
+                        lastNonWSNonSlash = pos;
+                    }
+                }
+            }
+            _nodeStack.Clear();
+            _lastStr = string.Empty;
+            accessor.Dispose();
+            file.Dispose();
+        }
+
         // From Mono
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool EqualsHelper(char* pszA, char* pszB, int len)
@@ -964,6 +1179,8 @@ namespace KSPCommunityFixes.Performance
 
         private static bool AreNodesEqual(ConfigNode a, ConfigNode b)
         {
+            if ((a == null) != (b == null))
+                return false;
             if (!IsHeaderEqual(a, b))
             {
                 Debug.Log("Headers unequal!"
