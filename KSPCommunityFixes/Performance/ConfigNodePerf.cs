@@ -29,17 +29,11 @@ namespace KSPCommunityFixes.Performance
         private static readonly char[] _charBuf = new char[_ReadBufferSize];
         static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
+        static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
         static bool _doClean = true;
 
 #if DEBUG_CONFIGNODE_PERF
         static long _ourTime = 0, _readTime = 0;
-#endif
-
-        // Helper statics for parsing
-        static Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
-        static string _savedName = string.Empty;
-        static ParseMode _mode;
-#if DEBUG_CONFIGNODE_PERF
         static bool _skipOtherPatches = false;
 #endif
 
@@ -54,12 +48,20 @@ namespace KSPCommunityFixes.Performance
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Load_Prefix))));
 
             harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(Parse)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Parse_Prefix))));
+
+            harmony.Patch(
                 AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.Save), new Type[] { typeof(string), typeof(string) }),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_Save_Prefix))));
 
             harmony.Patch(
                 AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.CleanupInput)),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_CleanupInput_Prefix))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.CopyToRecursive)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNode_CopyToRecursive_Prefix))));
 
             harmony.Patch(
                 AccessTools.Constructor(typeof(ConfigNode), new Type[] { typeof(string) }),
@@ -118,10 +120,15 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
+            if (!_doClean)
+            {
+                __instance.name = name;
+                return false;
+            }
+
             // Would be faster to cleanup in place along with detection
             // but I don't think it's worth it in this case.
-            if (_doClean)
-                ConfigNode_CleanupInput_Prefix(name, ref name);
+            ConfigNode_CleanupInput_Prefix(name, ref name);
 
             // Split
             fixed (char* pszName = name)
@@ -166,7 +173,7 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static unsafe bool ConfigNode_Ctor2_Prefix(ConfigNode __instance, string name, string vcomment)
+        private static bool ConfigNode_Ctor2_Prefix(ConfigNode __instance, string name, string vcomment)
         {
 #if DEBUG_CONFIGNODE_PERF
             if (_skipOtherPatches)
@@ -177,7 +184,31 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static unsafe bool ConfigNode_Load_Prefix(string fileFullName, bool bypassLocalization, ref ConfigNode __result)
+        private static unsafe bool ConfigNode_Parse_Prefix(string s, ref ConfigNode __result)
+        {
+            int len = s.Length;
+            if (len == 0)
+            {
+                __result = new ConfigNode("root");
+                return false;
+            }
+
+            try
+            {
+                fixed (char* pszInput = s)
+                {
+                    __result = ParseConfigNode(pszInput, len);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[KSPCommunityFixes] ConfigNodePerf: Exception parsing string, using fallback ConfigNode reader. Exception: " + e);
+                __result = RecurseFormat(PreFormatConfig(s.Split('\n', '\r')));
+            }
+            return false;
+        }
+
+        private static bool ConfigNode_Load_Prefix(string fileFullName, bool bypassLocalization, ref ConfigNode __result)
         {
             __result = null;
             if (!File.Exists(fileFullName))
@@ -203,26 +234,23 @@ namespace KSPCommunityFixes.Performance
                     _doClean = false;
                     break;
             }
-            var configNode = new ConfigNode("root");
             try
             {
-                ReadFile(configNode, fileFullName);
+                __result = ReadFile(fileFullName);
 #if DEBUG_CONFIGNODE_PERF
                 _ourTime = sw.ElapsedMilliseconds;
 #endif
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-                Debug.LogError("[KSPCommunityFixes] Exception reading file, using fallback ConfigNode reader. Exception: " + e);
-                configNode = LoadFromStringArray(File.ReadAllLines(fileFullName), true);
+                Debug.LogError("[KSPCommunityFixes] ConfigNodePerf: Exception reading file, using fallback ConfigNode reader. Exception: " + e);
+                __result = LoadFromStringArray(File.ReadAllLines(fileFullName), true);
             }
-            bool hasData = configNode._nodes.nodes.Count > 0 || configNode._values.values.Count > 0;
+            bool hasData = __result._nodes.nodes.Count > 0 || __result._values.values.Count > 0;
             if (hasData && !bypassLocalization && Localizer.Instance != null)
             {
-                Localizer.TranslateBranch(configNode);
+                Localizer.TranslateBranch(__result);
             }
-            if (hasData)
-                __result = configNode;
 #if DEBUG_CONFIGNODE_PERF
             sw.Restart();
             string[] file = File.ReadAllLines(fileFullName);
@@ -257,10 +285,73 @@ namespace KSPCommunityFixes.Performance
                 sw.Write(_Newline);
                 sw.Write(_Newline);
             }
-            _WriteRootNode(__instance, sw);
+            _WriteRootNode(__instance, sw, true);
             sw.Close();
 
             __result = true;
+            return false;
+        }
+
+        private static bool ConfigNode_CopyToRecursive_Prefix(ConfigNode __instance, ConfigNode node, bool overwrite)
+        {
+            if (node.name == null || node.name.Length == 0)
+            {
+                node.name = __instance.name;
+            }
+            if (node.id == null || node.id.Length == 0)
+            {
+                node.id = __instance.id;
+            }
+            if (__instance.comment != null && __instance.comment.Length > 0)
+            {
+                node.comment = __instance.comment;
+            }
+            for (int i = 0, iC = __instance.values.Count; i < iC; ++i)
+            {
+                Value value = __instance.values[i];
+                Value v = null;
+
+                if (overwrite)
+                {
+                    for (int j = 0, jC = node._values.values.Count; j < jC; ++j)
+                    {
+                        if (node._values.values[j].name == value.name)
+                        {
+                            v = node._values.values[j];
+                            v.value = value.value;
+                            v.comment = value.comment;
+                            break;
+                        }
+                    }
+                }
+                if (v == null)
+                {
+                    node._values.values.Add(new Value(value.name, value.value, value.comment));
+                }
+            }
+            for (int i = 0, iC = __instance._nodes.nodes.Count; i < iC; ++i)
+            {
+                ConfigNode sub = __instance.nodes[i];
+                if (overwrite)
+                {
+                    node.RemoveNode(sub.name);
+                }
+                ConfigNode newNode = new ConfigNode(string.Empty); // will be set above when we recurse.
+                node._nodes.Add(newNode);
+                ConfigNode_CopyToRecursive_Prefix(sub, newNode, overwrite);
+            }
+            return false;
+        }
+
+        private static bool ConfigNode_ToString_Prefix(ConfigNode __instance, ref string __result)
+        {
+            // We could keep a static stringbuilder around to save on allocs
+            // but I worry about that keeping alloc'd memory. As a compromise
+            // let's at least use a big buffer.
+            var sb = new StringBuilder(1024);
+            var sw = new StringWriter(sb);
+            _WriteNodeString(__instance, sw, string.Empty, false);
+            __result = sb.ToString();
             return false;
         }
 
@@ -308,7 +399,7 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
             }
-            else if(_doClean)
+            else if (_doClean)
             {
                 fixed (char* pszSanitize = __instance.value)
                 {
@@ -459,7 +550,7 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static void _WriteRootNode(ConfigNode __instance, StreamWriter sw)
+        private static void _WriteRootNode(ConfigNode __instance, TextWriter sw, bool includeComments = true)
         {
             for (int i = 0, count = __instance.values.Count; i < count; ++i)
             {
@@ -467,7 +558,7 @@ namespace KSPCommunityFixes.Performance
                 sw.Write(value.name);
                 sw.Write(" = ");
                 sw.Write(value.value);
-                if (value.comment != null && value.comment.Length > 0)
+                if (includeComments && value.comment != null && value.comment.Length > 0)
                 {
                     sw.Write(" // ");
                     sw.Write(value.comment);
@@ -476,15 +567,15 @@ namespace KSPCommunityFixes.Performance
             }
             for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
             {
-                _WriteNodeString(__instance.nodes[i], sw, string.Empty);
+                _WriteNodeString(__instance.nodes[i], sw, string.Empty, includeComments);
             }
         }
 
-        private static void _WriteNodeString(ConfigNode __instance, StreamWriter sw, string indent)
+        private static void _WriteNodeString(ConfigNode __instance, TextWriter sw, string indent, bool includeComments)
         {
             sw.Write(indent);
             sw.Write(__instance.name);
-            if (__instance.comment != null && __instance.comment.Length > 0)
+            if (includeComments && __instance.comment != null && __instance.comment.Length > 0)
             {
                 sw.Write(" // ");
                 sw.Write(__instance.comment);
@@ -504,7 +595,7 @@ namespace KSPCommunityFixes.Performance
                 sw.Write(value.name);
                 sw.Write(" = ");
                 sw.Write(value.value);
-                if (value.comment != null && value.comment.Length > 0)
+                if (includeComments && value.comment != null && value.comment.Length > 0)
                 {
                     sw.Write(" // ");
                     sw.Write(value.comment);
@@ -513,27 +604,18 @@ namespace KSPCommunityFixes.Performance
             }
             for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
             {
-                _WriteNodeString(__instance.nodes[i], sw, newIndent);
+                _WriteNodeString(__instance.nodes[i], sw, newIndent, includeComments);
             }
             sw.Write(indent);
             sw.Write("}");
             sw.Write(_Newline);
         }
 
-        private static unsafe void ReadFile(ConfigNode node, string path)
+        private static unsafe ConfigNode ReadFile(string path)
         {
 #if DEBUG_CONFIGNODE_PERF
             var sw = System.Diagnostics.Stopwatch.StartNew();
 #endif
-            //var bytes = File.ReadAllBytes(path);
-            //using (var reader = new StreamReader(path))
-            //{
-            //    reader.ReadLine(); // so we actually detect encoding
-            //    _encoding = reader.CurrentEncoding;
-            //}
-            //int offset = _encoding.GetPreamble().Length;
-            //char[] chars = _encoding.GetChars(bytes, offset, bytes.Length - offset);
-            //int numChars = chars.Length;
             char[] chars = null;
             int numChars = 0;
             using (var reader = new StreamReader(path, _UTF8NoBOM, true, 1024 * 1024))
@@ -552,226 +634,234 @@ namespace KSPCommunityFixes.Performance
 #if DEBUG_CONFIGNODE_PERF
             _readTime = sw.ElapsedMilliseconds;
 #endif
-            
-            if (numChars == 0)
-                return;
 
-            int pos = 0;
-            _mode = ParseMode.SkipToKey;
-            _savedName = string.Empty;
-            _nodeStack.Push(node);
+            if (numChars == 0)
+                return new ConfigNode("root");
 
             fixed (char* pBase = chars)
             {
-                int start = pos;
-                int lastNonWS = pos - 1;
-                int lastNonWSNonSlash = lastNonWS;
+                return ParseConfigNode(pBase, numChars);
+            }
+        }
 
-                for (; pos < numChars; ++pos)
+        public static unsafe ConfigNode ParseConfigNode(char* pBase, int numChars)
+        {
+            ConfigNode node = new ConfigNode("root");
+            int pos = 0;
+            string savedName = string.Empty;
+            ParseMode mode = ParseMode.SkipToKey;
+            savedName = string.Empty;
+            _nodeStack.Push(node);
+
+
+            int start = pos;
+            int lastNonWS = pos - 1;
+            int lastNonWSNonSlash = lastNonWS;
+
+            for (; pos < numChars; ++pos)
+            {
+                char c = pBase[pos];
+
+                // first eat the rest of the line, if it's a comment
+                if (mode == ParseMode.EatComment)
                 {
-                    char c = pBase[pos];
-
-                    // first eat the rest of the line, if it's a comment
-                    if (_mode == ParseMode.EatComment)
+                    if (c == '\n')
                     {
-                        if (c == '\n')
+                        mode = ParseMode.SkipToKey;
+                        start = pos + 1;
+                        lastNonWS = pos;
+                        lastNonWSNonSlash = lastNonWS;
+                    }
+                    continue;
+                }
+
+                if (char.IsWhiteSpace(c))
+                {
+                    // handle EOL
+                    if (c == '\n')
+                    {
+                        //ProcessString(pBase, start, lastNonWS);
+                        if (mode == ParseMode.ReadKey)
                         {
-                            _mode = ParseMode.SkipToKey;
-                            start = pos + 1;
-                            lastNonWS = pos;
-                            lastNonWSNonSlash = lastNonWS;
+                            int len = lastNonWS - start + 1;
+                            savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
                         }
+                        else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
+                        {
+                            int len = lastNonWS - start + 1;
+                            string val = len > 0 ? new string(pBase, start, len) : string.Empty;
+                            _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
+                            savedName = string.Empty;
+                        }
+                        mode = ParseMode.SkipToKey;
+                        start = pos + 1;
+                        lastNonWS = pos;
+                        lastNonWSNonSlash = lastNonWS;
                         continue;
                     }
-
-                    if (char.IsWhiteSpace(c))
+                }
+                else
+                {
+                    // Detect if we're starting a comment
+                    if (c == '/')
                     {
-                        // handle EOL
-                        if (c == '\n')
+                        if (pos < numChars - 1 && pBase[pos + 1] == '/')
+                        {
+                            // will do nothing if in linestart
+                            //ProcessString(pBase, start, lastNonWSNonSlash);
+                            if (mode == ParseMode.ReadKey)
+                            {
+                                int len = lastNonWSNonSlash - start + 1;
+                                savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
+                            }
+                            else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
+                            {
+                                int len = lastNonWSNonSlash - start + 1;
+                                _nodeStack.Peek()._values.values.Add(new Value(savedName, new string(pBase, start, len)));
+                                savedName = string.Empty;
+                            }
+
+                            mode = ParseMode.EatComment;
+                            ++pos; // we know the next char
+                            continue;
+                        }
+
+                        // are we done eating ws at start of line?
+                        if (mode == ParseMode.SkipToKey)
+                        {
+                            mode = ParseMode.ReadKey;
+                            start = pos;
+                        }
+                        else if (mode == ParseMode.SkipToValue)
+                        {
+                            mode = ParseMode.ReadValue;
+                            start = pos;
+                        }
+                        // update last non-ws but NOT
+                        // the last non-ws before a slash.
+                        lastNonWS = pos;
+                    }
+                    else
+                    {
+                        // are we done eating ws at start of line?
+                        if (mode == ParseMode.SkipToKey)
+                        {
+                            mode = ParseMode.ReadKey;
+                            start = pos;
+                            lastNonWS = pos - 1; // zero-length string
+                        }
+                        else if (mode == ParseMode.SkipToValue)
+                        {
+                            mode = ParseMode.ReadValue;
+                            start = pos;
+                            lastNonWS = pos - 1; // zero-length string
+                        }
+
+                        if (c == '{')
                         {
                             //ProcessString(pBase, start, lastNonWS);
-                            if (_mode == ParseMode.ReadKey)
+                            if (mode == ParseMode.ReadKey)
                             {
-                                int len = lastNonWS- start + 1;
-                                _savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
+                                // was there any string to grab, or is this a { on an empty line?
+                                if (lastNonWS >= start)
+                                {
+                                    int len = lastNonWS - start + 1;
+                                    savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
+                                }
                             }
-                            else if (_mode == ParseMode.ReadValue || _mode == ParseMode.SkipToValue)
+                            else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
                             {
+                                // we *do* want to store an empty value in this case.
                                 int len = lastNonWS - start + 1;
                                 string val = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                _nodeStack.Peek()._values.values.Add(new Value(_savedName, val));
-                                _savedName = string.Empty;
+                                _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
+                                savedName = string.Empty;
                             }
-                            _mode = ParseMode.SkipToKey;
+                            mode = ParseMode.SkipToKey;
+                            var sub = new ConfigNode(savedName);
+                            _nodeStack.Peek()._nodes.nodes.Add(sub);
+                            _nodeStack.Push(sub);
                             start = pos + 1;
                             lastNonWS = pos;
                             lastNonWSNonSlash = lastNonWS;
                             continue;
                         }
-                    }
-                    else
-                    {
-                        // Detect if we're starting a comment
-                        if (c == '/')
+                        else if (c == '}')
                         {
-                            if (pos < numChars - 1 && pBase[pos + 1] == '/')
-                            {
-                                // will do nothing if in linestart
-                                //ProcessString(pBase, start, lastNonWSNonSlash);
-                                if (_mode == ParseMode.ReadKey)
-                                {
-                                    int len = lastNonWSNonSlash - start + 1;
-                                    _savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                }
-                                else if (_mode == ParseMode.ReadValue || _mode == ParseMode.SkipToValue)
-                                {
-                                    int len = lastNonWSNonSlash - start + 1;
-                                    _nodeStack.Peek()._values.values.Add(new Value(_savedName, new string(pBase, start, len)));
-                                    _savedName = string.Empty;
-                                }
-
-                                _mode = ParseMode.EatComment;
-                                ++pos; // we know the next char
-                                continue;
-                            }
-
-                            // are we done eating ws at start of line?
-                            if (_mode == ParseMode.SkipToKey)
-                            {
-                                _mode = ParseMode.ReadKey;
-                                start = pos;
-                            }
-                            else if (_mode == ParseMode.SkipToValue)
-                            {
-                                _mode = ParseMode.ReadValue;
-                                start = pos;
-                            }
-                            // update last non-ws but NOT
-                            // the last non-ws before a slash.
-                            lastNonWS = pos;
-                        }
-                        else
-                        {
-                            // are we done eating ws at start of line?
-                            if (_mode == ParseMode.SkipToKey)
-                            {
-                                _mode = ParseMode.ReadKey;
-                                start = pos;
-                                lastNonWS = pos - 1; // zero-length string
-                            }
-                            else if (_mode == ParseMode.SkipToValue)
-                            {
-                                _mode = ParseMode.ReadValue;
-                                start = pos;
-                                lastNonWS = pos - 1; // zero-length string
-                            }
-
-                            if (c == '{')
+                            // 'name' without = is discarded when finishing a node
+                            if (mode == ParseMode.ReadValue && lastNonWS >= start)
                             {
                                 //ProcessString(pBase, start, lastNonWS);
-                                if (_mode == ParseMode.ReadKey)
+                                if (mode == ParseMode.ReadKey)
                                 {
-                                    // was there any string to grab, or is this a { on an empty line?
-                                    if (lastNonWS >= start)
-                                    {
-                                        int len = lastNonWS - start + 1;
-                                        _savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                    }
+                                    int len = lastNonWS - start + 1;
+                                    savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
                                 }
-                                else if (_mode == ParseMode.ReadValue || _mode == ParseMode.SkipToValue)
+                                else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
                                 {
-                                    // we *do* want to store an empty value in this case.
                                     int len = lastNonWS - start + 1;
                                     string val = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                    _nodeStack.Peek()._values.values.Add(new Value(_savedName, val));
-                                    _savedName = string.Empty;
+                                    _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
+                                    savedName = string.Empty;
                                 }
-                                _mode = ParseMode.SkipToKey;
-                                var sub = new ConfigNode(_savedName);
-                                _nodeStack.Peek()._nodes.nodes.Add(sub);
-                                _nodeStack.Push(sub);
-                                start = pos + 1;
-                                lastNonWS = pos;
-                                lastNonWSNonSlash = lastNonWS;
-                                continue;
                             }
-                            else if (c == '}')
-                            {
-                                // 'name' without = is discarded when finishing a node
-                                if (_mode == ParseMode.ReadValue && lastNonWS >= start)
-                                {
-                                    //ProcessString(pBase, start, lastNonWS);
-                                    if (_mode == ParseMode.ReadKey)
-                                    {
-                                        int len = lastNonWS - start + 1;
-                                        _savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                    }
-                                    else if (_mode == ParseMode.ReadValue || _mode == ParseMode.SkipToValue)
-                                    {
-                                        int len = lastNonWS - start + 1;
-                                        string val = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                        _nodeStack.Peek()._values.values.Add(new Value(_savedName, val));
-                                        _savedName = string.Empty;
-                                    }
-                                }
-                                _mode = ParseMode.SkipToKey;
-                                if (_nodeStack.Count > 1) // check for excess }
-                                    _nodeStack.Pop();
-                                start = pos + 1;
-                                lastNonWS = pos;
-                                lastNonWSNonSlash = lastNonWS;
-                                continue;
-                            }
-                            else if (_mode == ParseMode.ReadKey && c == '=')
-                            {
-                                //ProcessString(pBase, start, lastNonWS);
-                                int len = lastNonWS - start + 1;
-                                _savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                                    
-                                // This saves a bit of time but isn't really worth it.
-                                // Because in some rare cases things still need trimming
-                                // and we don't want to sacrifice 100% compatibility
-                                //if (_overrideSkip || IsSkip(pBase + start, len))
-                                //{
-                                //    int eqPos = pos;
-                                //    pos += 2; // skip the = and the space
-                                //    int valueStart = pos;
-                                //    for(;;) // eat until EOL
-                                //    {
-                                //        if (pos == numChars)
-                                //            break;
-                                //        char p = pBase[pos];
-                                //        if (p == '\n' || p == '\r')
-                                //            break;
-                                //        ++pos; 
-                                //    }
-                                //    len = pos - 1 - valueStart + 1;
-                                //    string val = len > 0 ? new string(pBase, valueStart, len) : string.Empty;
-                                //    _nodeStack.Peek()._values.values.Add(new Value(_lastStr, val));
-                                //    _lastStr = string.Empty;
-
-                                //    // start next parse
-                                //    _mode = ParseMode.SkipToKey;
-                                //    start = pos + 1;
-                                //    lastNonWS = pos;
-                                //    lastNonWSNonSlash = lastNonWS;
-                                //    continue;
-                                //}
-                                _mode = ParseMode.SkipToValue;
-                                start = pos + 1;
-                                lastNonWS = pos;
-                                lastNonWSNonSlash = lastNonWS;
-                                continue;
-                            }
-
+                            mode = ParseMode.SkipToKey;
+                            if (_nodeStack.Count > 1) // check for excess }
+                                _nodeStack.Pop();
+                            start = pos + 1;
                             lastNonWS = pos;
-                            lastNonWSNonSlash = pos;
+                            lastNonWSNonSlash = lastNonWS;
+                            continue;
                         }
+                        else if (mode == ParseMode.ReadKey && c == '=')
+                        {
+                            //ProcessString(pBase, start, lastNonWS);
+                            int len = lastNonWS - start + 1;
+                            savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
+
+                            // This saves a bit of time but isn't really worth it.
+                            // Because in some rare cases things still need trimming
+                            // and we don't want to sacrifice 100% compatibility
+                            //if (_overrideSkip || IsSkip(pBase + start, len))
+                            //{
+                            //    int eqPos = pos;
+                            //    pos += 2; // skip the = and the space
+                            //    int valueStart = pos;
+                            //    for(;;) // eat until EOL
+                            //    {
+                            //        if (pos == numChars)
+                            //            break;
+                            //        char p = pBase[pos];
+                            //        if (p == '\n' || p == '\r')
+                            //            break;
+                            //        ++pos; 
+                            //    }
+                            //    len = pos - 1 - valueStart + 1;
+                            //    string val = len > 0 ? new string(pBase, valueStart, len) : string.Empty;
+                            //    _nodeStack.Peek()._values.values.Add(new Value(_lastStr, val));
+                            //    _lastStr = string.Empty;
+
+                            //    // start next parse
+                            //    _mode = ParseMode.SkipToKey;
+                            //    start = pos + 1;
+                            //    lastNonWS = pos;
+                            //    lastNonWSNonSlash = lastNonWS;
+                            //    continue;
+                            //}
+                            mode = ParseMode.SkipToValue;
+                            start = pos + 1;
+                            lastNonWS = pos;
+                            lastNonWSNonSlash = lastNonWS;
+                            continue;
+                        }
+
+                        lastNonWS = pos;
+                        lastNonWSNonSlash = pos;
                     }
                 }
             }
             _nodeStack.Clear();
-            _savedName = string.Empty;
+            return node;
         }
 
 #if DEBUG_CONFIGNODE_PERF
