@@ -9,6 +9,7 @@ using static ConfigNode;
 using System.IO;
 using KSP.Localization;
 using System.Text;
+using System.Collections;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -31,6 +32,7 @@ namespace KSPCommunityFixes.Performance
         static readonly string _Newline = Environment.NewLine;
         static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
         static bool _doClean = true;
+        static bool _AllowSkipIndent = false;
 
 #if DEBUG_CONFIGNODE_PERF
         static long _ourTime = 0, _readTime = 0;
@@ -91,6 +93,18 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(Game), nameof(Game.Updated)),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetNoClean))),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetDoClean))));
+        }
+
+        public void ModuleManagerPostLoad()
+        {
+            StartCoroutine(LoadRoutine());
+        }
+
+        public IEnumerator LoadRoutine()
+        {
+            yield return null;
+
+            KSPCommunityFixes.SettingsNode.TryGetValue("SkipIndentsOnSavesAndCraftFiles", ref _AllowSkipIndent);
         }
 
         private static void SetNoClean()
@@ -218,7 +232,7 @@ namespace KSPCommunityFixes.Performance
             }
             string ext = Path.GetExtension(fileFullName);
 #if DEBUG_CONFIGNODE_PERF
-            Debug.Log($"Loading from: file `{fileFullName}` with ext {ext}");
+            Debug.Log($"Loaded from: file `{fileFullName}` with ext {ext}");
             var sw = System.Diagnostics.Stopwatch.StartNew();
 #endif
             var oldClean = _doClean;
@@ -277,15 +291,31 @@ namespace KSPCommunityFixes.Performance
 
         private static bool ConfigNode_Save_Prefix(ConfigNode __instance, string fileFullName, string header, ref bool __result)
         {
+            bool indent = true;
+            if (_AllowSkipIndent)
+            {
+                string ext = Path.GetExtension(fileFullName);
+                switch (ext)
+                {
+                    //case ".ConfigCache":
+                    // We can't control this with a setting because CC loads
+                    // before we have access to settings.
+
+                    case ".craft":
+                    case ".sfs":
+                        indent = false;
+                        break;
+                }
+            }
             StreamWriter sw = new StreamWriter(File.Open(fileFullName, FileMode.Create), _UTF8NoBOM, _SaveBufferSize);
-            if (!string.IsNullOrEmpty(header))
+            if (indent && !string.IsNullOrEmpty(header))
             {
                 sw.Write("// ");
                 sw.Write(header);
                 sw.Write(_Newline);
                 sw.Write(_Newline);
             }
-            _WriteRootNode(__instance, sw, true);
+            _WriteRootNode(__instance, sw, indent, indent);
             sw.Close();
 
             __result = true;
@@ -550,7 +580,7 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static void _WriteRootNode(ConfigNode __instance, TextWriter sw, bool includeComments = true)
+        private static void _WriteRootNode(ConfigNode __instance, TextWriter sw, bool indent, bool includeComments = true)
         {
             for (int i = 0, count = __instance.values.Count; i < count; ++i)
             {
@@ -565,9 +595,19 @@ namespace KSPCommunityFixes.Performance
                 }
                 sw.Write(_Newline);
             }
-            for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+            if (indent)
             {
-                _WriteNodeString(__instance.nodes[i], sw, string.Empty, includeComments);
+                for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+                {
+                    _WriteNodeString(__instance.nodes[i], sw, string.Empty, includeComments);
+                }
+            }
+            else
+            {
+                for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+                {
+                    _WriteNodeStringNoIndent(__instance.nodes[i], sw);
+                }
             }
         }
 
@@ -607,6 +647,30 @@ namespace KSPCommunityFixes.Performance
                 _WriteNodeString(__instance.nodes[i], sw, newIndent, includeComments);
             }
             sw.Write(indent);
+            sw.Write("}");
+            sw.Write(_Newline);
+        }
+
+        private static void _WriteNodeStringNoIndent(ConfigNode __instance, TextWriter sw)
+        {
+            sw.Write(__instance.name);
+            sw.Write(_Newline);
+
+            sw.Write("{");
+            sw.Write(_Newline);
+
+            for (int i = 0, count = __instance.values.Count; i < count; ++i)
+            {
+                Value value = __instance.values[i];
+                sw.Write(value.name);
+                sw.Write(" = ");
+                sw.Write(value.value);
+                sw.Write(_Newline);
+            }
+            for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+            {
+                _WriteNodeStringNoIndent(__instance.nodes[i], sw);
+            }
             sw.Write("}");
             sw.Write(_Newline);
         }
@@ -864,7 +928,7 @@ namespace KSPCommunityFixes.Performance
             return node;
         }
 
-#if DEBUG_CONFIGNODE_PERF
+#if DEBUG_CONFIGNODE_PERF || CONFIGNODE_PERF_TEST
         private static string OldCleanupInput(string value)
         {
             value = value.Replace("\n", "");
@@ -1025,52 +1089,75 @@ namespace KSPCommunityFixes.Performance
             else
                 Debug.Log($"Sanitize not equal!\n{ourV.name}\n{oldV.name}\n===\n{ourV.value}\n{oldV.value}");
 
-            Debug.Log("Loading craft, 30k lines");
-            var craft = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\Ships\\VAB\\Dolphin Lunar Orbital.craft");
-            Debug.Log("Loading save, 1.2m lines");
-            var bigSave = ConfigNode.Load("C:\\Games\\R112\\saves\\Hard\\persistent.sfs");
-            Debug.Log("Loading save, 2.0m lines");
-            var scorpu = ConfigNode.Load("C:\\temp\\scorpu.sfs");
-            Debug.Log("Loading save, 364k lines w/ Principia");
-            var princSave = ConfigNode.Load("C:\\Games\\R112\\saves\\lcdev\\persistent.sfs");
-            Debug.Log("Loading save, 660k lines w/ Principia");
-            var meganoodle = ConfigNode.Load("C:\\temp\\meganoodle.sfs");
-
-            Debug.Log("((((Loading tree-parts");
-            ConfigNode.Load("C:\\Games\\R112\\GameData\\RP-0\\Tree\\TREE-Parts.cfg");
-
-            Debug.Log("Loading Downrange");
-            ConfigNode.Load("C:\\Games\\R112\\GameData\\RP-0\\Contracts\\Sounding Rockets\\DistanceSoundingDifficult.cfg");
-
-            Debug.Log("Loading dictionary");
-            ConfigNode.Load("C:\\Games\\R112\\GameData\\Squad\\Localization\\dictionary.cfg");
-
-            Debug.Log("Loading gravity-model");
-            ConfigNode.Load("C:\\Games\\R112\\GameData\\Principia\\real_solar_system\\gravity_model.cfg");
-
-            Debug.Log("Loading mj loc fr");
-            ConfigNode.Load("C:\\Games\\R112\\GameData\\MechJeb2\\Localization\\fr-fr.cfg");
-
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            scorpu.Save("c:\\temp\\t1.cfg");
+            var craft = ConfigNode.Load(@"C:\Games\R112\saves\Hard\Ships\VAB\Dolphin Lunar Orbital.craft");
+            Debug.Log($"Loaded craft, 30k lines: {sw.ElapsedMilliseconds}");
+            sw.Restart();
+            var bigSave = ConfigNode.Load(@"C:\Games\R112\saves\Hard\persistent.sfs");
+            Debug.Log($"Loaded save, 1.2m lines: {sw.ElapsedMilliseconds}");
+            sw.Restart();
+            var scorpu = ConfigNode.Load(@"C:\temp\scorpu.sfs");
+            Debug.Log($"Loaded save, 2.0m lines: {sw.ElapsedMilliseconds}");
+            sw.Restart();
+            var princSave = ConfigNode.Load(@"C:\Games\R112\saves\lcdev\persistent.sfs");
+            Debug.Log($"Loaded save, 364k lines w/ Principia: {sw.ElapsedMilliseconds}");
+            sw.Restart();
+            var meganoodle = ConfigNode.Load(@"C:\temp\meganoodle.sfs");
+            Debug.Log($"Loaded save, 660k lines w/ Principia: {sw.ElapsedMilliseconds}");
+#if DEBUG_CONFIGNODE_PERF
+            Debug.Log($"Loaded tree-parts");
+            ConfigNode.Load(@"C:\Games\R112\GameData\RP-0\Tree\TREE-Parts.cfg");
+
+            Debug.Log($"Loaded Downrange");
+            ConfigNode.Load(@"C:\Games\R112\GameData\RP-0\Contracts\Sounding Rockets\DistanceSoundingDifficult.cfg");
+
+            Debug.Log($"Loaded dictionary");
+            ConfigNode.Load(@"C:\Games\R112\GameData\Squad\Localization\dictionary.cfg");
+
+            Debug.Log($"Loaded gravity-model");
+            ConfigNode.Load(@"C:\Games\R112\GameData\Principia\real_solar_system\gravity_model.cfg");
+
+            Debug.Log($"Loaded mj loc fr");
+            ConfigNode.Load(@"C:\Games\R112\GameData\MechJeb2\Localization\fr-fr.cfg");
+#endif
+            bool oldAllow = _AllowSkipIndent;
+            _AllowSkipIndent = false;
+            sw.Restart();
+            scorpu.Save(@"C:\temp\t1.cfg");
+            _AllowSkipIndent = true;
             var ours = sw.ElapsedMilliseconds;
             sw.Restart();
-            StreamWriter streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
+            scorpu.Save(@"c:\temp\t1.cfg");
+            var oursSkip = sw.ElapsedMilliseconds;
+            sw.Restart();
+            StreamWriter streamWriter = new StreamWriter(File.Open(@"C:\temp\t2.cfg", FileMode.Create));
             scorpu.WriteRootNode(streamWriter);
             streamWriter.Close();
             var old = sw.ElapsedMilliseconds;
-            Debug.Log($"%%% Scorpu Write perf: ours: {ours}, old: {old}");
+            sw.Restart();
+            ConfigNode.Load(@"c:\temp\t1.cfg");
+            var reload = sw.ElapsedMilliseconds;
+            Debug.Log($"Scorpu: Read noindent: {reload}, write ours: {ours} ({oursSkip} noindent), old: {old}.");
 
+            _AllowSkipIndent = false;
             sw.Restart();
-            meganoodle.Save("c:\\temp\\t1.cfg");
+            meganoodle.Save(@"C:\temp\t1.cfg");
             ours = sw.ElapsedMilliseconds;
+            _AllowSkipIndent = true;
             sw.Restart();
-            streamWriter = new StreamWriter(File.Open("c:\\temp\\t2.cfg", FileMode.Create));
+            meganoodle.Save(@"C:\temp\t1.cfg");
+            oursSkip = sw.ElapsedMilliseconds;
+            sw.Restart();
+            streamWriter = new StreamWriter(File.Open(@"C:\temp\t2.cfg", FileMode.Create));
             meganoodle.WriteRootNode(streamWriter);
             streamWriter.Close();
             old = sw.ElapsedMilliseconds;
-            Debug.Log($"%%% Meganoodle save Write perf: ours: {ours}, old: {old}");
+            sw.Restart();
+            ConfigNode.Load(@"C:\temp\t1.cfg");
+            reload = sw.ElapsedMilliseconds;
+            Debug.Log($"Meganoodle: Read noindent: {reload}, write ours: {ours} ({oursSkip} noindent), old: {old}.");
 
+            _AllowSkipIndent = oldAllow;
             Debug.Log("end");
         }
     }
@@ -1083,5 +1170,5 @@ namespace KSPCommunityFixes.Performance
             ConfigNodePerf.Test();
         }
 #endif
-    }
+        }
 }
