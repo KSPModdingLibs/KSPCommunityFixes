@@ -257,7 +257,7 @@ namespace KSPCommunityFixes.Performance
             }
             catch (Exception e)
             {
-                Debug.LogError("[KSPCommunityFixes] ConfigNodePerf: Exception reading file, using fallback ConfigNode reader. Exception: " + e);
+                Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf: Exception reading file {fileFullName}, using fallback ConfigNode reader. Exception: " + e);
                 __result = LoadFromStringArray(File.ReadAllLines(fileFullName), true);
             }
             bool hasData = __result._nodes.nodes.Count > 0 || __result._values.values.Count > 0;
@@ -393,11 +393,17 @@ namespace KSPCommunityFixes.Performance
 #endif
             if (sanitizeName)
             {
+                if (__instance.name == null)
+                    return false;
+
+                int len = __instance.name.Length;
+                if (len == 0)
+                    return false;
+                
+                string result = null;
+                bool sanitize = false;
                 fixed (char* pszSanitize = __instance.name)
                 {
-                    // It's cheaper to just do this than to do a skipcheck.
-                    int len = __instance.name.Length;
-                    bool sanitize = false;
                     for (int i = 0; i < len; ++i)
                     {
                         switch (pszSanitize[i])
@@ -411,8 +417,8 @@ namespace KSPCommunityFixes.Performance
                     }
                     if (sanitize)
                     {
-                        __instance.name = new string(' ', len);
-                        fixed (char* pszNewStr = __instance.name)
+                        result = new string(' ', len);
+                        fixed (char* pszNewStr = result)
                         {
                             for (int i = 0; i < len; ++i)
                             {
@@ -428,13 +434,22 @@ namespace KSPCommunityFixes.Performance
                         }
                     }
                 }
+                if (sanitize)
+                    __instance.name = result;
             }
             else if (_doClean)
             {
+                if (__instance.value == null)
+                    return false;
+
+                int len = __instance.value.Length;
+                if (len == 0)
+                    return false;
+
+                string result = null;
+                bool sanitize = false;
                 fixed (char* pszSanitize = __instance.value)
-                {
-                    int len = __instance.name.Length;
-                    bool sanitize = false;
+                {    
                     for (int i = 0; i < len; ++i)
                     {
                         switch (pszSanitize[i])
@@ -447,8 +462,8 @@ namespace KSPCommunityFixes.Performance
                     }
                     if (sanitize)
                     {
-                        __instance.value = new string(' ', len);
-                        fixed (char* pszNewStr = __instance.value)
+                        result = new string(' ', len);
+                        fixed (char* pszNewStr = result)
                         {
                             for (int i = 0; i < len; ++i)
                             {
@@ -463,6 +478,8 @@ namespace KSPCommunityFixes.Performance
                         }
                     }
                 }
+                if (sanitize)
+                    __instance.value = result;
             }
             return false;
         }
