@@ -181,12 +181,13 @@ namespace KSPCommunityFixes.Modding
     public class FieldData
     {
         private static readonly System.Globalization.CultureInfo _Invariant = System.Globalization.CultureInfo.InvariantCulture;
-        public string[] persistentNames;
-        public Type fieldType;
-        public FieldInfo fieldInfo;
-        public Persistent[] attribs;
-        public DataType dataType;
-        public bool isLinkable;
+
+        public string[] persistentNames = null;
+        public Type fieldType = null;
+        public FieldInfo fieldInfo = null;
+        public Persistent[] attribs = null;
+        public DataType dataType = DataType.INVALID;
+        public bool isLinkable = false;
 
         public FieldData arrayType;
 
@@ -229,6 +230,12 @@ namespace KSPCommunityFixes.Modding
 
         public bool Read(Value value, object host, int index)
         {
+            if (index >= attribs.Length)
+            {
+                Debug.LogError($"[KSPCommuntiyFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {index} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                    + "\nThis is probably because the value was specified twice in the config. Making that assumption and clamping.");
+                index = 0;
+            }
             if (attribs[index].link)
             {
                 if (!isLinkable || !int.TryParse(value.value, out int linkID))
@@ -243,7 +250,7 @@ namespace KSPCommunityFixes.Modding
 
             object val = ReadValue(value.value, dataType, fieldType);
             if (removeAfterUse)
-                value.value = string.Empty;
+                value.name = string.Empty;
 
             if (val == null)
                 return false;
@@ -254,26 +261,48 @@ namespace KSPCommunityFixes.Modding
 
         public bool Read(ConfigNode node, object host, int index)
         {
+            if (index >= attribs.Length)
+            {
+                Debug.LogError($"[KSPCommuntiyFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {index} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                    + "\nThis is probably because the node was specified twice in the config. Making that assumption and clamping.");
+                index = 0;
+            }
             int vCount = node._values.values.Count;
             int nCount = node._nodes.nodes.Count;
-
+            
+            object existing = fieldInfo.GetValue(host);
+            bool wasNull = existing == null;
             if (dataType == DataType.Object || dataType == DataType.IConfigNode)
             {
-                object obj = ReadObject(node, dataType, fieldType, out bool success);
-                if (obj == null)
+                existing = ReadObject(node, existing, dataType, fieldType, out bool success);
+                if (existing == null)
                     return false;
-
-                fieldInfo.SetValue(host, obj);
+                if (wasNull)
+                    fieldInfo.SetValue(host, existing);
+                if (removeAfterUse)
+                    node.name = string.Empty;
                 return success;
             }
 
             if (dataType == DataType.Component)
             {
-                MonoBehaviour behv = CreateComponent(host, fieldType, attribs[index], node, out bool success);
-                if (behv == null)
-                    return false;
-                fieldInfo.SetValue(host, behv);
-                return success;
+                if (wasNull)
+                {
+                    MonoBehaviour behv = CreateComponent(host, fieldType, attribs[index], node, out bool success);
+                    if (behv == null)
+                        return false;
+                    fieldInfo.SetValue(host, behv);
+                    if (removeAfterUse)
+                        node.name = string.Empty;
+                    return success;
+                }
+                else
+                {
+                    PersistentIConfigNode.ConfigNode_ReadObject_Prefix(existing, node, out bool success);
+                    if (removeAfterUse)
+                        node.name = string.Empty;
+                    return success;
+                }
             }
 
             Array arr = null;
@@ -344,7 +373,7 @@ namespace KSPCommunityFixes.Modding
 
                 for (int i = 0; i < nCount; ++i)
                 {
-                    object val = ReadObject(node._nodes.nodes[i], arrayType.dataType, arrayType.fieldType, out bool readSuccess);
+                    object val = ReadObject(node._nodes.nodes[i], null, arrayType.dataType, arrayType.fieldType, out bool readSuccess);
                     arrReadSuccess &= readSuccess;
                     if (isArr)
                         arr.SetValue(val, i);
@@ -356,6 +385,8 @@ namespace KSPCommunityFixes.Modding
                 fieldInfo.SetValue(host, arr);
             else
                 fieldInfo.SetValue(host, list);
+            if (removeAfterUse)
+                node.name = string.Empty;
             return arrReadSuccess;
         }
 
@@ -398,20 +429,33 @@ namespace KSPCommunityFixes.Modding
             return false;
         }
 
-        public static object ReadObject(ConfigNode node, DataType dataType, Type fieldType, out bool success)
+        public static object ReadObject(ConfigNode node, object existing, DataType dataType, Type fieldType, out bool success)
         {
             success = false;
-            switch(dataType)
+            switch (dataType)
             {
                 case DataType.IConfigNode:
+                    IConfigNode icn;
+                    if (existing == null)
+                    {
+                        icn = TypeCache.GetNewInstance(fieldType) as IConfigNode;
+                        if (icn == null)
+                            return null;
+                    }
+                    else
+                    {
+                        icn = existing as IConfigNode;
+                    }
                     success = true;
-                    IConfigNode icn = (IConfigNode)Activator.CreateInstance(fieldType);
                     icn.Load(node);
                     return icn;
                 case DataType.Object:
-                    object newObj = Activator.CreateInstance(fieldType);
-                    PersistentIConfigNode.ConfigNode_ReadObject_Prefix(newObj, node, out success);
-                    return newObj;
+                    if (existing == null)
+                        existing = TypeCache.GetNewInstance(fieldType);
+                    if (existing == null)
+                        return null;
+                    PersistentIConfigNode.ConfigNode_ReadObject_Prefix(existing, node, out success);
+                    return existing;
             }
             return null;
         }
@@ -496,6 +540,8 @@ namespace KSPCommunityFixes.Modding
                 }
                 fieldInfo.SetValue(host, list);
             }
+            if (removeAfterUse)
+                node.name = string.Empty;
             return allSucceeded;
         }
 
@@ -802,6 +848,7 @@ namespace KSPCommunityFixes.Modding
     public class TypeCache
     {
         private static readonly Dictionary<Type, TypeCache> cache = new Dictionary<Type, TypeCache>();
+        //private static readonly Dictionary<Type, ConstructorInfo> _typeToConstrutor = new Dictionary<Type, ConstructorInfo>();
 
         private List<FieldData> _fields = new List<FieldData>();
         private Dictionary<string, FieldData> _nameToField = new Dictionary<string, FieldData>();
@@ -835,7 +882,8 @@ namespace KSPCommunityFixes.Modding
             // We need to track how many times we've seen this field name
             // because fields can have >1 Persistent attribute and we
             // need to index.
-            _seenFieldCounts.TryGetValue(fieldName, out int numSeen);
+            if (!_seenFieldCounts.TryGetValue(fieldName, out int numSeen))
+                numSeen = 0;
             _seenFieldCounts[fieldName] = numSeen + 1;
             return numSeen;
         }
@@ -868,6 +916,8 @@ namespace KSPCommunityFixes.Modding
 
                 allSucceeded &= fieldItem.Read(value, host, index);
             }
+            _seenFieldCounts.Clear();
+
             count = node.nodes.Count;
             for (int j = 0; j < count; j++)
             {
@@ -944,6 +994,20 @@ namespace KSPCommunityFixes.Modding
 
             cache[t] = tc;
             return tc;
+        }
+
+        public static object GetNewInstance(Type t)
+        {
+            //if (!_typeToConstrutor.TryGetValue(t, out var cons))
+            //{
+            //    cons = t.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+            //    _typeToConstrutor[t] = cons; // yes this might be null, but we're caching that it's null
+            //}
+            //if (cons == null)
+            //    return null;
+
+            //return cons.Invoke(null);
+            return Activator.CreateInstance(t, true);
         }
     }
 
