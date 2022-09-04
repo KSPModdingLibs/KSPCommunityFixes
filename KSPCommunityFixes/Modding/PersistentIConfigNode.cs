@@ -1,7 +1,7 @@
 ﻿// - Add support for IConfigNode serialization
 // - Add support for Guid serialization
 // - Rewrite Object reading and writing for perf, clarity, and reuse
-#define DEBUG_PERSISTENTICONFIGNODE
+//#define DEBUG_PERSISTENTICONFIGNODE
 using HarmonyLib;
 using System;
 using System.Collections;
@@ -194,6 +194,7 @@ namespace KSPCommunityFixes.Modding
         public FieldData(Type t, Persistent[] attribs)
         {
             fieldType = t;
+            this.attribs = attribs;
 
             int len = attribs.Length;
             persistentNames = new string[len];
@@ -228,20 +229,20 @@ namespace KSPCommunityFixes.Modding
             SetDataType(true);
         }
 
-        public bool Read(Value value, object host, int index)
+        public bool Read(Value value, object host, int attribIndex)
         {
-            if (index >= attribs.Length)
+            if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommuntiyFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {index} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                Debug.LogError($"[KSPCommunityFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
                     + "\nThis is probably because the value was specified twice in the config. Making that assumption and clamping.");
-                index = 0;
+                attribIndex = 0;
             }
-            if (attribs[index].link)
+            if (attribs[attribIndex].link)
             {
                 if (!isLinkable || !int.TryParse(value.value, out int linkID))
                     return false;
 
-                readLinks.AssignLink(linkID, new ReadFieldList.FieldItem(fieldInfo, attribs[index], host), -1);
+                readLinks.AssignLink(linkID, new ReadFieldList.FieldItem(fieldInfo, attribs[attribIndex], host), -1);
                 if (removeAfterUse)
                     value.name = string.Empty;
 
@@ -259,13 +260,13 @@ namespace KSPCommunityFixes.Modding
             return true;
         }
 
-        public bool Read(ConfigNode node, object host, int index)
+        public bool Read(ConfigNode node, object host, int attribIndex)
         {
-            if (index >= attribs.Length)
+            if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommuntiyFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {index} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                Debug.LogError($"[KSPCommunityFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
                     + "\nThis is probably because the node was specified twice in the config. Making that assumption and clamping.");
-                index = 0;
+                attribIndex = 0;
             }
             int vCount = node._values.values.Count;
             int nCount = node._nodes.nodes.Count;
@@ -288,7 +289,7 @@ namespace KSPCommunityFixes.Modding
             {
                 if (wasNull)
                 {
-                    MonoBehaviour behv = CreateComponent(host, fieldType, attribs[index], node, out bool success);
+                    MonoBehaviour behv = CreateComponent(host, fieldType, attribs[attribIndex], node, out bool success);
                     if (behv == null)
                         return false;
                     fieldInfo.SetValue(host, behv);
@@ -307,7 +308,7 @@ namespace KSPCommunityFixes.Modding
 
             Array arr = null;
             IList list = null;
-            if (attribs[index].link)
+            if (attribs[attribIndex].link)
             {
                 int fieldIndex = 0;
 
@@ -316,7 +317,7 @@ namespace KSPCommunityFixes.Modding
                 {
                     value = node._values.values[i];
 
-                    _readLinks.AssignLink(int.Parse(value.value), new ReadFieldList.FieldItem(fieldInfo, attribs[index], host), fieldIndex++);
+                    _readLinks.AssignLink(int.Parse(value.value), new ReadFieldList.FieldItem(fieldInfo, attribs[attribIndex], host), fieldIndex++);
                 }
 
                 if (dataType == DataType.Array)
@@ -343,7 +344,7 @@ namespace KSPCommunityFixes.Modding
                 return false;
 
             if (arrayType.dataType == DataType.Component)
-                return ReadComponentArray(node, host, index);
+                return ReadComponentArray(node, host, attribIndex);
 
             bool isArr = dataType == DataType.Array;
             bool arrReadSuccess = true;
@@ -390,8 +391,24 @@ namespace KSPCommunityFixes.Modding
             return arrReadSuccess;
         }
 
-        public bool Write(string fieldName, object value, ConfigNode node, int attribIndex, int pass)
+        public bool Write(object value, ConfigNode node, int attribIndex, int pass)
         {
+            Persistent persistent = attribs[attribIndex];
+            if (!persistent.isPersistant || (pass != 0 && persistent.pass != 0 && (persistent.pass & pass) == 0))
+                return true;
+
+            string fieldName = persistentNames[attribIndex];
+            if (persistent.link)
+            {
+                if (!isLinkable)
+                {
+                    Debug.LogWarning("Field: '" + fieldInfo.Name + "' does not reference a PersistentLinkable type");
+                    return false;
+                }
+
+                return WriteValue(fieldName, writeLinks.AssignLink(value), DataType.ValueInt, node);
+            }
+
             if (dataType >= DataType.FirstValueType && dataType <= DataType.LastValueType)
             {
                 return WriteValue(fieldName, value, dataType, node);
@@ -415,7 +432,7 @@ namespace KSPCommunityFixes.Modding
                     string itemName = arrayType.persistentNames[attribIndex] ?? "item";
                     foreach (var item in list)
                     {
-                        arrayType.Write(itemName, item, subNode, attribIndex, pass);
+                        arrayType.Write(item, subNode, attribIndex, pass);
                     }
                     if (subNode.HasData)
                         node._nodes.nodes.Add(subNode);
@@ -424,6 +441,8 @@ namespace KSPCommunityFixes.Modding
                 case DataType.Object:
                 case DataType.Component:
                     PersistentIConfigNode.ConfigNode_WriteObject_Prefix(value, subNode, pass);
+                    if (subNode.HasData)
+                        node._nodes.nodes.Add(subNode);
                     return PersistentIConfigNode.WriteSuccess;
             }
             return false;
@@ -503,7 +522,7 @@ namespace KSPCommunityFixes.Modding
             return child;
         }
 
-        private bool ReadComponentArray(ConfigNode node, object host, int index)
+        private bool ReadComponentArray(ConfigNode node, object host, int attribIndex)
         {
             int nCount = node._nodes.Count;
             List<object> objects = new List<object>();
@@ -513,7 +532,7 @@ namespace KSPCommunityFixes.Modding
             for (int i = 0; i < nCount; ++i)
             {
                 subNode = node.nodes[i];
-                MonoBehaviour child = CreateComponent(host, arrayType.fieldType, attribs[index], subNode, out bool success);
+                MonoBehaviour child = CreateComponent(host, arrayType.fieldType, attribs[attribIndex], subNode, out bool success);
                 if (child == null)
                     continue;
 
@@ -953,26 +972,7 @@ namespace KSPCommunityFixes.Modding
                 int persistentCount = fieldData.attribs.Length;
                 for (int j = 0; j < persistentCount; j++)
                 {
-                    Persistent persistent = fieldData.attribs[j];
-                    if (!persistent.isPersistant || (pass != 0 && persistent.pass != 0 && (persistent.pass & pass) == 0))
-                    {
-                        continue;
-                    }   
-                    
-                    string fieldName = fieldData.persistentNames[j];
-                    if (persistent.link)
-                    {
-                        if (!fieldData.isLinkable)
-                        {
-                            Debug.LogWarning("Field: '" + fieldData.fieldInfo.Name + "' does not reference a PersistentLinkable type");
-                        }
-                        else
-                        {
-                            allSucceeded &= FieldData.WriteValue(fieldName, writeLinks.AssignLink(value), DataType.ValueInt, node);
-                        }
-                        continue;
-                    }
-                    allSucceeded &= fieldData.Write(fieldName, value, node, j, pass);
+                    allSucceeded &= fieldData.Write(value, node, j, pass);
                 }
             }
             return allSucceeded;
@@ -990,7 +990,10 @@ namespace KSPCommunityFixes.Modding
         {
             var tc = new TypeCache(t);
             if (tc._fields.Count == 0)
-                return null;
+            {
+                Debug.LogError($"[KSPCommunityFixes]: No Persistent fields on object of type {t.Name} that is referenced in persistent field, adding as null to TypeCache.");
+                tc = null;
+            }
 
             cache[t] = tc;
             return tc;
