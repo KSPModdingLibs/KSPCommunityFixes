@@ -153,7 +153,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
-##### 1.21.1
+##### 1.22.0
 - new modding patch: ModUpgradePipeline (@NathanKell)
 - Further improve ConfigNode performance (@NathanKell)
 

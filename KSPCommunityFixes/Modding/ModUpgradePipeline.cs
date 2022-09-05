@@ -96,21 +96,12 @@ namespace KSPCommunityFixes.Modding
             var sb = StringBuilderCache.Acquire();
             int aCount = 0;
 
-            // First 
-            HashSet<Assembly> assembliesWithUpgrades = new HashSet<Assembly>();
-            foreach (var asm in AssemblyLoader.loadedAssemblies)
+            foreach (var assembly in AssemblyLoader.loadedAssemblies)
             {
-                if (asm.assembly == _StockAssembly)
+                var asm = assembly.assembly;
+                if (asm == _StockAssembly)
                     continue;
 
-                foreach (var t in asm.assembly.GetTypes())
-                {
-                    if (t.IsSubclassOf(typeof(UpgradeScript)))
-                        assembliesWithUpgrades.Add(asm.assembly);
-                }
-            }
-            foreach (var asm in assembliesWithUpgrades)
-            {
                 var asmV = asm.GetName().Version;
                 int vMajor = asmV.Major;
                 int vMinor = asmV.Minor;
