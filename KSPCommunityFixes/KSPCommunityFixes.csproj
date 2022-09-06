@@ -87,6 +87,7 @@
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
+    <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
   </ItemGroup>
@@ -99,6 +100,7 @@
     <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="BugFixes\StrategyDuration.cs" />
+    <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
