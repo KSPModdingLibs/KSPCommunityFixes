@@ -699,7 +699,7 @@ namespace KSPCommunityFixes.Performance
 #endif
             char[] chars = null;
             int numChars = 0;
-            using (var reader = new StreamReader(path, _UTF8NoBOM, true, 1024 * 1024))
+            using (var reader = new StreamReader(path, Encoding.UTF8, true, 1024 * 1024))
             {
                 FileInfo fi = new FileInfo(path);
                 if (fi.Length > int.MaxValue)
