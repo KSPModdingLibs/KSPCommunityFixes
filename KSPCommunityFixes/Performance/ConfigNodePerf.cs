@@ -33,6 +33,15 @@ namespace KSPCommunityFixes.Performance
         static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
         static bool _doClean = true;
         static bool _AllowSkipIndent = false;
+        // This large-size stringbuilder is used for writing ConfigNodes to string.
+        // Large nodes may cause new stringbuilders to be created, but since we reset
+        // the length after each use, they will get GC'd and only this first 1KB
+        // block will remain. Annoyingly we have to use some reflection to avoid the
+        // 1kb buffer being reallocated when this happens.
+        const int StringBuilderBuffer = 1024;
+        static StringBuilder _stringBuilder = new StringBuilder(StringBuilderBuffer);
+        static readonly System.Reflection.MethodInfo FindChunkForIndex = typeof(StringBuilder).GetMethod("FindChunkForIndex", AccessTools.all);
+        static readonly object[] _StringBuilderIndex0Param = new object[1] { 0 };
 
 #if DEBUG_CONFIGNODE_PERF
         static long _ourTime = 0, _readTime = 0;
@@ -254,16 +263,16 @@ namespace KSPCommunityFixes.Performance
 #if DEBUG_CONFIGNODE_PERF
                 _ourTime = sw.ElapsedMilliseconds;
 #endif
+                bool hasData = __result._nodes.nodes.Count > 0 || __result._values.values.Count > 0;
+                if (hasData && !bypassLocalization && Localizer.Instance != null)
+                {
+                    Localizer.TranslateBranch(__result);
+                }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf: Exception reading file {fileFullName}, using fallback ConfigNode reader. Exception: " + e);
                 __result = LoadFromStringArray(File.ReadAllLines(fileFullName), true);
-            }
-            bool hasData = __result._nodes.nodes.Count > 0 || __result._values.values.Count > 0;
-            if (hasData && !bypassLocalization && Localizer.Instance != null)
-            {
-                Localizer.TranslateBranch(__result);
             }
 #if DEBUG_CONFIGNODE_PERF
             sw.Restart();
@@ -298,7 +307,7 @@ namespace KSPCommunityFixes.Performance
                 switch (ext)
                 {
                     //case ".ConfigCache":
-                    // We can't control this with a setting because CC loads
+                    // We can't control this with a setting because CC loads/saves
                     // before we have access to settings.
 
                     case ".craft":
@@ -364,10 +373,10 @@ namespace KSPCommunityFixes.Performance
                 ConfigNode sub = __instance.nodes[i];
                 if (overwrite)
                 {
-                    node.RemoveNode(sub.name);
+                    node._nodes.RemoveNode(sub.name);
                 }
                 ConfigNode newNode = new ConfigNode(string.Empty); // will be set above when we recurse.
-                node._nodes.Add(newNode);
+                node._nodes.nodes.Add(newNode);
                 ConfigNode_CopyToRecursive_Prefix(sub, newNode, overwrite);
             }
             return false;
@@ -375,13 +384,20 @@ namespace KSPCommunityFixes.Performance
 
         private static bool ConfigNode_ToString_Prefix(ConfigNode __instance, ref string __result)
         {
-            // We could keep a static stringbuilder around to save on allocs
-            // but I worry about that keeping alloc'd memory. As a compromise
-            // let's at least use a big buffer.
-            var sb = new StringBuilder(1024);
-            var sw = new StringWriter(sb);
+            var sw = new StringWriter(_stringBuilder);
             _WriteNodeString(__instance, sw, string.Empty, false);
-            __result = sb.ToString();
+            __result = _stringBuilder.ToString();
+            // Reset for next use
+            if (_stringBuilder.Length > StringBuilderBuffer)
+            {
+                // If we're here, that means there's previous chunks.
+                // So we need to get to the first chunk again. Setting the
+                // field to point to it will detach the other chunks and GC
+                // will collect them.
+                _stringBuilder = FindChunkForIndex.Invoke(_stringBuilder, _StringBuilderIndex0Param) as StringBuilder;
+            }
+            _stringBuilder.Length = 0;
+            
             return false;
         }
 
@@ -731,7 +747,6 @@ namespace KSPCommunityFixes.Performance
             int pos = 0;
             string savedName = string.Empty;
             ParseMode mode = ParseMode.SkipToKey;
-            savedName = string.Empty;
             _nodeStack.Push(node);
 
 
