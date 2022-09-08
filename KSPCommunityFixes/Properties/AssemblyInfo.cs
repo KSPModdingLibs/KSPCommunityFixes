@@ -31,3 +31,5 @@ using System.Runtime.InteropServices;
 //
 [assembly: AssemblyVersion("1.22.0.0")]
 [assembly: AssemblyFileVersion("1.22.0.0")]
+
+[assembly: KSPAssembly("KSPCommunityFixes", 1, 22, 0)]
