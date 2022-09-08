@@ -171,10 +171,13 @@ namespace KSPCommunityFixes.Modding
 
         private static void AddVersions(ConfigNode node, LoadContext loadContext)
         {
-            if(loadContext == LoadContext.SFS)
+            var oldDoClean = Performance.ConfigNodePerf._doClean;
+            Performance.ConfigNodePerf._doClean = false;
+            if (loadContext == LoadContext.SFS)
                 node.GetNode("GAME").SetValue("_modVersions", _versionString, true);
             else
                 node.SetValue("_modVersions", _versionString, true);
+            Performance.ConfigNodePerf._doClean = oldDoClean;
         }
 
         private static void ShipConstruct_SaveShip_Postfix(ref ConfigNode __result)

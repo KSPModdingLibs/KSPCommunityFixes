@@ -31,8 +31,8 @@ namespace KSPCommunityFixes.Performance
         static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
         static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
-        static bool _doClean = true;
-        static bool _AllowSkipIndent = false;
+        public static bool _doClean = true; // so it is accessible from ModUpgradePipeline
+        public static bool _AllowSkipIndent = false; // so it is accessible from other things if needed
         // This large-size stringbuilder is used for writing ConfigNodes to string.
         // Large nodes may cause new stringbuilders to be created, but since we reset
         // the length after each use, they will get GC'd and only this first 1KB
@@ -100,6 +100,11 @@ namespace KSPCommunityFixes.Performance
 
             harmony.Patch(
                 AccessTools.Method(typeof(Game), nameof(Game.Updated)),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetNoClean))),
+                new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetDoClean))));
+
+            harmony.Patch(
+                AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.SaveShip)),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetNoClean))),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetDoClean))));
         }
@@ -409,6 +414,10 @@ namespace KSPCommunityFixes.Performance
 #endif
             if (sanitizeName)
             {
+                // We could skip if _doClean is false
+                // but this should be quite fast, and we don't want to chance
+                // a mod author writing a broken name by mistake and breaking things.
+
                 if (__instance.name == null)
                     return false;
 
@@ -433,6 +442,8 @@ namespace KSPCommunityFixes.Performance
                     }
                     if (sanitize)
                     {
+                        // We could maybe fix in place, but this might be a const string
+                        // and we don't want to risk it.
                         result = new string(' ', len);
                         fixed (char* pszNewStr = result)
                         {
@@ -478,6 +489,8 @@ namespace KSPCommunityFixes.Performance
                     }
                     if (sanitize)
                     {
+                        // We could maybe fix in place, but this might be a const string
+                        // and we don't want to risk it.
                         result = new string(' ', len);
                         fixed (char* pszNewStr = result)
                         {
