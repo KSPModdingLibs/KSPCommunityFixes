@@ -103,7 +103,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) [KSP 1.12.0 - 1.12.3]<br/>Disabled by default, you can enable it with a MM patch. Prevent full CommNet network updates from happening every frame, but instead to happen at a regular real-world time interval of 5 seconds while in flight. Enabling this can provide a decent performance uplift in games having an large amount of celestial bodies and/or vessels, but has a detrimental impact on the precision of the simulation and can potentially cause issues with mods relying on the stock behavior.
 - [**AsteroidAndCometDrillCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67) [KSP 1.12.3]<br/>Reduce constant overhead of ModuleAsteroidDrill and ModuleCometDrill by using the cached asteroid/comet part lookup results from ModuleResourceHarvester. Improves performance with large part count vessels having at least one drill part.
 - [**FewerSaves**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/80) [KSP 1.8.0 - KSP 1.12.3]<br/>Disables saving on exiting Space Center minor buildings (Mission Control etc) and when deleting vessels in Tracking Station. Disabled by default.
-- [**ConfigNodePerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/88) [KSP 1.8.0 - KSP 1.12.3]<br/>Speeds up loading and saving of ConfigNodes, allows skipping processing on certain known-good keys (like Principia's serialized data).
+- [**ConfigNodePerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/88) [see also](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/90) [KSP 1.8.0 - KSP 1.12.3]<br/>Speeds up many ConfigNode methods, especially reading and writing ConfigNodes.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.3]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -155,7 +155,8 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.22.0
 - New modding patch : [ModUpgradePipeline](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/91) (@NathanKell)
-- Further improve ConfigNode performance (@NathanKell)
+- Further improve ConfigNode performance. The tunable settings blocks have been removed since base performance is high enough now. They've been replaced by a single setting that enables not indenting save games and craft files on save, which offers a slight performance boost reading and writing and a fair amount of savings on disk. See https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/90 for full details (@NathanKell)
+- Add a KSPAssembly attribute to the dll.
 
 ##### 1.21.0
 - New performance / KSP bugfix patch : [PQSCoroutineLeak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) (issue discovered by @Gameslinx)
