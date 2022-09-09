@@ -153,6 +153,11 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.22.1
+- Add KSPAssembly attribute to MultipleModulePartAPI as well, and add the KSPAssemblyDependency to KSPCommunityFixes just in case.
+- Set AssemblyVersion to 1.0 and only increment AssemblyFileVersion and KSPAssembly
+- Refactor FieldData.WriteValue for ease in use by other mods.
+
 ##### 1.22.0
 - New modding patch : [ModUpgradePipeline](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/91) (@NathanKell)
 - Further improve ConfigNode performance. The tunable settings blocks have been removed since base performance is high enough now. They've been replaced by a single setting that enables not indenting save games and craft files on save, which offers a slight performance boost reading and writing and a fair amount of savings on disk. See https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/90 for full details. Note that some of this rewrite is done via PersistentIConfigNode. (@NathanKell)

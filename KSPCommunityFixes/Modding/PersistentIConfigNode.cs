@@ -655,85 +655,70 @@ namespace KSPCommunityFixes.Modding
 
         public static bool WriteValue(string fieldName, object value, DataType dataType, ConfigNode node)
         {
+            string v = WriteValue(value, dataType);
+            if (v == null)
+                return false;
+
+            node._values.values.Add(new Value(fieldName, v));
+            return true;
+        }
+
+        public static string WriteValue(object value, DataType dataType)
+        {
             switch (dataType)
             {
                 case DataType.ValueString:
-                    node._values.values.Add(new Value(fieldName, (string)value));
-                    return true;
+                    return (string)value;
                 case DataType.ValueGuid:
-                    node._values.values.Add(new Value(fieldName, ((Guid)value).ToString()));
-                    return true;
+                    return ((Guid)value).ToString();
                 case DataType.ValueBool:
-                    node._values.values.Add(new Value(fieldName, ((bool)value).ToString(_Invariant)));
-                    return true;
+                    return ((bool)value).ToString(_Invariant);
                 case DataType.ValueDouble:
-                    node._values.values.Add(new Value(fieldName, ((double)value).ToString("G17")));
-                    return true;
+                    return ((double)value).ToString("G17");
                 case DataType.ValueFloat:
-                    node._values.values.Add(new Value(fieldName, ((float)value).ToString("G9")));
-                    return true;
+                    return ((float)value).ToString("G9");
                 case DataType.ValueDecimal:
-                    node._values.values.Add(new Value(fieldName, ((decimal)value).ToString(_Invariant)));
-                    return true;
+                    return ((decimal)value).ToString(_Invariant);
                 case DataType.ValueInt:
-                    node._values.values.Add(new Value(fieldName, ((int)value).ToString(_Invariant)));
-                    return true;
+                    return ((int)value).ToString(_Invariant);
                 case DataType.ValueUInt:
-                    node._values.values.Add(new Value(fieldName, ((uint)value).ToString(_Invariant)));
-                    return true;
+                    return ((uint)value).ToString(_Invariant);
                 case DataType.ValueChar:
-                    node._values.values.Add(new Value(fieldName, ((char)value).ToString(_Invariant)));
-                    return true;
+                    return ((char)value).ToString(_Invariant);
                 case DataType.ValueShort:
-                    node._values.values.Add(new Value(fieldName, ((short)value).ToString(_Invariant)));
-                    return true;
+                    return ((short)value).ToString(_Invariant);
                 case DataType.ValueUShort:
-                    node._values.values.Add(new Value(fieldName, ((ushort)value).ToString(_Invariant)));
-                    return true;
+                    return ((ushort)value).ToString(_Invariant);
                 case DataType.ValueLong:
-                    node._values.values.Add(new Value(fieldName, ((long)value).ToString(_Invariant)));
-                    return true;
+                    return ((long)value).ToString(_Invariant);
                 case DataType.ValueULong:
-                    node._values.values.Add(new Value(fieldName, ((ulong)value).ToString(_Invariant)));
-                    return true;
+                    return ((ulong)value).ToString(_Invariant);
                 case DataType.ValueByte:
-                    node._values.values.Add(new Value(fieldName, ((byte)value).ToString(_Invariant)));
-                    return true;
+                    return ((byte)value).ToString(_Invariant);
                 case DataType.ValueSByte:
-                    node._values.values.Add(new Value(fieldName, ((sbyte)value).ToString(_Invariant)));
-                    return true;
+                    return ((sbyte)value).ToString(_Invariant);
                 case DataType.ValueEnum:
-                    node._values.values.Add(new Value(fieldName, ((System.Enum)value).ToString()));
-                    return true;
+                    return ((System.Enum)value).ToString();
                 case DataType.ValueVector2:
-                    node._values.values.Add(new Value(fieldName, WriteVector((Vector2)value)));
-                    return true;
+                    return WriteVector((Vector2)value);
                 case DataType.ValueVector3:
-                    node._values.values.Add(new Value(fieldName, WriteVector((Vector3)value)));
-                    return true;
+                    return WriteVector((Vector3)value);
                 case DataType.ValueVector3d:
-                    node._values.values.Add(new Value(fieldName, WriteVector((Vector3)value)));
-                    return true;
+                    return WriteVector((Vector3)value);
                 case DataType.ValueVector4:
-                    node._values.values.Add(new Value(fieldName, WriteVector((Vector4)value)));
-                    return true;
+                    return WriteVector((Vector4)value);
                 case DataType.ValueQuaternion:
-                    node._values.values.Add(new Value(fieldName, WriteQuaternion((Quaternion)value)));
-                    return true;
+                    return WriteQuaternion((Quaternion)value);
                 case DataType.ValueQuaternionD:
-                    node._values.values.Add(new Value(fieldName, WriteQuaternion((QuaternionD)value)));
-                    return true;
+                    return WriteQuaternion((QuaternionD)value);
                 case DataType.ValueMatrix4x4:
-                    node._values.values.Add(new Value(fieldName, WriteMatrix4x4((Matrix4x4)value)));
-                    return true;
+                    return WriteMatrix4x4((Matrix4x4)value);
                 case DataType.ValueColor:
-                    node._values.values.Add(new Value(fieldName, WriteColor((Color)value)));
-                    return true;
+                    return WriteColor((Color)value);
                 case DataType.ValueColor32:
-                    node._values.values.Add(new Value(fieldName, WriteColor((Color32)value)));
-                    return true;
+                    return WriteColor((Color32)value);
             }
-            return false;
+            return null;
         }
 
         public static DataType ValueDataType(Type fieldType)

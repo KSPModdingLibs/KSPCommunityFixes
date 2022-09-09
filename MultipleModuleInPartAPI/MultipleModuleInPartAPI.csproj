@@ -49,6 +49,10 @@
       <Name>System.Core (KSP/Mono)</Name>
       <Private>False</Private>
     </Reference>
+    <Reference Include="$(ManagedPath)\Assembly-CSharp.dll">
+      <Name>Assembly-CSharp</Name>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IMultipleModuleInPart.cs" />
