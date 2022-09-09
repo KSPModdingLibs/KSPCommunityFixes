@@ -347,8 +347,10 @@
       <Using Namespace="System.Text.RegularExpressions" />
       <Code Type="Fragment" Language="cs"><![CDATA[
             string content = File.ReadAllText(Path);
-            string newContent = Regex.Replace(content, "AssemblyVersion\\(\\\"(.*)\\\"\\)", "AssemblyVersion(\"" + Version + "\")");
-            newContent = Regex.Replace(newContent, "AssemblyFileVersion\\(\\\"(.*)\\\"\\)", "AssemblyFileVersion(\"" + Version + "\")");
+            string newContent = Regex.Replace(content, "AssemblyFileVersion\\(\\\"(.*)\\\"\\)", "AssemblyFileVersion(\"" + Version + "\")");
+			string v2 = Version.Replace(".", ", ");
+			v2 = ", " + v2.Remove(v2.LastIndexOf(','));
+            newContent = Regex.Replace(newContent, "KSPAssembly\\(\\\"KSPCommunityFixes\\\"(.*)\\)", "KSPAssembly(\"KSPCommunityFixes\"" + v2 + ")");
             if (content != newContent)
                 File.WriteAllText(Path, newContent);
 ]]></Code>
