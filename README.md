@@ -174,6 +174,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - Fix stock bug in SaveUpgradePipeline exposed by ModUpgradePipeline: the stock SaveUpgradePipeline blows up if an UpgradeScript does not apply to both sfs and craft contexts.
 
 ##### 1.22.1
+- Fix stock bug in SaveUpgradePipeline exposed by ModUpgradePipeline: the stock SaveUpgradePipeline blows up if an UpgradeScript does not apply to both sfs and craft contexts.
+
+##### 1.22.1
 - Add KSPAssembly attribute to MultipleModulePartAPI as well, and add the KSPAssemblyDependency to KSPCommunityFixes just in case.
 - Set AssemblyVersion to 1.0 and only increment AssemblyFileVersion and KSPAssembly
 - Refactor FieldData.WriteValue for ease in use by other mods.
