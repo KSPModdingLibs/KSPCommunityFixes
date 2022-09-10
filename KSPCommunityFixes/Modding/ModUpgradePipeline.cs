@@ -287,8 +287,11 @@ namespace KSPCommunityFixes.Modding
             ConfigNode curNode = node ?? srcNode;
             for(int i = scripts.Count; i-- > 0;)
             {
-                // Change: set assembly so VersionTest will use the right version
+                // Change: skip if doesn't apply in this context.
                 var uSc = scripts[i];
+                if (!uSc.AppliesInContext(ctx))
+                    continue;
+                // Change: set assembly so VersionTest will use the right version
                 SetAssembly(uSc);
                 var testResult = __instance.RunTest(uSc, curNode, ctx);
                 _currentAsm = null;
@@ -317,17 +320,21 @@ namespace KSPCommunityFixes.Modding
             }
             for(int i = scripts.Count; i-- > 0;)
             {
-                if (row[scripts[i]].testResult == TestResult.Upgradeable)
+                // Change: skip if doesn't apply in this context.
+                var uSc = scripts[i];
+                if (!uSc.AppliesInContext(ctx))
+                    continue;
+
+                if (row[uSc].testResult == TestResult.Upgradeable)
                 {
-                    if (lastRow != null && lastRow[scripts[i]].upgraded)
+                    if (lastRow != null && lastRow[uSc].upgraded)
                     {
-                        row[scripts[i]].testResult = TestResult.Pass;
-                        row[scripts[i]].upgraded = true;
+                        row[uSc].testResult = TestResult.Pass;
+                        row[uSc].upgraded = true;
                     }
                     else
                     {
                         // Change: Set assembly just in case (not used yet)
-                        var uSc = scripts[i];
                         SetAssembly(uSc);
                         node = __instance.RunUpgrade(uSc, node, ctx);
                         _currentAsm = null;
