@@ -10,6 +10,8 @@ namespace KSPCommunityFixes.BugFixes
 {
     public class RestoreMaxPhysicsDT : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
