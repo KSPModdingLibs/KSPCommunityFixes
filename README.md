@@ -155,7 +155,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.23.0
-- New performance / KSP bufix patch : [RestoreMaxPhysicsDT](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/95) (contributed by @JonnyOThan)
+- New performance / KSP bufix patch : [RestoreMaxPhysicsDT](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/95) (contributed by @JonnyOThan).
+- Fix typo in Strategy's SendStateMessage where bold was not disabled after title (as part of StrategyDuration fix, since that is the only place it would be used in stock KSP).
+- Added Chinese localization (contributed by @tinygrox).
 
 ##### 1.22.2
 - Fix stock bug in SaveUpgradePipeline exposed by ModUpgradePipeline: the stock SaveUpgradePipeline blows up if an UpgradeScript does not apply to both sfs and craft contexts.
