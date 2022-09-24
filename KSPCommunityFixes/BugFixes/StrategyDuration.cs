@@ -26,6 +26,11 @@ namespace KSPCommunityFixes.BugFixes
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Strategy), nameof(Strategy.CanBeDeactivated)),
                 this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(Strategy), nameof(Strategy.SendStateMessage)),
+                this));
         }
 
         static bool Strategy_LongestDuration(Strategy __instance, ref double __result)
@@ -40,7 +45,7 @@ namespace KSPCommunityFixes.BugFixes
             return false;
         }
 
-        internal static IEnumerable<CodeInstruction> Strategy_CanBeDeactivated_Transpiler(IEnumerable<CodeInstruction> instructions)
+        static IEnumerable<CodeInstruction> Strategy_CanBeDeactivated_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
             for (int i = 9; i < code.Count; ++i)
@@ -50,6 +55,22 @@ namespace KSPCommunityFixes.BugFixes
                 if (code[i].opcode == OpCodes.Bge_Un_S)
                 {
                     code[i].opcode = OpCodes.Ble_Un_S;
+                    break;
+                }
+            }
+
+            return code;
+        }
+
+        // Fix a Squad typo where </> was used instead of </b>
+        static IEnumerable<CodeInstruction> Strategy_SendStateMessage_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            for (int i = 0; i < code.Count; ++i)
+            {
+                if (code[i].opcode == OpCodes.Ldstr && (code[i].operand as string) == "</>\n\n")
+                {
+                    code[i].operand = "</b>\n\n";
                     break;
                 }
             }
