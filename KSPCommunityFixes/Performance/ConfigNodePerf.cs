@@ -915,8 +915,16 @@ namespace KSPCommunityFixes.Performance
                                 }
                             }
                             mode = ParseMode.SkipToKey;
-                            if (_nodeStack.Count > 1) // check for excess }
+                            // If we are in a subnode, close it and go to parent
+                            if (_nodeStack.Count > 1)
+                            {
                                 _nodeStack.Pop();
+                            }
+                            else
+                            {
+                                // Otherwise do what stock does when encountering this typo: stop processing.
+                                break;
+                            }
                             start = pos + 1;
                             lastNonWS = pos;
                             lastNonWSNonSlash = lastNonWS;

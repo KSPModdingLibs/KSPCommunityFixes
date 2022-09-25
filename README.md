@@ -157,6 +157,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ##### 1.23.0
 - New performance / KSP bufix patch : [RestoreMaxPhysicsDT](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/95) (contributed by @JonnyOThan).
 - Fix typo in Strategy's SendStateMessage where bold was not disabled after title (as part of StrategyDuration fix, since that is the only place it would be used in stock KSP).
+- Fix bug in ConfigNodePerf where it did not properly early-out of parsing if the cfg file had an extraneous } (stock parser aborts in that case).
 - Added Chinese localization (contributed by @tinygrox).
 
 ##### 1.22.2
