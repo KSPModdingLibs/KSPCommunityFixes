@@ -99,7 +99,7 @@ namespace KSPCommunityFixes.Performance
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.ConfigNodeValueList_Add_Prefix))));
 
             harmony.Patch(
-                AccessTools.Method(typeof(Game), nameof(Game.Updated)),
+                AccessTools.Method(typeof(Game), nameof(Game.Updated), Type.EmptyTypes),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetNoClean))),
                 new HarmonyMethod(AccessTools.Method(typeof(ConfigNodePerf), nameof(ConfigNodePerf.SetDoClean))));
 
