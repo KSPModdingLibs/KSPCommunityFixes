@@ -23,7 +23,7 @@ Compatible with **KSP 1.8.0** to **1.12.4** - Available on [CKAN]
 
 ### Features
 
-Individual patches can be enabled or disabled by editing (or MM patching) the `Settings.cfg` file. 
+Individual patches can be enabled or disabled by editing the `Settings.cfg` file. To make sure your changes persist when the mod is updated, it is recommended to make them in a ModuleManager patch. Open the `Extras\KSPCF_UserSettings.cfg.extra` file in a text editor for further instructions.
 
 While all KSP versions from 1.8.0 to 1.12.4 are supported, using the latest one (1.12.4) is highly recommended, as many patches only apply to the most recent KSP versions. When a bug fix patch doesn't apply to an older KSP version, this **doesn't** mean those bugs don't exist there.
 
