@@ -12,6 +12,7 @@ namespace KSPCommunityFixes
         private static MethodInfo AppUIMember_SetValue;
 
         protected override Version VersionMin => new Version(1, 12, 0);
+        protected override Version VersionMax => new Version(1, 12, 3); // bug fixed in KSP 1.12.4
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
