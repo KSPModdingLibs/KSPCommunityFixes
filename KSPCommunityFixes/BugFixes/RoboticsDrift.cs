@@ -10,7 +10,7 @@ namespace KSPCommunityFixes.BugFixes
 {
     public class RoboticsDrift : BasePatch
     {
-        protected override Version VersionMin => new Version(1, 8, 0);
+        protected override Version VersionMin => new Version(1, 12, 0);
 
         protected override bool CanApplyPatch(out string reason)
         {
