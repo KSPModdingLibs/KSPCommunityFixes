@@ -96,10 +96,10 @@ namespace KSPCommunityFixes
                     userOptInChoiceDone = false;
             }
 
-#if DEBUG
+
             userOptInChoiceDone = true;
             textureCacheEnabled = false;
-#endif
+
 
             if (userOptInChoiceDone)
             {
@@ -485,7 +485,7 @@ namespace KSPCommunityFixes
 
             normal.SetPixelData(swizzledData, 0);
 
-                if (normal.width % 4 == 0 && normal.height % 4 == 0)
+            if (normal.width % 4 == 0 && normal.height % 4 == 0)
             {
                 normal.Apply(true, false);
                 normal.Compress(false);

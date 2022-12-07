@@ -365,8 +365,8 @@ namespace KSPCommunityFixes.Performance
                 GC.Collect();
             }
 
-            string heapAlloc = Utils.HumanReadableBytes(Profiler.GetMonoUsedSizeLong());
-            string unityAlloc = Utils.HumanReadableBytes(Profiler.GetTotalAllocatedMemoryLong());
+            string heapAlloc = StaticHelpers.HumanReadableBytes(Profiler.GetMonoUsedSizeLong());
+            string unityAlloc = StaticHelpers.HumanReadableBytes(Profiler.GetTotalAllocatedMemoryLong());
             watch.Stop();
 
             Debug.Log($"[KSPCF:MemoryLeaks] Leaving scene \"{currentScene}\", cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
