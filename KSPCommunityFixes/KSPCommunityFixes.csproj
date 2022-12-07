@@ -102,6 +102,8 @@
     <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="BugFixes\StrategyDuration.cs" />
+    <Compile Include="Library\Collections\Deque.cs" />
+    <Compile Include="Library\LocalizationUtils.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
@@ -167,7 +169,12 @@
     <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
     <Compile Include="QoL\PAWStockGroups.cs" />
     <Compile Include="QoL\UIFloatEditNumericInput.cs" />
-    <Compile Include="Utility.cs" />
+    <Compile Include="Library\System.Buffers\ArrayPool.cs" />
+    <Compile Include="Library\System.Buffers\ArrayPoolEventSource.cs" />
+    <Compile Include="Library\System.Buffers\DefaultArrayPool.cs" />
+    <Compile Include="Library\System.Buffers\Utilities.cs" />
+    <Compile Include="Library\UnityObjectExtensions.cs" />
+    <Compile Include="Library\StaticHelpers.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MultipleModuleInPartAPI\MultipleModuleInPartAPI.csproj">
@@ -178,6 +185,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <!--Project-specfic configuration-->
   <PropertyGroup>
     <RepoRootPath>$(SolutionDir)</RepoRootPath>
