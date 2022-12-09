@@ -14,7 +14,7 @@ namespace KSPCommunityFixes
 
         public static string LOC_KSPCF_Title = "KSP Community Fixes";
 
-        public static Version KspVersion { get; private set; }
+
         public static Harmony Harmony { get; private set; }
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
@@ -33,6 +33,18 @@ namespace KSPCommunityFixes
                     modPath = Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
 
                 return modPath;
+            }
+        }
+
+        private static Version kspVersion;
+        public static Version KspVersion
+        {
+            get
+            {
+                if (kspVersion == null)
+                    kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
+
+                return kspVersion;
             }
         }
 
@@ -58,7 +70,6 @@ namespace KSPCommunityFixes
                 DontDestroyOnLoad(this);
             }
 
-            KspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Harmony = new Harmony("KSPCommunityFixes");
 
 #if DEBUG

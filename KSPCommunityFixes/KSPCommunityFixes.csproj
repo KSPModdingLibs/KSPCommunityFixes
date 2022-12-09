@@ -110,7 +110,7 @@
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
-    <Compile Include="Performance\FPSUnlockedLoading.cs" />
+    <Compile Include="Performance\FastLoader.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />

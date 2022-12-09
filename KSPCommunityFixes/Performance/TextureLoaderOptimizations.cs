@@ -61,16 +61,18 @@ namespace KSPCommunityFixes
             // We rely on Texture2D.SetPixelData(), which doesn't exists before Unity 2019.4, so we only support KSP 1.12
             Version kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
             Version minVersion = new Version(1, 10, 0);
+            Version maxVersion = new Version(1, 12, 0);
             Version unity2019_4Version = new Version(1, 12, 0);
 
-            IsPatchEnabled = kspVersion >= minVersion;
-            isSetPixelDataSupported = kspVersion >= unity2019_4Version;
+            IsPatchEnabled = kspVersion >= minVersion && kspVersion < maxVersion;
 
             if (!IsPatchEnabled)
             {
                 Destroy(this);
                 return;
             }
+
+            isSetPixelDataSupported = kspVersion >= unity2019_4Version;
 
             instance = this;
 
