@@ -2,7 +2,6 @@
 using HarmonyLib;
 using KSPCommunityFixes.Library.Collections;
 using KSPCommunityFixes.Library.Buffers;
-using SoftMasking;
 using System;
 using System.Buffers.Binary;
 using System.Collections;
@@ -19,103 +18,79 @@ using UnityEngine.Networking;
 using static GameDatabase;
 using static UrlDir;
 using Debug = UnityEngine.Debug;
-
-// TODO :
-// - unpatch when finished
+using KSPAchievements;
+using static ConfigNode;
 
 namespace KSPCommunityFixes.Performance
 {
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    class FPSUnlockedLoading : MonoBehaviour
+    class FastLoader : MonoBehaviour
     {
-        private const float minFrameTime = 1f / 30f;
-        private const double minFrameTimeD = 1.0 / 30.0;
+        // approximate max FPS during asset loading and part parsing
+        private const int maxFPS = 30; 
+        private const float minFrameTime = 1f / maxFPS;
+        private const double minFrameTimeD = 1.0 / maxFPS;
+
+        // max size of in-memory disk reads, can and will be exceeded
         private const int maxBufferSize = 1024 * 1024 * 50; // 50MB
+        // min amount of files to try to keep in memory, regardless of maxBufferSize
+        private const int minFileRead = 10;
 
         private static Harmony harmony;
+        private static string HarmonyID => typeof(FastLoader).FullName;
 
         void Awake()
         {
-            harmony = new Harmony(nameof(FPSUnlockedLoading));
+            if (KSPCommunityFixes.KspVersion < new Version(1, 12, 0))
+            {
+                Debug.Log("[KSPCF] FastLoader patch not applied, requires KSP 1.12+");
+                return;
+            }
+            else
+            {
+                Debug.Log("[KSPCF] Injecting FastLoader...");
+            }
+                
+            harmony = new Harmony(HarmonyID);
 
             MethodInfo m_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.SetupMainLoaders));
-            MethodInfo t_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(GameDatabase_SetupMainLoaders_Prefix));
+            MethodInfo t_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(FastLoader), nameof(GameDatabase_SetupMainLoaders_Prefix));
             harmony.Patch(m_GameDatabase_SetupMainLoaders, new HarmonyMethod(t_GameDatabase_SetupMainLoaders));
 
             MethodInfo m_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.LoadAssetBundleObjects)));
-            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
+            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(FastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
             harmony.Patch(m_GameDatabase_LoadAssetBundleObjects_MoveNext, new HarmonyMethod(t_GameDatabase_LoadAssetBundleObjects_MoveNext));
 
             MethodInfo m_PartLoader_StartLoad = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.StartLoad));
-            MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(PartLoader_StartLoad_Transpiler));
+            MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(FastLoader), nameof(PartLoader_StartLoad_Transpiler));
             harmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
 
-            PatchStartCoroutineInEnumerator(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
-            PatchStartCoroutineInEnumerator(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
-            PatchStartCoroutineInEnumerator(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
+            PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
+            PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
+            PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
         }
 
-        static void PatchStartCoroutineInEnumerator(MethodInfo enumerator)
+        /// <summary>
+        /// Remove all harmony patches. Avoid breaking stock gamedatabase reload feature and runtime drag cube generation
+        /// </summary>
+        static void Unpatch()
         {
-            MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(StartCoroutinePassThroughTranspiler));
-            harmony.Patch(AccessTools.EnumeratorMoveNext(enumerator), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
+            harmony.UnpatchAll(HarmonyID);
+            harmony = null;
         }
 
-        static IEnumerable<CodeInstruction> StartCoroutinePassThroughTranspiler(IEnumerable<CodeInstruction> instructions)
-        {
-            MethodInfo m_StartCoroutine = AccessTools.Method(typeof(MonoBehaviour), nameof(MonoBehaviour.StartCoroutine), new[] {typeof(IEnumerator)});
-            MethodInfo m_StartCoroutinePassThrough = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(StartCoroutinePassThrough));
+        #region Asset loader reimplementation (patches)
 
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+        static bool loadObjectsInProgress = false;
 
-            for (int i = 0; i < code.Count; i++)
-            {
-                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, m_StartCoroutine))
-                {
-                    code[i].operand = m_StartCoroutinePassThrough;
-                }
-            }
-
-            return code;
-        }
-
-        static object StartCoroutinePassThrough(object instance, IEnumerator enumerator)
-        {
-            return enumerator;
-        }
-
-        static IEnumerable<CodeInstruction> PartLoader_StartLoad_Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            MethodInfo m_PartLoader_CompileAll = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileAll));
-            MethodInfo m_PartLoader_CompileAll_Modded = AccessTools.Method(typeof(FPSUnlockedLoading), nameof(PartLoader_CompileAll));
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-
-            bool valid = false;
-
-            for (int i = 0; i < code.Count; i++)
-            {
-                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, m_PartLoader_CompileAll))
-                {
-                    code[i].operand = m_PartLoader_CompileAll_Modded;
-                    for (int j = i - 1; j >= i - 4; j--)
-                    {
-                        if (code[j].opcode == OpCodes.Ldarg_0 && code[j - 1].opcode == OpCodes.Ldarg_0)
-                        {
-                            code[j].opcode = OpCodes.Nop;
-                            valid = true;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (!valid)
-                throw new Exception("PartLoader_StartLoad_Transpiler : transpiler patch failed");
-
-            return code;
-        }
-
+        /// <summary>
+        /// This is our entry point in the GameDatabase loader (GameDatabase.LoadObjects()). It can't be patched directly because at the earliest point 
+        /// we are capable of running code, we are already in that coroutine. So the strategy is to rewrite everything called after SetupMainLoaders()
+        /// in a separate coroutine (FastAssetLoader) that we start before purposedly crashing GameDatabase.LoadObjects(). Doing so will cause the parent
+        /// coroutine (GameDatabase.CreateDatabase()) to move on to the next loader coroutine (LoadAssetBundleObjects()). To prevent that coroutine (and 
+        /// the rest of the loading process) from running immediately, we patch it so it wait for a flag (loadObjectsInProgress) to become false, which
+        /// is done at the end of our FastAssetLoader coroutine. Now read that again, slowly.
+        /// </summary>
         static void GameDatabase_SetupMainLoaders_Prefix()
         {
             GameDatabase gdb = GameDatabase.Instance;
@@ -130,7 +105,7 @@ namespace KSPCommunityFixes.Performance
                 if (assembly.assembly.GetName().Name == "Assembly-CSharp")
                     continue;
 
-                foreach (Type t in assembly.assembly.GetTypesSafe())
+                foreach (Type t in AccessTools.GetTypesFromAssembly(assembly.assembly))
                 {
                     if (t.IsSubclassOf(typeof(DatabaseLoader<AudioClip>)))
                     {
@@ -187,13 +162,45 @@ namespace KSPCommunityFixes.Performance
             throw new Exception("Terminating stock loader coroutine");
         }
 
-        static bool loadObjectsInProgress = false;
+        static FieldInfo f_LoadAssetBundleObjects_Current;
 
         /// <summary>
-        /// Faster and more precise than Time.realtimeSinceStartup, result is in seconds.
+        /// Wait for our FastAssetLoader() coroutine to finish before proceeding to the rest of the loading process
+        /// </summary>
+        static bool GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix(object __instance, ref bool __result)
+        {
+            if (loadObjectsInProgress)
+            {
+                if (f_LoadAssetBundleObjects_Current == null)
+                    f_LoadAssetBundleObjects_Current = AccessTools.GetDeclaredFields(__instance.GetType()).First(p => p.Name.Contains("current"));
+
+                f_LoadAssetBundleObjects_Current.SetValue(__instance, null);
+                __result = true;
+                return false;
+            }
+
+            return true;
+        }
+
+        #endregion
+
+        #region Asset loader reimplementation (main coroutine)
+
+        /// <summary>
+        /// Faster than Time.realtimeSinceStartup, result is in seconds.
         /// </summary>
         static double ElapsedTime => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
+        static int totalAssetCount;
+        static int loadedAssetCount;
+
+        /// <summary>
+        /// Custom partial reimplementation of the stock GameDatabase.LoadObjects() coroutine
+        /// - Concurrent audio assets loading
+        /// - Threaded disk reads for textures/models
+        /// - Partial reimplementation of the stock texture/model loaders
+        /// - Framerate decoupling
+        /// </summary>
         static IEnumerator FastAssetLoader(List<ConfigFileType> configFileTypes)
         {
             GameDatabase gdb = GameDatabase.Instance;
@@ -235,6 +242,7 @@ namespace KSPCommunityFixes.Performance
                     if (file == null)
                         continue;
 
+                    totalAssetCount++;
                     switch (file.fileType)
                     {
                         case FileType.Audio:
@@ -301,7 +309,6 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            gdb.progressFraction = 0.05f;
             gdb.progressTitle = $"Loading sound assets...";
             yield return null;
 
@@ -334,6 +341,8 @@ namespace KSPCommunityFixes.Performance
                                 gdb.databaseAudio.Add(loader.obj);
                                 gdb.databaseAudioFiles.Add(file);
                                 allAudioFiles.Add(file.url);
+                                loadedAssetCount++;
+                                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                             }
                             break;
                         }
@@ -348,7 +357,7 @@ namespace KSPCommunityFixes.Performance
 
             while (j < audioFilesCount)
             {
-                if (concurrentCoroutines < maxConcurrentCoroutines)
+                if (concurrentAudioCoroutines < maxConcurrentCoroutines)
                 {
                     UrlFile file = audioFiles[j];
 
@@ -366,6 +375,7 @@ namespace KSPCommunityFixes.Performance
                 else if (ElapsedTime > nextFrameTime)
                 {
                     nextFrameTime = ElapsedTime + minFrameTimeD;
+                    gdb.progressFraction = (float)(loadedAssetCount + audioFilesLoaded) / totalAssetCount;
                     gdb.progressTitle = $"Loading sound asset {audioFilesLoaded}/{audioFilesCount}";
                     yield return null;
                 }
@@ -373,9 +383,12 @@ namespace KSPCommunityFixes.Performance
 
             while (audioFilesLoaded < audioFilesCount)
             {
+                gdb.progressFraction = (float)(loadedAssetCount + audioFilesLoaded) / totalAssetCount;
                 gdb.progressTitle = $"Loading sound asset {audioFilesLoaded}/{audioFilesCount}";
                 yield return null;
             }
+
+            loadedAssetCount += audioFilesLoaded;
 
             // initialize array pool
             arrayPool = ArrayPool<byte>.Create(1024 * 1024 * 20, 50);
@@ -414,6 +427,8 @@ namespace KSPCommunityFixes.Performance
                                 loader.obj.texture.name = file.url;
                                 gdb.databaseTexture.Add(loader.obj);
                                 allTextureFiles.Add(file.url);
+                                loadedAssetCount++;
+                                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                             }
                             break;
                         }
@@ -463,6 +478,8 @@ namespace KSPCommunityFixes.Performance
                                 gdb.databaseModel.Add(obj);
                                 gdb.databaseModelFiles.Add(file);
                                 allModelFiles.Add(file.url);
+                                loadedAssetCount++;
+                                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                             }
                         }
                     }
@@ -474,19 +491,70 @@ namespace KSPCommunityFixes.Performance
 
             // all done, do some cleanup
             arrayPool = null;
+
+            // stock stuff
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
             gdb.progressFraction = 1f;
             loadObjectsInProgress = false;
-
-            Debug.Log("[KSPCF] Finished custom GameDatabase_LoadObjects()");
         }
+
+        #endregion
+
+        #region Asset loader reimplementation (audio loader)
+
+        static int concurrentAudioCoroutines;
+        static int audioFilesLoaded;
+
+        /// <summary>
+        /// Concurrent coroutines (read "multiple coroutines in the same frame") audio loader
+        /// </summary>
+        static IEnumerator AudioLoader(UrlFile urlFile)
+        {
+            concurrentAudioCoroutines++;
+
+            try
+            {
+                string normalizedUri = KSPUtil.ApplicationFileProtocol + new FileInfo(urlFile.fullPath).FullName;
+                UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(normalizedUri, AudioType.UNKNOWN);
+                yield return request.SendWebRequest();
+                while (!request.isDone)
+                {
+                    yield return null;
+                }
+                if (!request.isNetworkError && !request.isHttpError)
+                {
+                    AudioClip clip = DownloadHandlerAudioClip.GetContent(request);
+                    clip.name = urlFile.url;
+                    GameDatabase.Instance.databaseAudio.Add(clip);
+                    GameDatabase.Instance.databaseAudioFiles.Add(urlFile);
+                }
+                else
+                {
+                    Debug.LogWarning("Audio file: " + urlFile.name + " load error: " + request.error);
+                }
+            }
+            finally
+            {
+                concurrentAudioCoroutines--;
+                audioFilesLoaded++;
+            }
+        }
+
+        #endregion
+
+        #region Asset loader reimplementation (texture/model loader)
 
         static ArrayPool<byte> arrayPool;
         static int loadedBytes;
         static object lockObject = new object();
 
+        /// <summary>
+        /// Textures / models loader coroutine implementing threaded disk reads and framerate decoupling
+        /// </summary>
         static IEnumerator FilesLoader(List<RawAsset> assets, HashSet<string> loadedUrls, string loadingLabel)
         {
+            GameDatabase gdb = GameDatabase.Instance;
+
             Deque<RawAsset> assetBuffer = new Deque<RawAsset>();
             int assetCount = assets.Count;
             int currentAssetIndex = 0;
@@ -550,6 +618,7 @@ namespace KSPCommunityFixes.Performance
                 }
                 finally
                 {
+                    loadedAssetCount++;
                     currentAssetIndex++;
                     spinWait = new SpinWait();
                 }
@@ -557,12 +626,16 @@ namespace KSPCommunityFixes.Performance
                 if (ElapsedTime > nextFrameTime)
                 {
                     nextFrameTime = ElapsedTime + minFrameTimeD;
-                    GameDatabase.Instance.progressTitle = $"{loadingLabel} {currentAssetIndex}/{assetCount} (buffer={bufferTotalSize / (1024 * 1024)}MB)";
+                    gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
+                    gdb.progressTitle = $"{loadingLabel} {currentAssetIndex}/{assetCount} (buffer={bufferTotalSize / (1024 * 1024)}MB)";
                     yield return null;
                 }
             }
         }
 
+        /// <summary>
+        /// Disk read thread started from FilesLoader
+        /// </summary>
         static void ReadAssetsThread(List<RawAsset> files, Deque<RawAsset> buffer)
         {
             foreach (RawAsset rawAsset in files)
@@ -579,7 +652,9 @@ namespace KSPCommunityFixes.Performance
 
                     try
                     {
-                        if (loadedBytes < maxBufferSize || buffer.Count == 0)
+                        // load next file if already sum of already loaded file size is less than 50 MB
+                        // or if less than 10 files are loaded
+                        if (loadedBytes < maxBufferSize || buffer.Count < minFileRead)
                         {
                             loadedBytes += rawAsset.DataLength;
                             buffer.AddToFront(rawAsset);
@@ -594,6 +669,9 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        /// <summary>
+        /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
+        /// </summary>
         private class RawAsset
         {
             public enum AssetType
@@ -632,7 +710,6 @@ namespace KSPCommunityFixes.Performance
             private bool useRentedBuffer;
             private byte[] buffer;
             private int dataLength;
-            private string normalizedFilePath;
             private MemoryStream memoryStream;
             private BinaryReader binaryReader;
             private Result result;
@@ -694,8 +771,7 @@ namespace KSPCommunityFixes.Performance
 
                 try
                 {
-                    normalizedFilePath = new FileInfo(file.fullPath).FullName;
-                    using (FileStream fileStream = System.IO.File.OpenRead(normalizedFilePath))
+                    using (FileStream fileStream = System.IO.File.OpenRead(file.fullPath))
                     {
                         long length = fileStream.Length;
                         if (length > int.MaxValue)
@@ -906,7 +982,7 @@ namespace KSPCommunityFixes.Performance
 
             private TextureInfo LoadJPG()
             {
-                bool isNormal = Path.GetFileNameWithoutExtension(normalizedFilePath).EndsWith("NRM");
+                bool isNormal = file.name.EndsWith("NRM");
 
                 if (isNormal)
                 {
@@ -951,7 +1027,7 @@ namespace KSPCommunityFixes.Performance
                 }
 
                 bool canCompress = width % 4 == 0 && height % 4 == 0;
-                bool isNormalMap = Path.GetFileNameWithoutExtension(normalizedFilePath).EndsWith("NRM");
+                bool isNormalMap = file.name.EndsWith("NRM");
                 bool hasMipMaps;
                 bool nonReadable;
 
@@ -964,11 +1040,11 @@ namespace KSPCommunityFixes.Performance
                 {
                     hasMipMaps = true;
                     for (int i = 0; i < noMipMapsPNGTextureNames.Length; i++)
-                        if (normalizedFilePath.Contains(noMipMapsPNGTextureNames[i]))
+                        if (file.fullPath.Contains(noMipMapsPNGTextureNames[i]))
                             hasMipMaps = false;
 
                     // KSPCF optimization : don't keep thumbs in memory
-                    nonReadable = normalizedFilePath.Contains("@thumbs");
+                    nonReadable = file.fullPath.Contains("@thumbs");
                 }
 
                 // don't initially compress normal textures, as we need to swizzle the raw data first
@@ -980,7 +1056,7 @@ namespace KSPCommunityFixes.Performance
                 else if (!canCompress)
                 {
                     textureFormat = TextureFormat.ARGB32;
-                    SetWarning($"Texture resolution is not valid for compression, width and height must be multiples of 4");
+                    SetWarning($"Texture isn't eligible for DXT compression, width and height must be multiples of 4");
                 }
                 else
                 {
@@ -1005,21 +1081,14 @@ namespace KSPCommunityFixes.Performance
                     return false;
 
                 // validate PNG magic bytes
-                if (pngData[0] != 137) 
-                    return false;
-                if (pngData[1] != 80) 
-                    return false;
-                if (pngData[2] != 78) 
-                    return false;
-                if (pngData[3] != 71) 
-                    return false;
-                if (pngData[4] != 13) 
-                    return false;
-                if (pngData[5] != 10) 
-                    return false;
-                if (pngData[6] != 26) 
-                    return false;
-                if (pngData[7] != 10) 
+                if (pngData[0] != 137
+                    || pngData[1] != 80
+                    || pngData[2] != 78
+                    || pngData[3] != 71
+                    || pngData[4] != 13
+                    || pngData[5] != 10
+                    || pngData[6] != 26
+                    || pngData[7] != 10) 
                     return false;
 
                 // validate IHDR chunk length (always 13)
@@ -1027,13 +1096,10 @@ namespace KSPCommunityFixes.Performance
                     return false;
 
                 // validate chunk name ("IHDR")
-                if (pngData[12] != 73) 
-                    return false;
-                if (pngData[13] != 72) 
-                    return false;
-                if (pngData[14] != 68) 
-                    return false;
-                if (pngData[15] != 82) 
+                if (pngData[12] != 73
+                    || pngData[13] != 72
+                    || pngData[14] != 68
+                    || pngData[15] != 82) 
                     return false;
 
                 // width and height are big-endian encoded unsigned ints
@@ -1060,7 +1126,7 @@ namespace KSPCommunityFixes.Performance
                 if (texture.IsNullOrDestroyed())
                     return null;
 
-                bool isNormalMap = Path.GetFileNameWithoutExtension(normalizedFilePath).EndsWith("NRM");
+                bool isNormalMap = file.name.EndsWith("NRM");
                 if (isNormalMap)
                     texture = BitmapToCompressedNormalMapFast(texture);
 
@@ -1069,17 +1135,16 @@ namespace KSPCommunityFixes.Performance
 
             private TextureInfo LoadTRUECOLOR()
             {
-                bool isNormalMap = Path.GetFileNameWithoutExtension(normalizedFilePath).EndsWith("NRM");
-                bool nonReadable = !isNormalMap;
+                bool isNormalMap = file.name.EndsWith("NRM");
 
                 Texture2D texture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-                if (!ImageConversion.LoadImage(texture, buffer, nonReadable))
+                if (!ImageConversion.LoadImage(texture, buffer, false))
                     return null;
 
                 if (isNormalMap)
                     texture = BitmapToCompressedNormalMapFast(texture);
 
-                return new TextureInfo(file, texture, isNormalMap, false, false);
+                return new TextureInfo(file, texture, isNormalMap, !isNormalMap, false);
             }
 
             private static void InitPartReader()
@@ -1187,70 +1252,80 @@ namespace KSPCommunityFixes.Performance
 
             public static Texture2D BitmapToCompressedNormalMapFast(Texture2D original)
             {
-                // much faster, going from 2.85s to 0.45s
-                // Not sure if that could happen, but in case we don't get those formats, just
-                // let the stock getpixel based code run.
+                // Much faster than the stock BitmapToUnityNormalMap() method, going from 2.85s to 0.45s
+                // Note that this would be a lot more efficient if we didn't have to create a new texture.
+                // Unfortunately, Unity doesn't provide any way to add mimaps to a texture that didn't
+                // have them initially (but I guess this is a deeper GPU related limitation)...
 
                 TextureFormat originalFormat = original.format;
-
-                if (originalFormat != TextureFormat.RGBA32 
-                    && originalFormat != TextureFormat.ARGB32
-                    && originalFormat != TextureFormat.RGB24)
-                {
-                    return GameDatabase.BitmapToUnityNormalMap(original);
-                }
-
                 Texture2D normalMap = new Texture2D(original.width, original.height, TextureFormat.RGBA32, true);
-                NativeArray<byte> normalMapData = normalMap.GetRawTextureData<byte>();
-                NativeArray<byte> originalData = original.GetRawTextureData<byte>();
-                int size = originalData.Length;
+                normalMap.wrapMode = TextureWrapMode.Repeat;
 
-                byte g;
-                byte r;
-
-                switch (originalFormat)
+                if (originalFormat == TextureFormat.RGBA32 
+                    || originalFormat == TextureFormat.ARGB32
+                    || originalFormat == TextureFormat.RGB24)
                 {
-                    case TextureFormat.RGBA32:
-                        // from (r, g, b, a)
-                        // to   (g, g, g, r);
-                        for (int i = 0; i < size; i += 4)
-                        {
-                            r = originalData[i];
-                            g = originalData[i + 1];
-                            normalMapData[i] = g;
-                            normalMapData[i + 1] = g;
-                            normalMapData[i + 2] = g;
-                            normalMapData[i + 3] = r;
-                        }
-                        break;
-                    case TextureFormat.ARGB32:
-                        // from (a, r, g, b)
-                        // to   (g, g, g, r);
-                        for (int i = 0; i < size; i += 4)
-                        {
-                            r = originalData[i + 1];
-                            g = originalData[i + 2];
-                            normalMapData[i] = g;
-                            normalMapData[i + 1] = g;
-                            normalMapData[i + 2] = g;
-                            normalMapData[i + 3] = r;
-                        }
-                        break;
-                    case TextureFormat.RGB24:
-                        // from (r, g, b)
-                        // to   (g, g, g, r);
-                        int j = 0;
-                        for (int i = 0; i < size; i += 3)
-                        {
-                            r = originalData[i];
-                            g = originalData[i + 1];
-                            normalMapData[j] = g;
-                            normalMapData[j + 1] = g;
-                            normalMapData[j + 2] = g;
-                            normalMapData[j + 3] = r;
-                            j += 4;
-                        }
-                        break;
+                    NativeArray<byte> originalData = original.GetRawTextureData<byte>();
+                    NativeArray<byte> normalMapData = normalMap.GetRawTextureData<byte>();
+                    int size = originalData.Length;
+                    byte r, g;
+                    switch (originalFormat)
+                    {
+                        case TextureFormat.RGBA32:
+                            // from (r, g, b, a)
+                            // to   (g, g, g, r);
+                            for (int i = 0; i < size; i += 4)
+                            {
+                                r = originalData[i];
+                                g = originalData[i + 1];
+                                normalMapData[i] = g;
+                                normalMapData[i + 1] = g;
+                                normalMapData[i + 2] = g;
+                                normalMapData[i + 3] = r;
+                            }
+                            break;
+                        case TextureFormat.ARGB32:
+                            // from (a, r, g, b)
+                            // to   (g, g, g, r);
+                            for (int i = 0; i < size; i += 4)
+                            {
+                                r = originalData[i + 1];
+                                g = originalData[i + 2];
+                                normalMapData[i] = g;
+                                normalMapData[i + 1] = g;
+                                normalMapData[i + 2] = g;
+                                normalMapData[i + 3] = r;
+                            }
+                            break;
+                        case TextureFormat.RGB24:
+                            // from (r, g, b)
+                            // to   (g, g, g, r);
+                            int j = 0;
+                            for (int i = 0; i < size; i += 3)
+                            {
+                                r = originalData[i];
+                                g = originalData[i + 1];
+                                normalMapData[j] = g;
+                                normalMapData[j + 1] = g;
+                                normalMapData[j + 2] = g;
+                                normalMapData[j + 3] = r;
+                                j += 4;
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    Color32[] pixels = original.GetPixels32();
+                    for (int i = 0; i < pixels.Length; i++)
+                    {
+                        Color32 pixel = pixels[i];
+                        pixel.a = pixel.r;
+                        pixel.r = pixel.g;
+                        pixel.b = pixel.g;
+                        pixels[i] = pixel;
+                    }
+                    normalMap.SetPixels32(pixels);
                 }
 
                 if (normalMap.width % 4 == 0 && normalMap.height % 4 == 0)
@@ -1269,52 +1344,40 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        static int concurrentCoroutines;
-        static int audioFilesLoaded;
+        #endregion
 
-        static IEnumerator AudioLoader(UrlFile urlFile)
+        #region PartLoader reimplementation
+
+        static IEnumerable<CodeInstruction> PartLoader_StartLoad_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            concurrentCoroutines++;
+            MethodInfo m_PartLoader_CompileAll = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileAll));
+            MethodInfo m_PartLoader_CompileAll_Modded = AccessTools.Method(typeof(FastLoader), nameof(PartLoader_CompileAll));
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
-            try
+            bool valid = false;
+
+            for (int i = 0; i < code.Count; i++)
             {
-                string normalizedUri = KSPUtil.ApplicationFileProtocol + new FileInfo(urlFile.fullPath).FullName;
-                UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(normalizedUri, AudioType.UNKNOWN);
-                yield return request.SendWebRequest();
-                while (!request.isDone)
+                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, m_PartLoader_CompileAll))
                 {
-                    yield return null;
-                }
-                if (!request.isNetworkError && !request.isHttpError)
-                {
-                    AudioClip clip = DownloadHandlerAudioClip.GetContent(request);
-                    clip.name = urlFile.url;
-                    GameDatabase.Instance.databaseAudio.Add(clip);
-                    GameDatabase.Instance.databaseAudioFiles.Add(urlFile);
-                }
-                else
-                {
-                    Debug.LogWarning("Audio file: " + urlFile.name + " load error: " + request.error);
+                    code[i].operand = m_PartLoader_CompileAll_Modded;
+                    for (int j = i - 1; j >= i - 4; j--)
+                    {
+                        if (code[j].opcode == OpCodes.Ldarg_0 && code[j - 1].opcode == OpCodes.Ldarg_0)
+                        {
+                            code[j].opcode = OpCodes.Nop;
+                            valid = true;
+                            break;
+                        }
+                    }
+                    break;
                 }
             }
-            finally
-            {
-                concurrentCoroutines--;
-                audioFilesLoaded++;
-            }
-        }
 
-        static bool GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix(object __instance, ref bool __result)
-        {
-            if (loadObjectsInProgress)
-            {
-                FieldInfo f_current = AccessTools.GetDeclaredFields(__instance.GetType()).First(p => p.Name.Contains("current"));
-                f_current.SetValue(__instance, null);
-                __result = true;
-                return false;
-            }
+            if (!valid)
+                throw new Exception("PartLoader_StartLoad_Transpiler : transpiler patch failed");
 
-            return true;
+            return code;
         }
 
         static IEnumerator PartLoader_CompileAll()
@@ -1368,10 +1431,6 @@ namespace KSPCommunityFixes.Performance
             instance.APFinderByName.Clear();
             instance.CompileVariantThemes(configs2);
 
-            //yield return StartCoroutine(CompileParts(configs));
-            //yield return StartCoroutine(CompileInternalProps(allPropNodes));
-            //yield return StartCoroutine(CompileInternalSpaces(allSpaceNodes));
-
             IEnumerator compilePartsEnumerator = FrameUnlockedCoroutine(instance.CompileParts(configs));
             while (compilePartsEnumerator.MoveNext())
                 yield return null;
@@ -1384,14 +1443,65 @@ namespace KSPCommunityFixes.Performance
             while (compileInternalSpacesEnumerator.MoveNext())
                 yield return null;
 
+            Unpatch();
+
             instance.SavePartDatabase();
             instance._recompile = false;
             PartUpgradeManager.Handler.LinkUpgrades();
             GameEvents.OnUpgradesLinked.Fire();
             instance.isReady = true;
             GameEvents.OnPartLoaderLoaded.Fire();
+            
         }
 
+        #endregion
+
+        #region PartLoader Coroutine patcher infrastructure
+
+        /// <summary>
+        /// Patch all "yield StartCoroutine()" calls in the compiler generated MoveNext() method of a coroutine. The StartCoroutine() call will 
+        /// be replaced by a pass-through method returning the IEnumerator, which mean it will be yielded. This allow to manually iterate over
+        /// a coroutine, even if that coroutine has nested StartCoroutine() calls.
+        /// </summary>
+        static void PatchStartCoroutineInCoroutine(MethodInfo coroutine)
+        {
+            MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThroughTranspiler));
+            harmony.Patch(AccessTools.EnumeratorMoveNext(coroutine), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
+        }
+
+        /// <summary>
+        /// Transpiler for the PatchStartCoroutineInCoroutine() method.
+        /// </summary>
+        static IEnumerable<CodeInstruction> StartCoroutinePassThroughTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            MethodInfo m_StartCoroutine = AccessTools.Method(typeof(MonoBehaviour), nameof(MonoBehaviour.StartCoroutine), new[] { typeof(IEnumerator) });
+            MethodInfo m_StartCoroutinePassThrough = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThrough));
+
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+
+            for (int i = 0; i < code.Count; i++)
+            {
+                if (code[i].opcode == OpCodes.Call && ReferenceEquals(code[i].operand, m_StartCoroutine))
+                {
+                    code[i].operand = m_StartCoroutinePassThrough;
+                }
+            }
+
+            return code;
+        }
+
+        /// <summary>
+        /// Pass-through replacement method for StartCoroutine()
+        /// </summary>
+        static object StartCoroutinePassThrough(object instance, IEnumerator enumerator)
+        {
+            return enumerator;
+        }
+
+        /// <summary>
+        /// Reimplementation of StartCoroutine supporting nested yield StartCoroutine() calls patched with PatchStartCoroutineInCoroutine()
+        /// and yielding null only after a fixed amount of time elapsed
+        /// </summary>
         static IEnumerator FrameUnlockedCoroutine(IEnumerator coroutine)
         {
             float nextFrameTime = Time.realtimeSinceStartup + minFrameTime;
@@ -1440,5 +1550,7 @@ namespace KSPCommunityFixes.Performance
                 }
             }
         }
+
+        #endregion
     }
 }
