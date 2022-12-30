@@ -18,13 +18,11 @@ using UnityEngine.Networking;
 using static GameDatabase;
 using static UrlDir;
 using Debug = UnityEngine.Debug;
-using KSPAchievements;
-using static ConfigNode;
 
 namespace KSPCommunityFixes.Performance
 {
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    class FastLoader : MonoBehaviour
+    internal class FastLoader : MonoBehaviour
     {
         // approximate max FPS during asset loading and part parsing
         private const int maxFPS = 30; 
@@ -39,7 +37,7 @@ namespace KSPCommunityFixes.Performance
         private static Harmony harmony;
         private static string HarmonyID => typeof(FastLoader).FullName;
 
-        void Awake()
+        private void Awake()
         {
             if (KSPCommunityFixes.KspVersion < new Version(1, 12, 0))
             {
@@ -73,7 +71,7 @@ namespace KSPCommunityFixes.Performance
         /// <summary>
         /// Remove all harmony patches. Avoid breaking stock gamedatabase reload feature and runtime drag cube generation
         /// </summary>
-        static void Unpatch()
+        private static void Unpatch()
         {
             harmony.UnpatchAll(HarmonyID);
             harmony = null;
@@ -81,7 +79,7 @@ namespace KSPCommunityFixes.Performance
 
         #region Asset loader reimplementation (patches)
 
-        static bool loadObjectsInProgress = false;
+        private static bool loadObjectsInProgress;
 
         /// <summary>
         /// This is our entry point in the GameDatabase loader (GameDatabase.LoadObjects()). It can't be patched directly because at the earliest point 
@@ -159,7 +157,7 @@ namespace KSPCommunityFixes.Performance
             gdb.StartCoroutine(FastAssetLoader(configFileTypes));
 
             Debug.Log("[KSPCF] Taking over stock loader. An exception will follow, this is intended.");
-            throw new Exception("Terminating stock loader coroutine");
+            throw new Exception("Terminating stock loader coroutine, this is intended and not an error");
         }
 
         static FieldInfo f_LoadAssetBundleObjects_Current;
@@ -309,7 +307,7 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            gdb.progressTitle = $"Loading sound assets...";
+            gdb.progressTitle = "Loading sound assets...";
             yield return null;
 
             // call non-stock audio loaders
@@ -328,31 +326,32 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    UnityEngine.Debug.Log($"Load (Audio): {file.url}");
+                    Debug.Log($"Load (Audio): {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<AudioClip> loader = gdb.loadersAudio[k];
-                        if (loader.extensions.Contains(file.fileExtension))
+                        if (!loader.extensions.Contains(file.fileExtension)) 
+                            continue;
+
+                        yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
+
+                        if (loader.successful)
                         {
-                            yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
-                            if (loader.successful)
-                            {
-                                loader.obj.name = file.url;
-                                gdb.databaseAudio.Add(loader.obj);
-                                gdb.databaseAudioFiles.Add(file);
-                                allAudioFiles.Add(file.url);
-                                loadedAssetCount++;
-                                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                            }
-                            break;
+                            loader.obj.name = file.url;
+                            gdb.databaseAudio.Add(loader.obj);
+                            gdb.databaseAudioFiles.Add(file);
+                            allAudioFiles.Add(file.url);
+                            loadedAssetCount++;
+                            gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                         }
+                        break;
                     }
                 }
             }
 
             // custom wav/ogg audio loader
             int audioFilesCount = audioFiles.Count;
-            int maxConcurrentCoroutines = 25;
+            const int maxConcurrentCoroutines = 25;
             int j = 0;
 
             while (j < audioFilesCount)
@@ -395,7 +394,7 @@ namespace KSPCommunityFixes.Performance
 
             // start texture loading
             gdb.progressFraction = 0.25f;
-            gdb.progressTitle = $"Loading texture assets...";
+            gdb.progressTitle = "Loading texture assets...";
             yield return null;
 
             // call non-stock texture loaders
@@ -414,24 +413,24 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    UnityEngine.Debug.Log($"Load (Texture): {file.url}");
+                    Debug.Log($"Load (Texture): {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<TextureInfo> loader = gdb.loadersTexture[k];
-                        if (loader.extensions.Contains(file.fileExtension))
+                        if (!loader.extensions.Contains(file.fileExtension)) 
+                            continue;
+
+                        yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
+                        if (loader.successful)
                         {
-                            yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
-                            if (loader.successful)
-                            {
-                                loader.obj.name = file.url;
-                                loader.obj.texture.name = file.url;
-                                gdb.databaseTexture.Add(loader.obj);
-                                allTextureFiles.Add(file.url);
-                                loadedAssetCount++;
-                                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                            }
-                            break;
+                            loader.obj.name = file.url;
+                            loader.obj.texture.name = file.url;
+                            gdb.databaseTexture.Add(loader.obj);
+                            allTextureFiles.Add(file.url);
+                            loadedAssetCount++;
+                            gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                         }
+                        break;
                     }
                 }
             }
@@ -441,7 +440,7 @@ namespace KSPCommunityFixes.Performance
 
             // start model loading
             gdb.progressFraction = 0.75f;
-            gdb.progressTitle = $"Loading model assets...";
+            gdb.progressTitle = "Loading model assets...";
             yield return null;
 
             // call non-stock model loaders
@@ -460,7 +459,7 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    UnityEngine.Debug.Log($"Load (Model): {file.url}");
+                    Debug.Log($"Load (Model): {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<GameObject> loader = gdb.loadersModel[k];
@@ -570,7 +569,7 @@ namespace KSPCommunityFixes.Performance
                 while (!Monitor.TryEnter(lockObject))
                     spinWait.SpinOnce();
 
-                RawAsset rawAsset = null;
+                RawAsset rawAsset;
                 int bufferTotalSize;
 
                 try
@@ -686,7 +685,7 @@ namespace KSPCommunityFixes.Performance
                 ModelDAE
             }
 
-            private static string[] assetTypeNames = new string[]
+            private static readonly string[] assetTypeNames = 
             {
                 "DDS texture",
                 "JPG texture",
@@ -713,11 +712,11 @@ namespace KSPCommunityFixes.Performance
             private MemoryStream memoryStream;
             private BinaryReader binaryReader;
             private Result result;
-            private string message;
+            private string resultMessage;
 
             public UrlFile File => file;
             public Result State => result;
-            public string Message => message;
+            public string Message => resultMessage;
             public int DataLength => dataLength;
             public string TypeName => assetTypeNames[(int)assetType];
 
@@ -731,28 +730,28 @@ namespace KSPCommunityFixes.Performance
             private void SetError(string message)
             {
                 result = Result.Failed;
-                if (this.message == null)
-                    this.message = message;
+                if (resultMessage == null)
+                    resultMessage = message;
                 else
-                    this.message = $"{this.message}\n{message}";
+                    resultMessage = $"{resultMessage}\n{message}";
             }
 
             private void SetWarning(string message)
             {
                 if (result == Result.Failed)
                 {
-                    if (this.message == null)
-                        this.message = message;
+                    if (resultMessage == null)
+                        resultMessage = message;
                     else 
-                        this.message = $"{this.message}\nWARNING: {message}";
+                        resultMessage = $"{resultMessage}\nWARNING: {message}";
                 }
                 else
                 {
                     result = Result.Warning;
-                    if (this.message == null)
-                        this.message = message;
+                    if (resultMessage == null)
+                        resultMessage = message;
                     else
-                        this.message = $"{this.message}\n{message}";
+                        resultMessage = $"{resultMessage}\n{message}";
                 }
             }
 
@@ -861,8 +860,8 @@ namespace KSPCommunityFixes.Performance
                         if (result == Result.Failed || textureInfo == null || textureInfo.texture.IsNullOrDestroyed())
                         {
                             result = Result.Failed;
-                            if (string.IsNullOrEmpty(message))
-                                message = $"{TypeName} load error";
+                            if (string.IsNullOrEmpty(resultMessage))
+                                resultMessage = $"{TypeName} load error";
                         }
                         else
                         {
@@ -890,8 +889,8 @@ namespace KSPCommunityFixes.Performance
                         if (result == Result.Failed || model.IsNullOrDestroyed())
                         {
                             result = Result.Failed;
-                            if (string.IsNullOrEmpty(message))
-                                message = $"{TypeName} load error";
+                            if (string.IsNullOrEmpty(resultMessage))
+                                resultMessage = $"{TypeName} load error";
                         }
                         else
                         {
@@ -946,7 +945,6 @@ namespace KSPCommunityFixes.Performance
                 bool isNormalMap = (dDSHeader.ddspf.dwFlags & 0x80000u) != 0 || (dDSHeader.ddspf.dwFlags & 0x80000000u) != 0;
                 Texture2D texture2D = null;
                 uint dwFourCC = dDSHeader.ddspf.dwFourCC;
-
 
                 if (dwFourCC == DDSValues.uintDXT1)
                 {
@@ -1011,7 +1009,7 @@ namespace KSPCommunityFixes.Performance
                 return new TextureInfo(file, texture2D, isNormalMap, false, true);
             }
 
-            static string[] noMipMapsPNGTextureNames = new string[3]
+            private static string[] noMipMapsPNGTextureNames = 
             {
                 Path.DirectorySeparatorChar + "Icons" + Path.DirectorySeparatorChar,
                 Path.DirectorySeparatorChar + "Tutorials" + Path.DirectorySeparatorChar,
@@ -1056,7 +1054,7 @@ namespace KSPCommunityFixes.Performance
                 else if (!canCompress)
                 {
                     textureFormat = TextureFormat.ARGB32;
-                    SetWarning($"Texture isn't eligible for DXT compression, width and height must be multiples of 4");
+                    SetWarning("Texture isn't eligible for DXT compression, width and height must be multiples of 4");
                 }
                 else
                 {
@@ -1250,7 +1248,7 @@ namespace KSPCommunityFixes.Performance
                 return gameObject;
             }
 
-            public static Texture2D BitmapToCompressedNormalMapFast(Texture2D original)
+            private static Texture2D BitmapToCompressedNormalMapFast(Texture2D original)
             {
                 // Much faster than the stock BitmapToUnityNormalMap() method, going from 2.85s to 0.45s
                 // Note that this would be a lot more efficient if we didn't have to create a new texture.
@@ -1348,7 +1346,7 @@ namespace KSPCommunityFixes.Performance
 
         #region PartLoader reimplementation
 
-        static IEnumerable<CodeInstruction> PartLoader_StartLoad_Transpiler(IEnumerable<CodeInstruction> instructions)
+        private static IEnumerable<CodeInstruction> PartLoader_StartLoad_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo m_PartLoader_CompileAll = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileAll));
             MethodInfo m_PartLoader_CompileAll_Modded = AccessTools.Method(typeof(FastLoader), nameof(PartLoader_CompileAll));
@@ -1380,7 +1378,7 @@ namespace KSPCommunityFixes.Performance
             return code;
         }
 
-        static IEnumerator PartLoader_CompileAll()
+        private static IEnumerator PartLoader_CompileAll()
         {
             PartLoader instance = PartLoader.Instance;
 
@@ -1425,7 +1423,7 @@ namespace KSPCommunityFixes.Performance
             UrlConfig[] allSpaceNodes = GameDatabase.Instance.GetConfigs("INTERNAL");
             UrlConfig[] configs2 = GameDatabase.Instance.GetConfigs("VARIANTTHEME");
             int num = configs.Length + allPropNodes.Length + allSpaceNodes.Length;
-            instance.progressDelta = 1f / (float)num;
+            instance.progressDelta = 1f / num;
             instance.InitializePartDatabase();
             instance.APFinderByIcon.Clear();
             instance.APFinderByName.Clear();
@@ -1463,7 +1461,7 @@ namespace KSPCommunityFixes.Performance
         /// be replaced by a pass-through method returning the IEnumerator, which mean it will be yielded. This allow to manually iterate over
         /// a coroutine, even if that coroutine has nested StartCoroutine() calls.
         /// </summary>
-        static void PatchStartCoroutineInCoroutine(MethodInfo coroutine)
+        private static void PatchStartCoroutineInCoroutine(MethodInfo coroutine)
         {
             MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThroughTranspiler));
             harmony.Patch(AccessTools.EnumeratorMoveNext(coroutine), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
@@ -1472,7 +1470,7 @@ namespace KSPCommunityFixes.Performance
         /// <summary>
         /// Transpiler for the PatchStartCoroutineInCoroutine() method.
         /// </summary>
-        static IEnumerable<CodeInstruction> StartCoroutinePassThroughTranspiler(IEnumerable<CodeInstruction> instructions)
+        private static IEnumerable<CodeInstruction> StartCoroutinePassThroughTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo m_StartCoroutine = AccessTools.Method(typeof(MonoBehaviour), nameof(MonoBehaviour.StartCoroutine), new[] { typeof(IEnumerator) });
             MethodInfo m_StartCoroutinePassThrough = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThrough));
@@ -1493,6 +1491,9 @@ namespace KSPCommunityFixes.Performance
         /// <summary>
         /// Pass-through replacement method for StartCoroutine()
         /// </summary>
+        /// <remarks>
+        /// The unused instance param is there so we match the original StartCoroutine() method signature
+        /// </remarks>
         static object StartCoroutinePassThrough(object instance, IEnumerator enumerator)
         {
             return enumerator;
