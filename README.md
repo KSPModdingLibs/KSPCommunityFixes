@@ -95,7 +95,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.4]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.4]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
-- **FastLoader** [KSP 1.12.0 - 1.12.4]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format.
+- [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.0 - 1.12.4]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format.
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.4]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
 - [**PQSCoroutineLeak**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) [KSP 1.8.0 - 1.12.4]<br/>Prevent KSP from spawning multiple PQS update coroutines for the same PQS after scene switches and on other occasions, causing large performance degradation over time.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.4]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
@@ -159,7 +159,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ##### 1.24.0
 - Updated for KSP 1.12.4
 - New performance patch : [ContractProgressEnumCache](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/100) (thanks to @abrenneke)
-- New performance patch : [FastLoader](),Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format. 
+- New performance patch : [FastLoader](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108),Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format. 
 - The FastLoader patch also include a fix for [issue #69](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/69), KSP bug causing loading hangs when an invalid `*.png` file is being loaded.
 - TextureLoaderOptimizations : the patch has been depreciated, equivalent functionality has been integrated in the more general FastLoader patch.
 - ConfigNodePerf : Fixed the `Game.Updated()` patch not being applied due to an AmbiguousMatchException when finding the target method.
