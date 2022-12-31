@@ -150,7 +150,6 @@
     <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
     <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
     <Compile Include="Internal\PatchSettings.cs" />
-    <Compile Include="Performance\TextureLoaderOptimizations.cs" />
     <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
     <Compile Include="QoL\ResourceLockActions.cs" />
     <Compile Include="QoL\ShowContractFinishDates.cs" />

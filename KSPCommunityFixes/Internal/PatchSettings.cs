@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using KSP.Localization;
+using KSPCommunityFixes.Performance;
 using KSPCommunityFixes.QoL;
 using System;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ namespace KSPCommunityFixes
             if (maneuverToolPatch != null)
                 entryCount++;
 
-            if (TextureLoaderOptimizations.IsPatchEnabled)
+            if (KSPCFFastLoader.IsPatchEnabled)
                 entryCount++;
 
             // NoIVA is always enabled
@@ -90,17 +91,17 @@ namespace KSPCommunityFixes
                 count++;
             }
 
-            if (TextureLoaderOptimizations.IsPatchEnabled)
+            if (KSPCFFastLoader.IsPatchEnabled)
             {
-                DialogGUIToggle toggle = new DialogGUIToggle(TextureLoaderOptimizations.textureCacheEnabled,
-                    () => (TextureLoaderOptimizations.textureCacheEnabled) 
+                DialogGUIToggle toggle = new DialogGUIToggle(KSPCFFastLoader.TextureCacheEnabled,
+                    () => (KSPCFFastLoader.TextureCacheEnabled) 
                         ? Localizer.Format("#autoLOC_900889") //"Enabled"
                         : Localizer.Format("#autoLOC_900890"), //"Disabled"
-                    TextureLoaderOptimizations.OnToggleCacheFromSettings, 150f);
-                toggle.tooltipText = TextureLoaderOptimizations.LOC_SettingsTooltip;
+                    KSPCFFastLoader.OnToggleCacheFromSettings, 150f);
+                toggle.tooltipText = KSPCFFastLoader.LOC_SettingsTooltip;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => TextureLoaderOptimizations.LOC_SettingsTitle, 150f),
+                    new DialogGUILabel(() => KSPCFFastLoader.LOC_SettingsTitle, 150f),
                     toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
