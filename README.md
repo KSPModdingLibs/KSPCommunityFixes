@@ -71,6 +71,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[StrategyDuration](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/70)** [KSP 1.8.0 - 1.12.4]<br/>Fix Strategies not using Duration settings.
 - **[UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/63)** [KSP 1.12.0 - 1.12.4]<br/>Fix various bugs with upgrades, like the part stats upgrade module breaking, upgrades not properly applying in the editor, upgrade cost not being applied to part cost, and various issues int the public API.
 - **[MapSOCorrectWrapping](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/83)** [KSP 1.10.0 - 1.12.4]<br/>Fixes issues with biomes crossing the poles (South pole biome at north pole and vice versa). Fixes "polar spikes" in the terrain for 8-bit heightmaps.
+- **[ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107)** [KSP 1.10.0 - 1.12.4]<br/>Fix spread angle still being applied after decoupling symmetry-placed parachutes.
 
 #### Quality of Life tweaks 
 
