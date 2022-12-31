@@ -18,12 +18,31 @@ using UnityEngine.Networking;
 using static GameDatabase;
 using static UrlDir;
 using Debug = UnityEngine.Debug;
+using UnityEngine.Experimental.Rendering;
+using KSP.Localization;
 
 namespace KSPCommunityFixes.Performance
 {
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    internal class FastLoader : MonoBehaviour
+    internal class KSPCFFastLoader : MonoBehaviour
     {
+        public static string LOC_SettingsTitle = "Texture caching optimization";
+        public static string LOC_SettingsTooltip =
+            "Cache PNG textures on disk instead of converting them on every KSP launch." +
+            "\nSpeedup loading time but increase disk space usage." +
+            "\n<i>Changes will take effect after relaunching KSP</i>";
+
+        public static string LOC_PopupL1 =
+            "KSPCommunityFixes can cache converted PNG textures on disk to speed up loading time.";
+        public static string LOC_F_PopupL2 =
+            "In your current install, this should reduce future loading time by about <b><color=#FF8000><<1>> seconds</color></b>.";
+        public static string LOC_F_PopupL3 =
+            "However, this will use about <b><color=#FF8000><<1>> MB</color></b> of additional disk space, and potentially much more if you install additional mods.";
+        public static string LOC_PopupL4 =
+            "You can change this setting later in the in-game settings menu";
+        public static string LOC_PopupL5 =
+            "Do you want to enable this optimization ?";
+
         // approximate max FPS during asset loading and part parsing
         private const int maxFPS = 30; 
         private const float minFrameTime = 1f / maxFPS;
@@ -35,46 +54,98 @@ namespace KSPCommunityFixes.Performance
         private const int minFileRead = 10;
 
         private static Harmony harmony;
-        private static string HarmonyID => typeof(FastLoader).FullName;
+        private static string HarmonyID => typeof(KSPCFFastLoader).FullName;
+
+        public static KSPCFFastLoader loader;
+
+        public static bool IsPatchEnabled { get; private set; }
+        public static bool TextureCacheEnabled => textureCacheEnabled;
+        private static bool textureCacheEnabled;
+
+        private static string ModPath => Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+        private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
+
+        private bool userOptInChoiceDone;
+        private string configPath;
+        private string textureCachePath;
+        private string textureCacheDataPath;
+        private string textureProgressMarkerPath;
+
+        private Dictionary<string, CachedTextureInfo> textureCacheData;
+        private HashSet<uint> textureDataIds;
+        private bool cacheUpdated = false;
 
         private void Awake()
         {
             if (KSPCommunityFixes.KspVersion < new Version(1, 12, 0))
             {
                 Debug.Log("[KSPCF] FastLoader patch not applied, requires KSP 1.12+");
+                IsPatchEnabled = false;
                 return;
             }
-            else
-            {
-                Debug.Log("[KSPCF] Injecting FastLoader...");
-            }
-                
+
+            Debug.Log("[KSPCF] Injecting FastLoader...");
+            loader = this;
+            IsPatchEnabled = true;
             harmony = new Harmony(HarmonyID);
 
             MethodInfo m_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.SetupMainLoaders));
-            MethodInfo t_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(FastLoader), nameof(GameDatabase_SetupMainLoaders_Prefix));
+            MethodInfo t_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_SetupMainLoaders_Prefix));
             harmony.Patch(m_GameDatabase_SetupMainLoaders, new HarmonyMethod(t_GameDatabase_SetupMainLoaders));
 
             MethodInfo m_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.LoadAssetBundleObjects)));
-            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(FastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
+            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
             harmony.Patch(m_GameDatabase_LoadAssetBundleObjects_MoveNext, new HarmonyMethod(t_GameDatabase_LoadAssetBundleObjects_MoveNext));
 
             MethodInfo m_PartLoader_StartLoad = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.StartLoad));
-            MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(FastLoader), nameof(PartLoader_StartLoad_Transpiler));
+            MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_StartLoad_Transpiler));
             harmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
 
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
+
+            configPath = ConfigPath;
+            textureCachePath = Path.Combine(ModPath, "PluginData", "TextureCache");
+
+            if (File.Exists(configPath))
+            {
+                ConfigNode config = ConfigNode.Load(configPath);
+
+                if (!config.TryGetValue(nameof(userOptInChoiceDone), ref userOptInChoiceDone))
+                    userOptInChoiceDone = false;
+
+                if (!config.TryGetValue(nameof(textureCacheEnabled), ref textureCacheEnabled))
+                    userOptInChoiceDone = false;
+            }
+
+#if DEBUG && !DEBUG_TEXTURE_CACHE
+            userOptInChoiceDone = true;
+            textureCacheEnabled = false;
+#endif
+        }
+
+        void Start()
+        {
+            if (!userOptInChoiceDone)
+                StartCoroutine(WaitForUserOptIn());
         }
 
         /// <summary>
         /// Remove all harmony patches. Avoid breaking stock gamedatabase reload feature and runtime drag cube generation
         /// </summary>
-        private static void Unpatch()
+        void OnDestroy()
         {
             harmony.UnpatchAll(HarmonyID);
             harmony = null;
+            Thread onDestroyThread = new Thread(OnDestroyThread);
+            onDestroyThread.Start();
+        }
+
+        private static void OnDestroyThread()
+        {
+            loader.WriteTextureCache();
+            loader = null;
         }
 
         #region Asset loader reimplementation (patches)
@@ -205,6 +276,10 @@ namespace KSPCommunityFixes.Performance
             gdb._root = new UrlDir(gdb.urlConfig.ToArray(), configFileTypes.ToArray());
             gdb.translateLoadedNodes();
 
+            gdb.progressTitle = "Waiting for PNGTextureCache opt-in...";
+            while (!loader.userOptInChoiceDone)
+                yield return null;
+
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
 
@@ -307,6 +382,17 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
+            Thread textureCacheReaderThread;
+            if (textureCacheEnabled)
+            {
+                textureCacheReaderThread = new Thread(() => SetupTextureCacheThread(textureAssets));
+                textureCacheReaderThread.Start();
+            }
+            else
+            {
+                textureCacheReaderThread = null;
+            }
+
             gdb.progressTitle = "Loading sound assets...";
             yield return null;
 
@@ -326,7 +412,7 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    Debug.Log($"Load (Audio): {file.url}");
+                    Debug.Log($"Load Audio: {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<AudioClip> loader = gdb.loadersAudio[k];
@@ -366,7 +452,7 @@ namespace KSPCommunityFixes.Performance
                     }
                     else
                     {
-                        Debug.Log($"Load (Audio): {file.url}");
+                        Debug.Log($"Load Audio: {file.url}");
                         gdb.StartCoroutine(AudioLoader(file));
                     }
                     j++;
@@ -413,7 +499,7 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    Debug.Log($"Load (Texture): {file.url}");
+                    Debug.Log($"Load Texture: {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<TextureInfo> loader = gdb.loadersTexture[k];
@@ -435,7 +521,13 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            // call our custom texture loader
+            if (textureCacheReaderThread != null)
+            {
+                while (textureCacheReaderThread.IsAlive)
+                    yield return null;
+            }
+
+            // call our custom loader
             yield return gdb.StartCoroutine(FilesLoader(textureAssets, allTextureFiles, "Loading texture asset"));
 
             // start model loading
@@ -459,7 +551,7 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    Debug.Log($"Load (Model): {file.url}");
+                    Debug.Log($"Load Model: {file.url}");
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<GameObject> loader = gdb.loadersModel[k];
@@ -485,7 +577,7 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            // call our custom texture loader
+            // call our custom loader
             yield return gdb.StartCoroutine(FilesLoader(modelAssets, allModelFiles, "Loading model asset"));
 
             // all done, do some cleanup
@@ -495,6 +587,8 @@ namespace KSPCommunityFixes.Performance
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
             gdb.progressFraction = 1f;
             loadObjectsInProgress = false;
+
+            Destroy(loader);
         }
 
         #endregion
@@ -599,7 +693,7 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    Debug.Log($"Load ({rawAsset.TypeName}): {rawAsset.File.url}");
+                    Debug.Log($"Load {rawAsset.TypeName}: {rawAsset.File.url}");
                     rawAsset.LoadAndDisposeMainThread();
 
                     if (rawAsset.State == RawAsset.Result.Failed)
@@ -668,6 +762,8 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+
+
         /// <summary>
         /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
         /// </summary>
@@ -679,6 +775,7 @@ namespace KSPCommunityFixes.Performance
                 TextureJPG,
                 TextureMBM,
                 TexturePNG,
+                TexturePNGCached,
                 TextureTGA,
                 TextureTRUECOLOR,
                 ModelMU,
@@ -691,6 +788,7 @@ namespace KSPCommunityFixes.Performance
                 "JPG texture",
                 "MBM texture",
                 "PNG texture",
+                "Cached PNG Texture",
                 "TGA texture",
                 "TRUECOLOR texture",
                 "MU model",
@@ -705,6 +803,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             private UrlFile file;
+            private CachedTextureInfo cachedTextureInfo;
             private AssetType assetType;
             private bool useRentedBuffer;
             private byte[] buffer;
@@ -770,7 +869,9 @@ namespace KSPCommunityFixes.Performance
 
                 try
                 {
-                    using (FileStream fileStream = System.IO.File.OpenRead(file.fullPath))
+                    string path = assetType == AssetType.TexturePNGCached ? cachedTextureInfo.FilePath : file.fullPath;
+
+                    using (FileStream fileStream = System.IO.File.OpenRead(path))
                     {
                         long length = fileStream.Length;
                         if (length > int.MaxValue)
@@ -845,6 +946,9 @@ namespace KSPCommunityFixes.Performance
                                 break;
                             case AssetType.TexturePNG:
                                 textureInfo = LoadPNG();
+                                break;
+                            case AssetType.TexturePNGCached:
+                                textureInfo = LoadPNGCached();
                                 break;
                             case AssetType.TextureTGA:
                                 textureInfo = LoadTGA();
@@ -924,6 +1028,17 @@ namespace KSPCommunityFixes.Performance
 
                 if (useRentedBuffer)
                     arrayPool.Return(buffer);
+            }
+
+            public void CheckTextureCache()
+            {
+                CachedTextureInfo cachedTextureInfo = GetCachedTextureInfo(file);
+
+                if (cachedTextureInfo == null)
+                    return;
+
+                assetType = AssetType.TexturePNGCached;
+                this.cachedTextureInfo = cachedTextureInfo;
             }
 
             private TextureInfo LoadDDS()
@@ -1062,48 +1177,43 @@ namespace KSPCommunityFixes.Performance
                 }
 
                 Texture2D texture = new Texture2D((int)width, (int)height, textureFormat, hasMipMaps);
-                if (!ImageConversion.LoadImage(texture, buffer, nonReadable))
-                    return null;
 
-                if (isNormalMap)
-                    texture = BitmapToCompressedNormalMapFast(texture);
+                if ((isNormalMap || canCompress) && textureCacheEnabled)
+                {
+                    if (!ImageConversion.LoadImage(texture, buffer, false))
+                        return null;
+
+                    if (isNormalMap)
+                        texture = BitmapToCompressedNormalMapFast(texture, false);
+
+                    if (texture.graphicsFormat == GraphicsFormat.RGBA_DXT5_UNorm)
+                    {
+                        SaveCachedTexture(file, texture, isNormalMap);
+
+                        if (isNormalMap || nonReadable)
+                            texture.Apply(true, true);
+                    }
+                }
+                else
+                {
+                    if (!ImageConversion.LoadImage(texture, buffer, nonReadable))
+                        return null;
+
+                    if (isNormalMap)
+                        texture = BitmapToCompressedNormalMapFast(texture);
+                }
+
 
                 return new TextureInfo(file, texture, isNormalMap, !nonReadable, true);
             }
 
-            private static bool GetPNGSize(byte[] pngData, out uint width, out uint height)
+            private TextureInfo LoadPNGCached()
             {
-                width = height = 0;
+                if (cachedTextureInfo.TryCreateTexture(out Texture2D texture))
+                    return new TextureInfo(file, texture, cachedTextureInfo.normal, cachedTextureInfo.readable, true);
 
-                if (pngData.Length < 24)
-                    return false;
-
-                // validate PNG magic bytes
-                if (pngData[0] != 137
-                    || pngData[1] != 80
-                    || pngData[2] != 78
-                    || pngData[3] != 71
-                    || pngData[4] != 13
-                    || pngData[5] != 10
-                    || pngData[6] != 26
-                    || pngData[7] != 10) 
-                    return false;
-
-                // validate IHDR chunk length (always 13)
-                if (pngData[11] != 13) 
-                    return false;
-
-                // validate chunk name ("IHDR")
-                if (pngData[12] != 73
-                    || pngData[13] != 72
-                    || pngData[14] != 68
-                    || pngData[15] != 82) 
-                    return false;
-
-                // width and height are big-endian encoded unsigned ints
-                width = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(pngData, 16, 4));
-                height = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(pngData, 20, 4));
-                return true;
+                buffer = System.IO.File.ReadAllBytes(file.fullPath);
+                return LoadPNG();
             }
 
             private TextureInfo LoadTGA()
@@ -1248,9 +1358,9 @@ namespace KSPCommunityFixes.Performance
                 return gameObject;
             }
 
-            private static Texture2D BitmapToCompressedNormalMapFast(Texture2D original)
+            private static Texture2D BitmapToCompressedNormalMapFast(Texture2D original, bool makeNoLongerReadable = true)
             {
-                // Much faster than the stock BitmapToUnityNormalMap() method, going from 2.85s to 0.45s
+                // ~6 times faster than the stock BitmapToUnityNormalMap() method
                 // Note that this would be a lot more efficient if we didn't have to create a new texture.
                 // Unfortunately, Unity doesn't provide any way to add mimaps to a texture that didn't
                 // have them initially (but I guess this is a deeper GPU related limitation)...
@@ -1330,11 +1440,11 @@ namespace KSPCommunityFixes.Performance
                 {
                     normalMap.Apply(true, false);
                     normalMap.Compress(false);
-                    normalMap.Apply(true, true);
+                    normalMap.Apply(true, makeNoLongerReadable);
                 }
                 else
                 {
-                    normalMap.Apply(true, true);
+                    normalMap.Apply(true, makeNoLongerReadable);
                 }
 
                 Destroy(original);
@@ -1349,7 +1459,7 @@ namespace KSPCommunityFixes.Performance
         private static IEnumerable<CodeInstruction> PartLoader_StartLoad_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo m_PartLoader_CompileAll = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileAll));
-            MethodInfo m_PartLoader_CompileAll_Modded = AccessTools.Method(typeof(FastLoader), nameof(PartLoader_CompileAll));
+            MethodInfo m_PartLoader_CompileAll_Modded = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_CompileAll));
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
             bool valid = false;
@@ -1441,7 +1551,7 @@ namespace KSPCommunityFixes.Performance
             while (compileInternalSpacesEnumerator.MoveNext())
                 yield return null;
 
-            Unpatch();
+            Destroy(loader);
 
             instance.SavePartDatabase();
             instance._recompile = false;
@@ -1463,7 +1573,7 @@ namespace KSPCommunityFixes.Performance
         /// </summary>
         private static void PatchStartCoroutineInCoroutine(MethodInfo coroutine)
         {
-            MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThroughTranspiler));
+            MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(KSPCFFastLoader), nameof(StartCoroutinePassThroughTranspiler));
             harmony.Patch(AccessTools.EnumeratorMoveNext(coroutine), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
         }
 
@@ -1473,7 +1583,7 @@ namespace KSPCommunityFixes.Performance
         private static IEnumerable<CodeInstruction> StartCoroutinePassThroughTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo m_StartCoroutine = AccessTools.Method(typeof(MonoBehaviour), nameof(MonoBehaviour.StartCoroutine), new[] { typeof(IEnumerator) });
-            MethodInfo m_StartCoroutinePassThrough = AccessTools.Method(typeof(FastLoader), nameof(StartCoroutinePassThrough));
+            MethodInfo m_StartCoroutinePassThrough = AccessTools.Method(typeof(KSPCFFastLoader), nameof(StartCoroutinePassThrough));
 
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
@@ -1549,6 +1659,362 @@ namespace KSPCommunityFixes.Performance
                         moveNext = false;
                     }
                 }
+            }
+        }
+
+        #endregion
+
+        #region PNG texture cache
+
+        private static void SetupTextureCacheThread(List<RawAsset> textures)
+        {
+            loader.SetupTextureCache();
+
+            foreach (RawAsset rawAsset in textures)
+                rawAsset.CheckTextureCache();
+        }
+
+        private void SetupTextureCache()
+        {
+            textureCacheDataPath = Path.Combine(textureCachePath, "textureData.json");
+            textureProgressMarkerPath = Path.Combine(textureCachePath, "progressMarker");
+
+            textureCacheData = new Dictionary<string, CachedTextureInfo>(2000);
+            textureDataIds = new HashSet<uint>(2000);
+
+            if (Directory.Exists(textureCachePath))
+            {
+                if (File.Exists(textureProgressMarkerPath))
+                {
+                    // If progress marker is still here, the game somehow crashed during loading on
+                    // the previous run, so we delete the whole cache to avoid orphan cached texture
+                    // files from lying around
+                    Directory.Delete(textureCachePath, true);
+                    Directory.CreateDirectory(textureCachePath);
+                }
+                else if (File.Exists(textureCacheDataPath))
+                {
+                    string[] textureCacheDataContent = File.ReadAllLines(textureCacheDataPath);
+                    foreach (string json in textureCacheDataContent)
+                    {
+                        CachedTextureInfo cachedTextureInfo = JsonUtility.FromJson<CachedTextureInfo>(json);
+                        textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
+                        textureDataIds.Add(cachedTextureInfo.id);
+                    }
+                }
+            }
+            else
+            {
+                Directory.CreateDirectory(textureCachePath);
+            }
+
+            File.WriteAllText(textureProgressMarkerPath, string.Empty);
+        }
+
+        private void WriteTextureCache()
+        {
+            if (!userOptInChoiceDone || !textureCacheEnabled)
+            {
+                if (Directory.Exists(textureCachePath))
+                    Directory.Delete(textureCachePath, true);
+            }
+            else
+            {
+                foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
+                {
+                    if (!cachedTextureInfo.loaded)
+                    {
+                        cacheUpdated = true;
+                        File.Delete(cachedTextureInfo.FilePath);
+                    }
+                }
+
+                if (cacheUpdated)
+                {
+                    File.Delete(textureCacheDataPath);
+
+                    List<string> textureCacheDataContent = new List<string>(textureCacheData.Count);
+
+                    foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
+                        if (cachedTextureInfo.loaded)
+                            textureCacheDataContent.Add(JsonUtility.ToJson(cachedTextureInfo));
+
+                    File.WriteAllLines(textureCacheDataPath, textureCacheDataContent);
+                }
+
+                File.Delete(textureProgressMarkerPath);
+            }
+        }
+
+        [Serializable]
+        private class CachedTextureInfo
+        {
+            private static readonly System.Random random = new System.Random();
+
+            public string name;
+            public uint id;
+            public long creationTime;
+            public int width;
+            public int height;
+            public int mipCount;
+            public bool readable;
+            public bool normal;
+            [NonSerialized] public bool loaded = false;
+
+            public string FilePath => Path.Combine(loader.textureCachePath, id.ToString());
+
+            public CachedTextureInfo() { }
+
+            public CachedTextureInfo(UrlFile urlFile, Texture2D texture, bool isNormalMap)
+            {
+                name = urlFile.url;
+                do
+                {
+                    unchecked
+                    {
+                        id = (uint)random.Next();
+                    }
+                }
+                while (loader.textureDataIds.Contains(id));
+
+                creationTime = File.GetCreationTimeUtc(urlFile.fullPath).ToFileTimeUtc();
+                width = texture.width;
+                height = texture.height;
+                mipCount = texture.mipmapCount;
+                normal = isNormalMap;
+                readable = !isNormalMap && !name.Contains("@thumbs");
+                loaded = true;
+            }
+
+            public void SaveRawTextureData(Texture2D texture)
+            {
+                byte[] rawData = texture.GetRawTextureData();
+                File.WriteAllBytes(Path.Combine(loader.textureCachePath, id.ToString()), rawData);
+            }
+
+            public bool TryCreateTexture(out Texture2D texture)
+            {
+                try
+                {
+                    texture = new Texture2D(width, height, GraphicsFormat.RGBA_DXT5_UNorm, mipCount, mipCount == 1 ? TextureCreationFlags.None : TextureCreationFlags.MipChain);
+                    byte[] rawData = File.ReadAllBytes(Path.Combine(loader.textureCachePath, id.ToString()));
+                    texture.LoadRawTextureData(rawData);
+                    texture.Apply(false, !readable);
+                    loaded = true;
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[KSPCF] Failed to load cached PNG texture '{name}'\n{e}");
+                    texture = null;
+                    return false;
+                }
+            }
+        }
+
+        private static CachedTextureInfo GetCachedTextureInfo(UrlDir.UrlFile file)
+        {
+            if (!loader.textureCacheData.TryGetValue(file.url, out CachedTextureInfo cachedTextureInfo))
+                return null;
+
+            long creationTime = File.GetCreationTimeUtc(file.fullPath).ToFileTimeUtc();
+
+            if (cachedTextureInfo.creationTime != creationTime)
+            {
+                loader.textureCacheData.Remove(file.url);
+                loader.textureDataIds.Remove(cachedTextureInfo.id);
+                File.Delete(cachedTextureInfo.FilePath);
+                loader.cacheUpdated = true;
+                return null;
+            }
+
+            return cachedTextureInfo;
+        }
+
+        private static void SaveCachedTexture(UrlDir.UrlFile urlFile, Texture2D texture, bool isNormalMap)
+        {
+            CachedTextureInfo cachedTextureInfo = new CachedTextureInfo(urlFile, texture, isNormalMap);
+            cachedTextureInfo.SaveRawTextureData(texture);
+            loader.textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
+            loader.textureDataIds.Add(cachedTextureInfo.id);
+            loader.cacheUpdated = true;
+            Debug.Log($"[KSPCF] PNG texture '{urlFile.url}' was converted to DXT5 and has been cached for future reloads");
+        }
+
+        private static IEnumerator WaitForUserOptIn()
+        {
+            long cacheSize = 0;
+            long normalsSize = 0;
+            int textureCount = 0;
+            foreach (UrlFile textureFile in Instance.root.GetFiles(FileType.Texture))
+            {
+                if (string.Equals(Path.GetExtension(textureFile.fullPath), ".png", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (GetPngCacheSize(textureFile.fullPath, out int size, out bool isNormal))
+                    {
+                        textureCount++;
+                        cacheSize += size;
+                        if (isNormal)
+                            normalsSize += size;
+                    }
+                }
+            }
+
+            // 4s for 1350 textures
+            double timePerTexture = 4.0 / 1350.0;
+
+            // 4s for 100MB of cached textures
+            double timePerByte = 4.0 / 100.0 / 1024.0 / 1024.0;
+
+            // 30s for 130MB of cached normal maps 
+            double timePerNormalByte = 30.0 / 130.0 / 1024.0 / 1024.0;
+
+            double loadingTimeReduction = (textureCount * timePerTexture) + (cacheSize * timePerByte) + (normalsSize * timePerNormalByte);
+
+            string desc =
+                "<size=120%><color=\"white\">" +
+                LOC_PopupL1 + "\n\n" +
+                Localizer.Format(LOC_F_PopupL2, loadingTimeReduction.ToString("F0")) + "\n\n" +
+                Localizer.Format(LOC_F_PopupL3, (cacheSize / 1024.0 / 1024.0).ToString("F0")) + "\n\n" +
+                LOC_PopupL4 + "\n\n" +
+                "<align=\"center\">" + LOC_PopupL5 + "\n";
+
+            string cacheSizeMb = (cacheSize / 1024.0 / 1024.0).ToString("F0") + "Mb";
+            bool? choosed = null;
+            bool dismissed = false;
+            MultiOptionDialog dialog = new MultiOptionDialog("TextureLoaderOptimizations",
+                desc,
+                KSPCommunityFixes.LOC_KSPCF_Title,
+                HighLogic.UISkin, 350f,
+                new DialogGUIButton(Localizer.Format("#autoLOC_439839"), delegate { SetOptIn(true, ref choosed); }), // yes
+                new DialogGUIButton(Localizer.Format("#autoLOC_439840"), delegate { SetOptIn(false, ref choosed); })); // no
+            PopupDialog popup = PopupDialog.SpawnPopupDialog(dialog, false, HighLogic.UISkin, false);
+            popup.OnDismiss = () => dismissed = true;
+
+            while (choosed == null)
+            {
+                // prevent the user being able to skip choosing by "ESC closing" the dialog
+                if (dismissed)
+                {
+                    yield return Instance.StartCoroutine(WaitForUserOptIn());
+                    yield break;
+                }
+
+                yield return null;
+            }
+        }
+
+        private static void SetOptIn(bool optIn, ref bool? choosed)
+        {
+            loader.userOptInChoiceDone = true;
+            textureCacheEnabled = optIn;
+            choosed = true;
+
+            ConfigNode config = new ConfigNode();
+            config.AddValue(nameof(userOptInChoiceDone), true);
+            config.AddValue(nameof(textureCacheEnabled), optIn);
+
+            string pluginDataPath = Path.Combine(ModPath, "PluginData");
+            if (!Directory.Exists(pluginDataPath))
+                Directory.CreateDirectory(pluginDataPath);
+
+            config.Save(ConfigPath);
+        }
+
+        internal static void OnToggleCacheFromSettings(bool cacheEnabled)
+        {
+            textureCacheEnabled = cacheEnabled;
+            ConfigNode config = new ConfigNode();
+            config.AddValue(nameof(userOptInChoiceDone), true);
+            config.AddValue(nameof(textureCacheEnabled), cacheEnabled);
+            config.Save(ConfigPath);
+        }
+
+        private static readonly string flagsPath = Path.DirectorySeparatorChar + "Flags" + Path.DirectorySeparatorChar;
+
+        private static bool GetPngCacheSize(string path, out int cacheSize, out bool isNormal)
+        {
+            isNormal = false;
+            cacheSize = 0;
+
+            if (!GetPngSize(path, out uint width, out uint height))
+                return false;
+
+            if (width % 4 != 0 || height % 4 != 0)
+                return false;
+
+            cacheSize = (int)(width * height);
+
+            isNormal = Path.GetFileNameWithoutExtension(path).EndsWith("NRM");
+
+            // if has mipmaps, about 30% larger file size
+            if (isNormal || path.Contains(flagsPath))
+                cacheSize = (int)(cacheSize * 1.3);
+
+            return true;
+        }
+
+        #endregion
+
+        #region Utility
+
+        private static int GetDefaultMipMapCount(int height, int width)
+        {
+            return 1 + (int)(Math.Floor(Math.Log(Math.Max(width, height), 2.0)));
+        }
+
+        private static bool GetPNGSize(byte[] pngData, out uint width, out uint height)
+        {
+            width = height = 0;
+
+            if (pngData.Length < 24)
+                return false;
+
+            // validate PNG magic bytes
+            if (pngData[0] != 137
+                || pngData[1] != 80
+                || pngData[2] != 78
+                || pngData[3] != 71
+                || pngData[4] != 13
+                || pngData[5] != 10
+                || pngData[6] != 26
+                || pngData[7] != 10)
+                return false;
+
+            // validate IHDR chunk length (always 13)
+            if (pngData[11] != 13)
+                return false;
+
+            // validate chunk name ("IHDR")
+            if (pngData[12] != 73
+                || pngData[13] != 72
+                || pngData[14] != 68
+                || pngData[15] != 82)
+                return false;
+
+            // width and height are big-endian encoded unsigned ints
+            width = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(pngData, 16, 4));
+            height = BinaryPrimitives.ReadUInt32BigEndian(new ReadOnlySpan<byte>(pngData, 20, 4));
+            return true;
+        }
+
+        private static bool GetPngSize(string path, out uint width, out uint height)
+        {
+            BinaryReader binaryReader = null;
+            try
+            {
+                binaryReader = new BinaryReader(File.OpenRead(path));
+                byte[] header = binaryReader.ReadBytes(24);
+                return GetPNGSize(header, out width, out height);
+            }
+            catch
+            {
+                width = height = 0;
+                return false;
+            }
+            finally
+            {
+                binaryReader?.Dispose();
             }
         }
 
