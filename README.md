@@ -158,6 +158,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.24.0
 - Updated for KSP 1.12.4
+- New KSP bugfix patch : [ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107), fix parachutes in symmetry keeping their spread angle after decoupling.
 - New performance patch : [ContractProgressEnumCache](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/100) (thanks to @abrenneke)
 - New performance patch : [FastLoader](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108),Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format. 
 - The FastLoader patch also include a fix for [issue #69](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/69), KSP bug causing loading hangs when an invalid `*.png` file is being loaded.
