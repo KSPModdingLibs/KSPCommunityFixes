@@ -1,4 +1,6 @@
-﻿using DDSHeaders;
+﻿//#define DEBUG_TEXTURE_CACHE
+
+using DDSHeaders;
 using HarmonyLib;
 using KSPCommunityFixes.Library.Collections;
 using KSPCommunityFixes.Library.Buffers;

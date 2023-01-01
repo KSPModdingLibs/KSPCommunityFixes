@@ -30,7 +30,7 @@ namespace KSPCommunityFixes.Modding
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
-            MethodInfo ConfigNode_ReadObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.ReadObject), new Type[] {typeof(object), typeof(ConfigNode)});
+            MethodInfo ConfigNode_ReadObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.ReadObject), new Type[] { typeof(object), typeof(ConfigNode) });
             MethodInfo ConfigNode_WriteObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteObject), new Type[] { typeof(object), typeof(ConfigNode), typeof(int) });
 
             if (ConfigNode_ReadObject == null)
@@ -95,30 +95,6 @@ namespace KSPCommunityFixes.Modding
             readLinks = __state.links;
         }
 
-        private static bool ConfigNode_WriteObject_Prefix(object obj, ConfigNode node, int pass)
-        {
-            __state = writeLinks;
-        }
-
-        // and restore it
-        private static void ConfigNode_CreateConfigFromObject_Postfix(WriteLinkList __state)
-        {
-            writeLinks = __state;
-        }
-
-        // This will fail if nested, so we cache off the old readlinks and remove.
-        private static void ConfigNode_LoadObjectFromConfig_Prefix(out LoadState __state)
-        {
-            __state = new LoadState(removeAfterUse, readLinks);
-        }
-
-        // and restore them
-        private static void ConfigNode_LoadObjectFromConfig_Postfix(LoadState __state)
-        {
-            removeAfterUse = __state.wasRemove;
-            readLinks = __state.links;
-        }
-
         // used by TypeCache since we can't make the below method return a value.
         public static bool WriteSuccess;
 
@@ -140,7 +116,7 @@ namespace KSPCommunityFixes.Modding
             return false;
         }
 
-        
+
         public static bool ConfigNode_ReadObject_Prefix(object obj, ConfigNode node, out bool __result)
         {
             Type type = obj.GetType();
@@ -294,7 +270,7 @@ namespace KSPCommunityFixes.Modding
             }
             int vCount = node._values.values.Count;
             int nCount = node._nodes.nodes.Count;
-            
+
             object existing = fieldInfo.GetValue(host);
             bool wasNull = existing == null;
             if (dataType == DataType.Object || dataType == DataType.IConfigNode)
@@ -374,7 +350,7 @@ namespace KSPCommunityFixes.Modding
             bool arrReadSuccess = true;
             if (arrayType.dataType >= DataType.FirstValueType && arrayType.dataType <= DataType.LastValueType)
             {
-                
+
                 if (isArr)
                     arr = Array.CreateInstance(arrayType.fieldType, vCount);
                 else
@@ -595,7 +571,7 @@ namespace KSPCommunityFixes.Modding
                 case DataType.ValueString:
                     return value;
                 case DataType.ValueGuid:
-                    return  new Guid(value);
+                    return new Guid(value);
                 case DataType.ValueBool:
                     if (bool.TryParse(value, out var b))
                         return b;
@@ -971,7 +947,7 @@ namespace KSPCommunityFixes.Modding
             for (int i = 0; i < num; i++)
             {
                 FieldData fieldData = _fields[i];
-                
+
                 object value = fieldData.fieldInfo.GetValue(obj);
                 if (value == null)
                 {

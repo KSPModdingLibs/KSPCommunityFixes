@@ -3,15 +3,9 @@
 //#define CONFIGNODE_PERF_TEST
 using HarmonyLib;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using UnityEngine;
 using static ConfigNode;
-using UniLinq;
-using System.Runtime.CompilerServices;
 using System.IO;
 using KSP.Localization;
 using System.Text;
@@ -53,11 +47,6 @@ namespace KSPCommunityFixes.Performance
         static long _ourTime = 0, _readTime = 0;
         static bool _skipOtherPatches = false;
 #endif
-        static string[] _skipPrefixes;
-        static bool _valid = false;
-        const int _MinLinesForParallel = 100000;
-        static readonly System.Text.UTF8Encoding _UTF8NoBOM = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-        static readonly string _Newline = Environment.NewLine;
 
         public void Awake()
         {
@@ -133,18 +122,14 @@ namespace KSPCommunityFixes.Performance
         }
 
         private static void SetNoClean()
-            {
+        {
             _doClean = false;
-            }
-            else
-                _skipKeys = new string[0];
+        }
 
         private static void SetDoClean()
-            {
+        {
             _doClean = true;
-            }
-            else
-                _skipPrefixes = new string[0];
+        }
 
         private static unsafe bool ConfigNode_Ctor1_Prefix(ConfigNode __instance, string name)
         {
@@ -161,10 +146,10 @@ namespace KSPCommunityFixes.Performance
             {
                 __instance.name = string.Empty;
                 return false;
-        }
+            }
 
             if (!_doClean)
-        {
+            {
                 __instance.name = name;
                 return false;
             }
@@ -319,13 +304,13 @@ namespace KSPCommunityFixes.Performance
         }
 
         private static bool ConfigNode_Save_Prefix(ConfigNode __instance, string fileFullName, string header, ref bool __result)
-            {
+        {
             bool indent = true;
             if (_AllowSkipIndent)
-                {
+            {
                 string ext = Path.GetExtension(fileFullName);
                 switch (ext)
-                    {
+                {
                     //case ".ConfigCache":
                     // We can't control this with a setting because CC loads/saves
                     // before we have access to settings.
@@ -334,16 +319,16 @@ namespace KSPCommunityFixes.Performance
                     case ".sfs":
                         indent = false;
                         break;
-                    }
+                }
             }
             StreamWriter sw = new StreamWriter(File.Open(fileFullName, FileMode.Create), _UTF8NoBOM, _SaveBufferSize);
             if (indent && !string.IsNullOrEmpty(header))
-                    {
+            {
                 sw.Write("// ");
                 sw.Write(header);
                 sw.Write(_Newline);
                 sw.Write(_Newline);
-                    }
+            }
             _WriteRootNode(__instance, sw, indent, indent);
             sw.Close();
 
@@ -352,19 +337,19 @@ namespace KSPCommunityFixes.Performance
         }
 
         private static bool ConfigNode_CopyToRecursive_Prefix(ConfigNode __instance, ConfigNode node, bool overwrite)
-                    {
+        {
             if (node.name == null || node.name.Length == 0)
             {
                 node.name = __instance.name;
-                    }
+            }
             if (node.id == null || node.id.Length == 0)
-                    {
+            {
                 node.id = __instance.id;
-                    }
+            }
             if (__instance.comment != null && __instance.comment.Length > 0)
             {
                 node.comment = __instance.comment;
-                }
+            }
             for (int i = 0, iC = __instance.values.Count; i < iC; ++i)
             {
                 Value value = __instance.values[i];
@@ -380,19 +365,19 @@ namespace KSPCommunityFixes.Performance
                             v.value = value.value;
                             v.comment = value.comment;
                             break;
-            }
+                        }
                     }
                 }
                 if (v == null)
-            {
+                {
                     node._values.values.Add(new Value(value.name, value.value, value.comment));
                 }
             }
             for (int i = 0, iC = __instance._nodes.nodes.Count; i < iC; ++i)
-                {
+            {
                 ConfigNode sub = __instance.nodes[i];
                 if (overwrite)
-                    {
+                {
                     node._nodes.RemoveNode(sub.name);
                 }
                 ConfigNode newNode = new ConfigNode(string.Empty); // will be set above when we recurse.
@@ -403,7 +388,7 @@ namespace KSPCommunityFixes.Performance
         }
 
         private static bool ConfigNode_ToString_Prefix(ConfigNode __instance, ref string __result)
-                        {
+        {
             var sw = new StringWriter(_stringBuilder);
             _WriteNodeString(__instance, sw, string.Empty, false);
             __result = _stringBuilder.ToString();
@@ -415,9 +400,9 @@ namespace KSPCommunityFixes.Performance
                 // field to point to it will detach the other chunks and GC
                 // will collect them.
                 _stringBuilder = FindChunkForIndex.Invoke(_stringBuilder, _StringBuilderIndex0Param) as StringBuilder;
-                        }
+            }
             _stringBuilder.Length = 0;
-            
+
             return false;
         }
 
@@ -439,7 +424,7 @@ namespace KSPCommunityFixes.Performance
                 int len = __instance.name.Length;
                 if (len == 0)
                     return false;
-                
+
                 string result = null;
                 bool sanitize = false;
                 fixed (char* pszSanitize = __instance.name)
@@ -452,8 +437,8 @@ namespace KSPCommunityFixes.Performance
                             case '}':
                             case '=':
                                 sanitize = true;
-                        break;
-                    }
+                                break;
+                        }
                     }
                     if (sanitize)
                     {
@@ -471,10 +456,10 @@ namespace KSPCommunityFixes.Performance
                                     case '}': pszNewStr[i] = ']'; break;
                                     case '=': pszNewStr[i] = '-'; break;
                                     default: pszNewStr[i] = c; break;
+                                }
+                            }
                         }
                     }
-                }
-            }
                 }
                 if (sanitize)
                     __instance.name = result;
@@ -491,7 +476,7 @@ namespace KSPCommunityFixes.Performance
                 string result = null;
                 bool sanitize = false;
                 fixed (char* pszSanitize = __instance.value)
-                {    
+                {
                     for (int i = 0; i < len; ++i)
                     {
                         switch (pszSanitize[i])
@@ -500,7 +485,7 @@ namespace KSPCommunityFixes.Performance
                             case '}':
                                 sanitize = true;
                                 break;
-            }
+                        }
                     }
                     if (sanitize)
                     {
@@ -587,7 +572,7 @@ namespace KSPCommunityFixes.Performance
                     if (c == '\t')
                     {
                         ok = false;
-            }
+                    }
                     else
                     {
                         if (c == '\n' || c == '\r')
@@ -633,7 +618,7 @@ namespace KSPCommunityFixes.Performance
         {
 #if DEBUG_CONFIGNODE_PERF
             if (_skipOtherPatches)
-            return true;
+                return true;
 #endif
             ConfigNodeValue_Sanitize_Prefix(v, true);
             __instance.values.Add(v);
@@ -658,11 +643,11 @@ namespace KSPCommunityFixes.Performance
             }
             if (indent)
             {
-            for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
-            {
+                for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
+                {
                     _WriteNodeString(__instance.nodes[i], sw, string.Empty, includeComments);
+                }
             }
-        }
             else
             {
                 for (int i = 0, count = __instance.nodes.Count; i < count; ++i)
@@ -764,10 +749,10 @@ namespace KSPCommunityFixes.Performance
                 return new ConfigNode("root");
 
             fixed (char* pBase = chars)
-                {
+            {
                 return ParseConfigNode(pBase, numChars);
-                }
             }
+        }
 
         public static unsafe ConfigNode ParseConfigNode(char* pBase, int numChars)
         {
@@ -783,14 +768,14 @@ namespace KSPCommunityFixes.Performance
             int lastNonWSNonSlash = lastNonWS;
 
             for (; pos < numChars; ++pos)
-        {
+            {
                 char c = pBase[pos];
 
                 // first eat the rest of the line, if it's a comment
                 if (mode == ParseMode.EatComment)
-            {
-                    if (c == '\n')
                 {
+                    if (c == '\n')
+                    {
                         mode = ParseMode.SkipToKey;
                         start = pos + 1;
                         lastNonWS = pos;
@@ -811,104 +796,96 @@ namespace KSPCommunityFixes.Performance
                             savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
                         }
                         else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
-                {
+                        {
                             int len = lastNonWS - start + 1;
                             string val = len > 0 ? new string(pBase, start, len) : string.Empty;
                             _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
                             savedName = string.Empty;
-                }
+                        }
                         mode = ParseMode.SkipToKey;
                         start = pos + 1;
                         lastNonWS = pos;
                         lastNonWSNonSlash = lastNonWS;
                         continue;
-            }
-
-            int idxValueLast;
-            if (idxValueStart == lineLen)
-            {
-                // Empty value
-                idxValueLast = -1;
-            }
-            else
-            {
+                    }
+                }
+                else
+                {
                     // Detect if we're starting a comment
                     if (c == '/')
                     {
                         if (pos < numChars - 1 && pBase[pos + 1] == '/')
-                {
+                        {
                             // will do nothing if in linestart
                             //ProcessString(pBase, start, lastNonWSNonSlash);
                             if (mode == ParseMode.ReadKey)
-                    {
+                            {
                                 int len = lastNonWSNonSlash - start + 1;
                                 savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
                             }
                             else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
-                        {
+                            {
                                 int len = lastNonWSNonSlash - start + 1;
                                 _nodeStack.Peek()._values.values.Add(new Value(savedName, new string(pBase, start, len)));
                                 savedName = string.Empty;
-                        }
+                            }
 
                             mode = ParseMode.EatComment;
                             ++pos; // we know the next char
                             continue;
-                    }
+                        }
 
                         // are we done eating ws at start of line?
                         if (mode == ParseMode.SkipToKey)
-                    {
+                        {
                             mode = ParseMode.ReadKey;
                             start = pos;
-                    }
+                        }
                         else if (mode == ParseMode.SkipToValue)
-                    {
+                        {
                             mode = ParseMode.ReadValue;
                             start = pos;
-                    }
+                        }
                         // update last non-ws but NOT
                         // the last non-ws before a slash.
                         lastNonWS = pos;
-                }
+                    }
                     else
                     {
                         // are we done eating ws at start of line?
                         if (mode == ParseMode.SkipToKey)
-                {
+                        {
                             mode = ParseMode.ReadKey;
                             start = pos;
                             lastNonWS = pos - 1; // zero-length string
-        }
+                        }
                         else if (mode == ParseMode.SkipToValue)
-            {
+                        {
                             mode = ParseMode.ReadValue;
                             start = pos;
                             lastNonWS = pos - 1; // zero-length string
-            }
+                        }
 
                         if (c == '{')
-            {
+                        {
                             //ProcessString(pBase, start, lastNonWS);
                             if (mode == ParseMode.ReadKey)
-                {
+                            {
                                 // was there any string to grab, or is this a { on an empty line?
                                 if (lastNonWS >= start)
-                {
+                                {
                                     int len = lastNonWS - start + 1;
                                     savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                }
-                if (!char.IsWhiteSpace(c))
-                    idxKeyLast = idxEquals;
-            }
+                                }
+                            }
                             else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
-            {
+                            {
                                 // we *do* want to store an empty value in this case.
                                 int len = lastNonWS - start + 1;
                                 string val = len > 0 ? new string(pBase, start, len) : string.Empty;
                                 _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
                                 savedName = string.Empty;
-            }
+                            }
                             mode = ParseMode.SkipToKey;
                             var sub = new ConfigNode(savedName);
                             _nodeStack.Peek()._nodes.nodes.Add(sub);
@@ -928,15 +905,15 @@ namespace KSPCommunityFixes.Performance
                                 {
                                     int len = lastNonWS - start + 1;
                                     savedName = len > 0 ? new string(pBase, start, len) : string.Empty;
-                        }
+                                }
                                 else if (mode == ParseMode.ReadValue || mode == ParseMode.SkipToValue)
-                        {
+                                {
                                     int len = lastNonWS - start + 1;
                                     string val = len > 0 ? new string(pBase, start, len) : string.Empty;
                                     _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
                                     savedName = string.Empty;
-                        }
-                    }
+                                }
+                            }
                             mode = ParseMode.SkipToKey;
                             // If we are in a subnode, close it and go to parent
                             if (_nodeStack.Count > 1)
@@ -944,10 +921,10 @@ namespace KSPCommunityFixes.Performance
                                 _nodeStack.Pop();
                             }
                             else
-                                {
+                            {
                                 // Otherwise do what stock does when encountering this typo: stop processing.
-                                    break;
-                                }
+                                break;
+                            }
                             start = pos + 1;
                             lastNonWS = pos;
                             lastNonWSNonSlash = lastNonWS;
@@ -999,7 +976,6 @@ namespace KSPCommunityFixes.Performance
                         lastNonWSNonSlash = pos;
                     }
                 }
-                ProcessValue(output, line, pszLine, idxEquals + 1, lineLen, idxKeyStart, idxKeyLast);
             }
             _nodeStack.Clear();
             return node;
@@ -1007,16 +983,16 @@ namespace KSPCommunityFixes.Performance
 
 #if DEBUG_CONFIGNODE_PERF || CONFIGNODE_PERF_TEST
         private static string OldCleanupInput(string value)
-                        {
+        {
             value = value.Replace("\n", "");
             value = value.Replace("\r", "");
             value = value.Replace("\t", " ");
             return value;
-                }
+        }
 
 
         private static bool IsHeaderEqual(ConfigNode a, ConfigNode b)
-                {
+        {
             if (a.name != b.name)
                 return false;
             if (a.id != b.id)
@@ -1033,20 +1009,20 @@ namespace KSPCommunityFixes.Performance
             int bLen = b._values.values.Count;
             int minLen = Math.Min(aLen, bLen);
             for (int i = 0; i < minLen; ++i)
-                    {
+            {
                 var aV = a._values.values[i];
                 var bV = b._values.values[i];
                 if (aV.name != bV.name)
-                        {
+                {
                     Debug.Log($"Value name mismatch at index {i}: {aV.name} | {bV.name}");
                     return false;
-                    }
+                }
                 if (aV.value != bV.value)
                 {
                     Debug.Log($"Value value mismatch at index {i}: {aV.value} | {bV.value}");
                     return false;
                 }
-                }
+            }
             var extra = (aLen < bLen ? a : b)._values.values;
             for (int i = minLen; i < extra.Count; ++i)
                 Debug.Log($"Extra value: {extra[i].name} | {extra[i].value}");
@@ -1055,47 +1031,46 @@ namespace KSPCommunityFixes.Performance
         }
 
         private static bool NodeCountMismatch(ConfigNode a, ConfigNode b)
-                {
+        {
             int aLen = a._nodes.nodes.Count;
             int bLen = b._nodes.nodes.Count;
             int minLen = Math.Min(aLen, bLen);
             for (int i = 0; i < minLen; ++i)
-                    {
+            {
                 var aN = a._nodes.nodes[i];
                 var bN = b._nodes.nodes[i];
                 if (aN.name != bN.name)
-                        {
+                {
                     Debug.Log($"Node name mismatch at index {i}: {aN.name} | {bN.name}");
                     return false;
-                        }
-                        list[num] = list[num].Remove(num2);
-                    }
+                }
+            }
             var extra = (aLen < bLen ? a : b)._nodes.nodes;
             for (int i = minLen; i < extra.Count; ++i)
                 Debug.Log($"Extra node: {extra[i].name}");
 
             return false;
-                    }
+        }
 
         private static bool AreNodesEqual(ConfigNode a, ConfigNode b, bool dump)
-                    {
+        {
             if ((a == null) != (b == null))
-                        {
+            {
                 if (dump)
                     Debug.Log($"Null mismatch: {(a?.ToString() ?? "<>")} | {(b?.ToString() ?? "<>")}");
                 return false;
-                        }
+            }
             if (a == null)
                 return true;
 
             if (!IsHeaderEqual(a, b))
-                        {
+            {
                 Debug.Log("Headers unequal!"
                     + $"\nName: {a.name?.Length ?? -1} - {b.name?.Length ?? -1}: {a?.name ?? "<>"} | {b?.name ?? "<>"}"
                     + $"\nID: {a.id?.Length ?? -1} - {b.id?.Length ?? -1}: {a?.id ?? "<>"} | {b?.id ?? "<>"}"
                     + $"\nComment: {a.comment?.Length ?? -1} - {b.comment?.Length ?? -1}: {a?.comment ?? "<>"} | {b?.comment ?? "<>"}");
                 return false;
-                        }
+            }
 
             int c = a._values.values.Count;
             if (c != b._values.values.Count)
@@ -1103,32 +1078,32 @@ namespace KSPCommunityFixes.Performance
                 if (dump)
                     return ValueCountMismatch(a, b);
                 return false;
-                    }
+            }
             while (c-- > 0)
-                    {
+            {
                 if (a._values.values[c].name != b._values.values[c].name)
-                        {
+                {
                     if (dump)
                         Debug.Log($"Value mismatch, name: {a._values.values[c].name ?? "<>"} | {b._values.values[c].name ?? "<>"}");
                     return false;
-                        }
+                }
                 if (a._values.values[c].value != b._values.values[c].value)
-                        {
+                {
                     if (dump)
                         Debug.Log($"Value mismatch, name: {a._values.values[c].value?? "<>"} | {b._values.values[c].value ?? "<>"}");
                     return false;
                 }
                 if (a._values.values[c].comment != b._values.values[c].comment)
-                    {
+                {
                     if (dump)
                         Debug.Log($"Value mismatch, name: {a._values.values[c].comment ?? "<>"} | {b._values.values[c].comment ?? "<>"}");
                     return false;
-        }
-    }
+                }
+            }
 
             c = a._nodes.nodes.Count;
             if (c != b._nodes.nodes.Count)
-    {
+            {
                 if (dump)
                     return NodeCountMismatch(a, b);
                 return false;
@@ -1246,7 +1221,7 @@ namespace KSPCommunityFixes.Performance
         public void Awake()
         {
             ConfigNodePerf.Test();
-    }
+        }
 #endif
-}
+    }
 }
