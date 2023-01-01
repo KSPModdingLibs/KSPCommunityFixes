@@ -138,13 +138,6 @@ namespace KSPCommunityFixes.Performance
         {
             harmony.UnpatchAll(HarmonyID);
             harmony = null;
-            Thread onDestroyThread = new Thread(OnDestroyThread);
-            onDestroyThread.Start();
-        }
-
-        private static void OnDestroyThread()
-        {
-            loader.WriteTextureCache();
             loader = null;
         }
 
@@ -530,6 +523,10 @@ namespace KSPCommunityFixes.Performance
             // call our custom loader
             yield return gdb.StartCoroutine(FilesLoader(textureAssets, allTextureFiles, "Loading texture asset"));
 
+            // write texture cache json to disk
+            Thread writeTextureCacheThread = new Thread(() => loader.WriteTextureCache());
+            writeTextureCacheThread.Start();
+
             // start model loading
             gdb.progressFraction = 0.75f;
             gdb.progressTitle = "Loading model assets...";
@@ -587,8 +584,6 @@ namespace KSPCommunityFixes.Performance
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
             gdb.progressFraction = 1f;
             loadObjectsInProgress = false;
-
-            Destroy(loader);
         }
 
         #endregion
@@ -1124,7 +1119,7 @@ namespace KSPCommunityFixes.Performance
                 return new TextureInfo(file, texture2D, isNormalMap, false, true);
             }
 
-            private static string[] noMipMapsPNGTextureNames = 
+            private static string[] noMipMapsPNGTexturePaths = 
             {
                 Path.DirectorySeparatorChar + "Icons" + Path.DirectorySeparatorChar,
                 Path.DirectorySeparatorChar + "Tutorials" + Path.DirectorySeparatorChar,
@@ -1138,26 +1133,37 @@ namespace KSPCommunityFixes.Performance
                     SetError("Invalid PNG file");
                     return null;
                 }
-
+                 
                 bool canCompress = width % 4 == 0 && height % 4 == 0;
                 bool isNormalMap = file.name.EndsWith("NRM");
-                bool hasMipMaps;
-                bool nonReadable;
+                bool nonReadable = false;
+                bool hasMipMaps = true;
+                
 
                 if (isNormalMap)
                 {
                     hasMipMaps = false;
-                    nonReadable = false;
                 }
                 else
                 {
-                    hasMipMaps = true;
-                    for (int i = 0; i < noMipMapsPNGTextureNames.Length; i++)
-                        if (file.fullPath.Contains(noMipMapsPNGTextureNames[i]))
-                            hasMipMaps = false;
-
-                    // KSPCF optimization : don't keep thumbs in memory
-                    nonReadable = file.fullPath.Contains("@thumbs");
+                    // KSPCF optimization : don't keep cargo icons in memory, don't generate mipmaps for them
+                    if (file.fullPath.Contains("@thumbs"))
+                    {
+                        nonReadable = true;
+                        hasMipMaps = false;
+                    }
+                    else
+                    {
+                        // stock behavior : don't generate mipmaps for a few special folders
+                        for (int i = 0; i < noMipMapsPNGTexturePaths.Length; i++)
+                        {
+                            if (file.fullPath.Contains(noMipMapsPNGTexturePaths[i]))
+                            {
+                                hasMipMaps = false;
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 // don't initially compress normal textures, as we need to swizzle the raw data first
@@ -1490,6 +1496,8 @@ namespace KSPCommunityFixes.Performance
 
         private static IEnumerator PartLoader_CompileAll()
         {
+            Stopwatch watch = Stopwatch.StartNew();
+
             PartLoader instance = PartLoader.Instance;
 
             if (instance._recompile)
@@ -1554,12 +1562,17 @@ namespace KSPCommunityFixes.Performance
             Destroy(loader);
 
             instance.SavePartDatabase();
+
+            Debug.Log($"PartLoader: {configs.Length} parts compiled");
+            Debug.Log($"PartLoader: {allPropNodes.Length} internal props compiled");
+            Debug.Log($"PartLoader: {allSpaceNodes.Length} internal spaces compiled");
+            Debug.Log($"PartLoader: compilation took {watch.Elapsed.TotalSeconds:F3}s");
+
             instance._recompile = false;
             PartUpgradeManager.Handler.LinkUpgrades();
             GameEvents.OnUpgradesLinked.Fire();
             instance.isReady = true;
             GameEvents.OnPartLoaderLoaded.Fire();
-            
         }
 
         #endregion
