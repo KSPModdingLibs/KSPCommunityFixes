@@ -164,7 +164,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - The FastLoader patch also include a fix for [issue #69](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/69), KSP bug causing loading hangs when an invalid `*.png` file is being loaded.
 - TextureLoaderOptimizations : the patch has been depreciated, equivalent functionality has been integrated in the more general FastLoader patch.
 - ConfigNodePerf : Fixed the `Game.Updated()` patch not being applied due to an AmbiguousMatchException when finding the target method.
-- StockAlarmCustomFormatterDate : issue was fixed in KSP 1.12.4 so the patch doesn't apply to this version anymore
+- StockAlarmCustomFormatterDate : issue was fixed in stock so the patch doesn't apply to KSP 1.12.4+
 - RoboticsDrift : the patch now only apply to KSP 1.12+, as prior KSP versions have minor differences in the robotics code ultimately causing various bugs when the patch is applied, see [issue #72](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/72).
 
 ##### 1.23.0
@@ -174,9 +174,6 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - Added Chinese localization (contributed by @tinygrox).
 
 ##### 1.22.2
-- Fix stock bug in SaveUpgradePipeline exposed by ModUpgradePipeline: the stock SaveUpgradePipeline blows up if an UpgradeScript does not apply to both sfs and craft contexts.
-
-##### 1.22.1
 - Fix stock bug in SaveUpgradePipeline exposed by ModUpgradePipeline: the stock SaveUpgradePipeline blows up if an UpgradeScript does not apply to both sfs and craft contexts.
 
 ##### 1.22.1
