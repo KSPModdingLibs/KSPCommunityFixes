@@ -129,7 +129,7 @@ namespace KSPCommunityFixes.Performance
 
         void Start()
         {
-            if (!userOptInChoiceDone)
+            if (IsPatchEnabled && !userOptInChoiceDone)
                 StartCoroutine(WaitForUserOptIn());
         }
 
@@ -138,6 +138,9 @@ namespace KSPCommunityFixes.Performance
         /// </summary>
         void OnDestroy()
         {
+            if (!IsPatchEnabled)
+                return;
+
             harmony.UnpatchAll(HarmonyID);
             harmony = null;
             loader = null;

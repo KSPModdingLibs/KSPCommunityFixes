@@ -156,6 +156,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.24.1
+- Fixed [issue #112](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/112) : Cannot dismiss or disable FastLoader opt-in popup on KSP < 1.12.0
+
 ##### 1.24.0
 - Updated for KSP 1.12.5
 - New KSP bugfix patch : [ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107), fix parachutes in symmetry keeping their spread angle after decoupling.
