@@ -156,6 +156,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.24.2
+- Fixed [issue #11](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/114) : Drag cubes are incorrectly calculated on modules using `IMultipleDragCube.AssumeDragCubePosition()` due to FastLoader patch not skipping a frame to let the part animation(s) plays
+
 ##### 1.24.1
 - Fixed [issue #112](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/112) : Cannot dismiss or disable FastLoader opt-in popup on KSP < 1.12.0
 

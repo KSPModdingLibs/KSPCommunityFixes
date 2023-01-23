@@ -76,7 +76,7 @@ namespace KSPCommunityFixes.Performance
         private Dictionary<string, CachedTextureInfo> textureCacheData;
         private HashSet<uint> textureDataIds;
         private bool cacheUpdated = false;
-
+        
         private void Awake()
         {
             if (KSPCommunityFixes.KspVersion < new Version(1, 12, 0))
@@ -106,6 +106,11 @@ namespace KSPCommunityFixes.Performance
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
+
+            // Fix for issue #114 : Drag cubes are incorrectly calculated with KSPCF 1.24.1 
+            MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubes)));
+            MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler = AccessTools.Method(typeof(KSPCFFastLoader), nameof(DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
+            harmony.Patch(m_DragCubeSystem_RenderDragCubes_MoveNext, null, null, new HarmonyMethod(m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
 
             configPath = ConfigPath;
             textureCachePath = Path.Combine(ModPath, "PluginData", "TextureCache");
@@ -1654,8 +1659,9 @@ namespace KSPCommunityFixes.Performance
 
                 while (moveNext)
                 {
-                    if (Time.realtimeSinceStartup > nextFrameTime)
+                    if (frameSkipRequested || Time.realtimeSinceStartup > nextFrameTime)
                     {
+                        frameSkipRequested = false;
                         nextFrameTime = Time.realtimeSinceStartup + minFrameTime;
                         yield return null;
                     }
@@ -1678,6 +1684,28 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
             }
+        }
+
+        // Fix for issue #114 : Drag cubes are incorrectly calculated with KSPCF 1.24.1 
+        private static bool frameSkipRequested;
+        public static void RequestFrameSkip() => frameSkipRequested = true;
+
+        private static IEnumerable<CodeInstruction> DragCubeSystem_RenderDragCubes_MoveNext_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            MethodInfo m_IMultipleDragCube_AssumeDragCubePosition = AccessTools.Method(typeof(IMultipleDragCube), nameof(IMultipleDragCube.AssumeDragCubePosition));
+            MethodInfo m_KSPCFFastLoader_RequestFrameSkip = AccessTools.Method(typeof(KSPCFFastLoader), nameof(RequestFrameSkip));
+
+            for (int i = 0; i < code.Count; i++)
+            {
+                if (code[i].opcode == OpCodes.Callvirt && ReferenceEquals(code[i].operand, m_IMultipleDragCube_AssumeDragCubePosition))
+                {
+                    code.Insert(i + 1, new CodeInstruction(OpCodes.Call, m_KSPCFFastLoader_RequestFrameSkip));
+                    break;
+                }
+            }
+
+            return code;
         }
 
         #endregion
