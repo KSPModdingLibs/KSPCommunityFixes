@@ -1,4 +1,4 @@
-﻿//#define DEBUG_TEXTURE_CACHE
+﻿#define DEBUG_TEXTURE_CACHE
 
 using DDSHeaders;
 using HarmonyLib;
@@ -1799,7 +1799,8 @@ namespace KSPCommunityFixes.Performance
 
             public string name;
             public uint id;
-            public long creationTime;
+            public long time;
+            public long size;
             public int width;
             public int height;
             public int mipCount;
@@ -1811,7 +1812,7 @@ namespace KSPCommunityFixes.Performance
 
             public CachedTextureInfo() { }
 
-            public CachedTextureInfo(UrlFile urlFile, Texture2D texture, bool isNormalMap)
+            public CachedTextureInfo(UrlFile urlFile, Texture2D texture, bool isNormalMap, long size, long time)
             {
                 name = urlFile.url;
                 do
@@ -1823,7 +1824,8 @@ namespace KSPCommunityFixes.Performance
                 }
                 while (loader.textureDataIds.Contains(id));
 
-                creationTime = File.GetCreationTimeUtc(urlFile.fullPath).ToFileTimeUtc();
+                this.size = size;
+                this.time = time;
                 width = texture.width;
                 height = texture.height;
                 mipCount = texture.mipmapCount;
@@ -1863,9 +1865,7 @@ namespace KSPCommunityFixes.Performance
             if (!loader.textureCacheData.TryGetValue(file.url, out CachedTextureInfo cachedTextureInfo))
                 return null;
 
-            long creationTime = File.GetCreationTimeUtc(file.fullPath).ToFileTimeUtc();
-
-            if (cachedTextureInfo.creationTime != creationTime)
+            if (!GetFileStats(file.fullPath, out long size, out long time) || size != cachedTextureInfo.size || time != cachedTextureInfo.time)
             {
                 loader.textureCacheData.Remove(file.url);
                 loader.textureDataIds.Remove(cachedTextureInfo.id);
@@ -1877,9 +1877,33 @@ namespace KSPCommunityFixes.Performance
             return cachedTextureInfo;
         }
 
+        private static bool GetFileStats(string path, out long size, out long time)
+        {
+            MonoIO.GetFileStat(path, out MonoIOStat stat, out MonoIOError error);
+            if (error == MonoIOError.ERROR_FILE_NOT_FOUND || error == MonoIOError.ERROR_PATH_NOT_FOUND || error == MonoIOError.ERROR_NOT_READY)
+            {
+                size = 0;
+                time = 0;
+                return false;
+            }
+
+            size = stat.Length;
+            time = Math.Max(stat.CreationTime, stat.LastWriteTime);
+            if (size <= 0 || time <= 0)
+                return false;
+
+            return true;
+        }
+
         private static void SaveCachedTexture(UrlDir.UrlFile urlFile, Texture2D texture, bool isNormalMap)
         {
-            CachedTextureInfo cachedTextureInfo = new CachedTextureInfo(urlFile, texture, isNormalMap);
+            if (!GetFileStats(urlFile.fullPath, out long size, out long creationTime))
+            {
+                Debug.LogWarning($"[KSPCF] PNG texture '{urlFile.url}' couldn't be cached : IO error");
+                return;
+            }
+
+            CachedTextureInfo cachedTextureInfo = new CachedTextureInfo(urlFile, texture, isNormalMap, size, creationTime);
             cachedTextureInfo.SaveRawTextureData(texture);
             loader.textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
             loader.textureDataIds.Add(cachedTextureInfo.id);
