@@ -158,6 +158,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.24.3
 - Fixed [issue #115](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/115) : PNG texture cache isn't always invalidated when a PNG texture is modified
+- Updated Krafs.Publicizer dependency to v2.2.0
 
 ##### 1.24.2
 - Fixed [issue #114](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/114) : Drag cubes are incorrectly calculated on modules using `IMultipleDragCube.AssumeDragCubePosition()` due to FastLoader patch not skipping a frame to let the part animation(s) play
