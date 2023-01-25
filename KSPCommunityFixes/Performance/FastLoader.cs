@@ -1,4 +1,4 @@
-﻿#define DEBUG_TEXTURE_CACHE
+﻿// #define DEBUG_TEXTURE_CACHE
 
 using DDSHeaders;
 using HarmonyLib;
