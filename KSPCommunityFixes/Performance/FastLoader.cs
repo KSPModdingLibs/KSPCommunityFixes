@@ -79,9 +79,9 @@ namespace KSPCommunityFixes.Performance
         
         private void Awake()
         {
-            if (KSPCommunityFixes.KspVersion < new Version(1, 12, 0))
+            if (KSPCommunityFixes.KspVersion < new Version(1, 12, 3))
             {
-                Debug.Log("[KSPCF] FastLoader patch not applied, requires KSP 1.12+");
+                Debug.Log("[KSPCF] FastLoader patch not applied, requires KSP 1.12.3 or latter");
                 IsPatchEnabled = false;
                 return;
             }
