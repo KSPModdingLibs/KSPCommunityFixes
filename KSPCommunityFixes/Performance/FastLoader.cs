@@ -452,6 +452,7 @@ namespace KSPCommunityFixes.Performance
                     if (!allAudioFiles.Add(file.url))
                     {
                         Debug.LogWarning($"Duplicate audio asset '{file.url}' with extension '{file.fileExtension}' won't be loaded");
+                        audioFilesLoaded++;
                     }
                     else
                     {
