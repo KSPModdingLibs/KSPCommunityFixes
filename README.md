@@ -156,6 +156,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.24.4
+- Fixed [issue #117](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/117) : FastLoader getting stuck on duplicated audio asset
+
 ##### 1.24.3
 - Fixed [issue #115](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/115) : PNG texture cache isn't always invalidated when a PNG texture is modified
 - Updated Krafs.Publicizer dependency to v2.2.0
