@@ -134,7 +134,6 @@
     <Compile Include="BugFixes\PartListTooltipIconSpin.cs" />
     <Compile Include="BugFixes\PartStartStability.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
-    <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="BugFixes\ScatterDistribution.cs" />
