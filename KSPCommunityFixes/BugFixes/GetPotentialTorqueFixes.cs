@@ -147,11 +147,12 @@ namespace KSPCommunityFixes.BugFixes
         private static string autoLOC_6001331_Yaw;
         private static string autoLOC_6001332_Roll;
 
-        static ProfilerMarker rwProfiler = new ProfilerMarker("ModuleReactionWheel.GetPotentialTorque");
-        static ProfilerMarker rcsProfiler = new ProfilerMarker("ModuleRCS.GetPotentialTorque");
-        static ProfilerMarker ctrlSrfProfiler = new ProfilerMarker("ModuleControlSurface.GetPotentialTorque");
-        static ProfilerMarker gimbalProfiler = new ProfilerMarker("ModuleGimbal.GetPotentialTorque");
-        static ProfilerMarker gimbalCacheProfiler = new ProfilerMarker("ModuleGimbal.GetPotentialTorque.CacheCheck");
+        static ProfilerMarker rwProfiler = new ProfilerMarker("KSPCF.ModuleReactionWheel.GetPotentialTorque");
+        static ProfilerMarker rcsProfiler = new ProfilerMarker("KSPCF.ModuleRCS.GetPotentialTorque");
+        static ProfilerMarker ctrlSrfProfiler = new ProfilerMarker("KSPCF.ModuleControlSurface.GetPotentialTorque");
+        static ProfilerMarker ctrlSrfCacheProfiler = new ProfilerMarker("KSPCF.ModuleControlSurface.GetPotentialTorque.CacheCheck");
+        static ProfilerMarker gimbalProfiler = new ProfilerMarker("KSPCF.ModuleGimbal.GetPotentialTorque");
+        static ProfilerMarker gimbalCacheProfiler = new ProfilerMarker("KSPCF.ModuleGimbal.GetPotentialTorque.CacheCheck");
 
         #region ModuleReactionWheel
 
@@ -412,6 +413,8 @@ namespace KSPCommunityFixes.BugFixes
             private bool lastPitch;
             private bool lastRoll;
             private bool lastYaw;
+            private float QLiftThreshold;
+            private float timeThreshold;
 
             private bool pawTorqueEnabled;
             private BaseField ignorePitchField;
@@ -428,6 +431,9 @@ namespace KSPCommunityFixes.BugFixes
 
                 module.part.OnJustAboutToBeDestroyed += OnDestroy;
                 instances.Add(module, this);
+
+                QLiftThreshold = Random.Range(0.04f, 0.06f);
+                timeThreshold = Random.Range(0.75f, 1.25f);
             }
 
             public void OnDestroy()
@@ -473,18 +479,18 @@ namespace KSPCommunityFixes.BugFixes
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool IsCacheValid(Vector3 worldCoM, Vector3 localCoM)
             { 
-                if ((QLift > 0.0 && Math.Abs((module.Qlift / QLift) - 1.0) > Random.Range(0.04f, 0.06f))
+                if ((QLift > 0.0 && Math.Abs((module.Qlift / QLift) - 1.0) > QLiftThreshold)
                   || (this.localCoM - localCoM).sqrMagnitude > 0.1f * 0.1f
                   || (lastBaseLiftForce - module.baseLiftForce).sqrMagnitude > 0.1f * 0.1f
-                  || lastTime + Random.Range(0.75f, 1.25f) < Time.fixedTime
+                  || Time.fixedTime > lastTime + timeThreshold 
                   || currentDeployAngle != module.currentDeployAngle
                   || lastPitch != module.ignorePitch || lastRoll != module.ignoreRoll || lastYaw != module.ignoreYaw)
                 {
                     UpdateCachedState(worldCoM, localCoM);
-                    return true;
+                    return false;
                 }
 
-                return false;
+                return true;
             }
 
             public void UpdateEditorState(Transform referenceTransform, EditorPhysics editorPhysics)
@@ -639,7 +645,10 @@ namespace KSPCommunityFixes.BugFixes
             if (__instance.displaceVelocity)
             {
                 if (isEditor)
+                {
+                    ctrlSrfProfiler.End();
                     return false;
+                }
 
                 // This case is for handling "propeller blade" control surfaces. Those have a completely different behavior and
                 // actuation scheme (and why this wasn't implemented as a separate module is beyond my understanding).
@@ -667,7 +676,7 @@ namespace KSPCommunityFixes.BugFixes
                 {
                     if (!EditorPhysics.TryGetAndUpdate(out EditorPhysics editorPhysics) || editorPhysics.atmDensity == 0.0)
                     {
-                        gimbalProfiler.End();
+                        ctrlSrfProfiler.End();
                         return false;
                     }
 
@@ -679,18 +688,18 @@ namespace KSPCommunityFixes.BugFixes
                 {
                     vesselReferenceTransform = __instance.vessel.ReferenceTransform;
 
-                    gimbalCacheProfiler.Begin();
+                    ctrlSrfCacheProfiler.Begin();
 
                     moduleExt = ModuleCtrlSrfExtension.Get(__instance);
-                    if (!moduleExt.IsCacheValid(__instance.vessel.CurrentCoM, vesselReferenceTransform.InverseTransformPoint(__instance.vessel.CurrentCoM)))
+                    if (moduleExt.IsCacheValid(__instance.vessel.CurrentCoM, vesselReferenceTransform.InverseTransformPoint(__instance.vessel.CurrentCoM)))
                     {
                         pos = moduleExt.pos;
                         neg = moduleExt.neg;
-                        gimbalCacheProfiler.End();
-                        gimbalProfiler.End();
+                        ctrlSrfCacheProfiler.End();
+                        ctrlSrfProfiler.End();
                         return false;
                     }
-                    gimbalCacheProfiler.End();
+                    ctrlSrfCacheProfiler.End();
                 }
 
                 Vector3 potentialForcePos = GetPotentialLiftAndDrag(__instance, moduleExt, moduleExt.currentDeployAngle, true);
@@ -846,6 +855,9 @@ namespace KSPCommunityFixes.BugFixes
 #endif
                 }
 
+                moduleExt.pos = pos;
+                moduleExt.neg = neg;
+
 #if DEBUG
                 TorqueUIModule ui = __instance.part.FindModuleImplementing<TorqueUIModule>();
                 if (ui != null)
@@ -865,9 +877,6 @@ namespace KSPCommunityFixes.BugFixes
                     ui.Fields["negAction"].guiActive = true;
                     ui.negAction = negAction;
                 }
-
-                moduleExt.pos = pos;
-                moduleExt.neg = neg;
 #endif
             }
 
@@ -925,9 +934,9 @@ namespace KSPCommunityFixes.BugFixes
             return Vector3.zero;
         }
 
-        #endregion
+#endregion
 
-        #region ModuleGimbal
+#region ModuleGimbal
 
         private class ModuleGimbalExtension
         {
@@ -953,6 +962,7 @@ namespace KSPCommunityFixes.BugFixes
             private bool lastPitch;
             private bool lastRoll;
             private bool lastYaw;
+            private float timeThreshold;
 
             private bool pawTorqueEnabled;
             private BaseField enablePitchField;
@@ -969,6 +979,8 @@ namespace KSPCommunityFixes.BugFixes
 
                 module.part.OnJustAboutToBeDestroyed += OnDestroy;
                 instances.Add(module, this);
+
+                timeThreshold = Random.Range(0.75f, 1.25f);
             }
 
             public void OnDestroy()
@@ -991,19 +1003,19 @@ namespace KSPCommunityFixes.BugFixes
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public bool UpdateRequired(Vector3 localCoM, float thrustForce)
+            public bool IsCacheValid(Vector3 localCoM, float thrustForce)
             {
                 if (Math.Abs(lastThrustForce - thrustForce) > 1.0
                     || (lastLocalCoM - localCoM).sqrMagnitude > 0.1f * 0.1f
-                    || lastTime + Random.Range(0.75f, 1.25f) < Time.fixedTime
+                    || Time.fixedTime > lastTime + timeThreshold
                     || lastGimbalLimiter != module.gimbalLimiter
                     || lastPitch != module.enablePitch || lastRoll != module.enableRoll || lastYaw != module.enableYaw)
                 {
                     UpdateLastState(localCoM, thrustForce);
-                    return true;
+                    return false;
                 }
 
-                return false;
+                return true;
             }
 
             public static void UpdateInstances()
@@ -1189,7 +1201,7 @@ namespace KSPCommunityFixes.BugFixes
                 gimbalCacheProfiler.Begin();
 
                 gimbalCache = ModuleGimbalExtension.Get(__instance);
-                if (!gimbalCache.UpdateRequired(localCoM, totalThrust))
+                if (gimbalCache.IsCacheValid(localCoM, totalThrust))
                 {
                     pos = gimbalCache.pos;
                     neg = gimbalCache.neg;
@@ -1415,7 +1427,7 @@ namespace KSPCommunityFixes.BugFixes
             return gimbalRotation;
         }
 
-        #endregion
+#endregion
     }
 
 #if DEBUG

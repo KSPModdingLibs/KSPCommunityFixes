@@ -257,7 +257,8 @@ namespace KSPCommunityFixes.QoL
                 int moduleIdx = part.Modules.Count;
                 while (moduleIdx-- > 0)
                 {
-                    if (part.Modules[moduleIdx] is ITorqueProvider torqueProvider && torqueProvider != null)
+                    PartModule pm = part.Modules[moduleIdx];
+                    if (!pm.IsDestroyed() && pm is ITorqueProvider torqueProvider)
                     {
                         torqueProvider.GetPotentialTorque(out Vector3 pos, out Vector3 neg);
                         posTorque += pos;
