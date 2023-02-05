@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
@@ -26,6 +26,14 @@ namespace KSPCommunityFixes
 
         static bool MapSO_ConstructBilinearCoords_Float(MapSO __instance, float x, float y)
         {
+            try //in case FlightGlobals.currentMainBody is null or something
+            {
+                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho"))
+                {
+                    return true;
+                }
+            }
+            catch { }
             // X wraps around as it is longitude.
             x = Mathf.Abs(x - Mathf.Floor(x));
             __instance.centerX = x * __instance._width;
@@ -49,6 +57,14 @@ namespace KSPCommunityFixes
 
         static bool MapSO_ConstructBilinearCoords_Double(MapSO __instance, double x, double y)
         {
+            try //in case FlightGlobals.currentMainBody is null or something
+            {
+                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho"))
+                {
+                    return true;
+                }
+            }
+            catch { }
             // X wraps around as it is longitude.
             x = Math.Abs(x - Math.Floor(x));
             __instance.centerXD = x * __instance._width;
