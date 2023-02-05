@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30804.86
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32929.385
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KSPCommunityFixes", "KSPCommunityFixes\KSPCommunityFixes.csproj", "{4E405C02-5AEB-4975-B26C-07582BB3FB15}"
 EndProject
@@ -18,15 +18,20 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Profiling|Any CPU = Profiling|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Profiling|Any CPU.ActiveCfg = Profiling|Any CPU
+		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Profiling|Any CPU.Build.0 = Profiling|Any CPU
 		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4E405C02-5AEB-4975-B26C-07582BB3FB15}.Release|Any CPU.Build.0 = Release|Any CPU
 		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Profiling|Any CPU.ActiveCfg = Profiling|Any CPU
+		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Profiling|Any CPU.Build.0 = Profiling|Any CPU
 		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{32B601F4-B648-4C69-AA98-620FE7BA070C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection

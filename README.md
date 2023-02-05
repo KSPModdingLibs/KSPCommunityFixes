@@ -52,7 +52,6 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.5]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
 - **ROCValidationOOR** [KSP 1.8.0 - 1.12.5]<br/>Fix ROCManager crashing during loading with Kopernicus modified systems.
-- **ReactionWheelsPotentialTorque** [KSP 1.8.0 - 1.12.5]<br/>Fix reaction wheels reporting incorrect available torque when "Wheel Authority" is set below 100%. Fix stock SAS (and possibly other attitude controllers) instability issues.
 - **StockAlarmCustomFormatterDate** [KSP 1.12.0 - 1.12.5]<br/>Make the stock alarm respect the day/year length defined by mods like Kronometer. Fix the underlying AppUIMemberDateTime UI widget API to use the mod-provided IDateTimeFormatter if present.
 - **[StockAlarmDescPreserveLineBreak](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/19)** [KSP 1.12.0 - 1.12.5]<br/>Stock alarm preserve line breaks (and tabs) in the description field.
 - **ExtendedDeployableParts** [KSP 1.12.0 - 1.12.5]<br/>Fix deployable parts (antennas, solar panels, radiators...) always starting in the extended state when the model isn't exported in the retracted state. This bug affect parts from various mods (ex : Ven's stock revamp solar panels).
