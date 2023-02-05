@@ -156,6 +156,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.24.6
+- Fixed [issue #121](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/121) : MapSOCorrectWrapping patch cause the Mohole to disappear
+
 ##### 1.24.5
 - Fixed [issue #113](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/117) : FastLoader patch now requires KSP version >= 1.12.3 due to PartLoader implementation differences in previous 1.12 patch versions
 
