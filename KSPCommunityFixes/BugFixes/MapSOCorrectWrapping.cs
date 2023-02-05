@@ -28,7 +28,7 @@ namespace KSPCommunityFixes
         {
             try //in case FlightGlobals.currentMainBody is null or something
             {
-                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho"))
+                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho") && (!KSPCommunityFixes.SettingsNode.GetValue("MapSOCorrectWrappingPlusMoho").ToLower().Equals("true")))
                 {
                     return true;
                 }
@@ -59,7 +59,7 @@ namespace KSPCommunityFixes
         {
             try //in case FlightGlobals.currentMainBody is null or something
             {
-                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho"))
+                if (FlightGlobals.currentMainBody.name.Equals("Moho") && FlightGlobals.currentMainBody.displayName.Equals("Moho") && (!KSPCommunityFixes.SettingsNode.GetValue("MapSOCorrectWrappingPlusMoho").ToLower().Equals("true")))
                 {
                     return true;
                 }
