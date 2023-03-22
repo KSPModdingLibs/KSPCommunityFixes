@@ -72,6 +72,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[UpgradeBugs](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/63)** [KSP 1.12.0 - 1.12.5]<br/>Fix various bugs with upgrades, like the part stats upgrade module breaking, upgrades not properly applying in the editor, upgrade cost not being applied to part cost, and various issues int the public API.
 - **[MapSOCorrectWrapping](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/83)** [KSP 1.10.0 - 1.12.5]<br/>Fixes issues with biomes crossing the poles (South pole biome at north pole and vice versa). Fixes "polar spikes" in the terrain for 8-bit heightmaps.
 - **[ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107)** [KSP 1.10.0 - 1.12.5]<br/>Fix spread angle still being applied after decoupling symmetry-placed parachutes.
+- **[CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126)** [KSP 1.12.3 - 1.12.5]<br/>Fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
 
 #### Quality of Life tweaks 
 
@@ -155,6 +156,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.25.0
+- New KSP bugfix patch : [CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126), fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
+- Fixed [issue #124](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/124) : avoid disabling the KSP-Recall "refunding" hack when the user has disabled the KSPCF "RefundingOnRecovery" patch, thus making our friend Lisias happy again.
 
 ##### 1.24.6
 - Fixed [issue #121](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/121) : MapSOCorrectWrapping patch cause the Mohole to disappear

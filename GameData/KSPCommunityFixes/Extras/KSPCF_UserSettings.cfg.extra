@@ -5,7 +5,7 @@
 // To see the full list of patch names, look at the Settings.cfg file or in
 // the readme.
 
-@KSP_COMMUNITY_FIXES:FINAL
+@KSP_COMMUNITY_FIXES:AFTER[KSPCommunityFixes]
 {
 	@PatchName = false
 }
