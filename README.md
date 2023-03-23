@@ -157,6 +157,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.25.1
+- CorrectDragForFlags : fixed flags in landscape mode using the same drag cube as for portrait mode.
+
 ##### 1.25.0
 - New KSP bugfix patch : [CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126), fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
 - Fixed [issue #124](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/124) : avoid disabling the KSP-Recall "refunding" hack when the user has disabled the KSPCF "RefundingOnRecovery" patch, thus making our friend Lisias happy again.
