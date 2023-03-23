@@ -157,6 +157,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.25.2
+- Fixed [issue #96](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/96) : the AutoStrutDrift patch now correctly ignore autostruts originating from a servo part.
+
 ##### 1.25.1
 - CorrectDragForFlags : fixed flags in landscape mode using the same drag cube as for portrait mode.
 
