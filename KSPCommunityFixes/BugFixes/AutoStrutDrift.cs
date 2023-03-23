@@ -32,10 +32,19 @@ namespace KSPCommunityFixes
             // We only correct autostruts directly connected to the main rigidbody of the part.
             // Specifically, we don't handle autostruts connected to a BG robotic part.
             // It might be possible to handle that case by getting the offset between the part and the servoRb, not entirely sure.
-            if (joint.connectedBody != anchor.rb)
+            // See https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/96
+            if (joint.connectedBody.NotDestroyedRefNotEquals(anchor.rb))
             {
 #if DEBUG
-                Debug.Log($"[AutoStrutDrift] Skipping autostrut for {__instance}. The joint rb ({joint.connectedBody}) isn't the anchor rb ({anchor.rb}), the anchor is likely a robotics part");
+                Debug.Log($"[AutoStrutDrift] Skipping autostrut for {__instance}. The connected rb ({joint.connectedBody}) is different from the anchor rb ({anchor.rb}), the anchor is likely a robotic part");
+#endif
+                return;
+            }
+
+            if (__instance.Rigidbody.NotDestroyedRefNotEquals(joint.GetComponent<Rigidbody>()))
+            {
+#if DEBUG
+                Debug.Log($"[AutoStrutDrift] Skipping autostrut for {__instance}. The part rb ({__instance.Rigidbody}) is different from the rb hosting the joint ({joint.GetComponent<Rigidbody>()}), the part is likely a robotic part");
 #endif
                 return;
             }
@@ -55,7 +64,7 @@ namespace KSPCommunityFixes
             // Set the joint secondary axis (Y ?)
             joint.secondaryAxis = RandomOrthoVector(joint.axis);
 
-            // Calculate the joint rotation expressed by the joint's axis and secondary axis
+            // Calculate the joint rotation expressed by the joint axis and secondary axis
             // See https://gist.github.com/mstevenson/4958837
             Vector3 forward = Vector3.Cross(joint.axis, joint.secondaryAxis).normalized;
             Vector3 up = Vector3.Cross(forward, joint.axis).normalized;
