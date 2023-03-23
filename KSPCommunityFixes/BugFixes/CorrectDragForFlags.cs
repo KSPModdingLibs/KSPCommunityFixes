@@ -52,10 +52,14 @@ namespace KSPCommunityFixes.BugFixes
                 flagDecalBackgroundDragCubesPerPrefab[prefab] = dragCubes;
             }
 
-            if (!dragCubes.TryGetValue(instance.flagSize, out dragCube))
+            int id = instance.flagSize;
+            if (instance.displayingPortrait)
+                id += 1000;
+
+            if (!dragCubes.TryGetValue(id, out dragCube))
             {
                 dragCube = RenderDragCubeFast(instance.part);
-                dragCubes[instance.flagSize] = dragCube;
+                dragCubes[id] = dragCube;
             }
 
             return true;
