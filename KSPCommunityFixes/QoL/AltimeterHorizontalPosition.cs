@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using HarmonyLib;
 using KSP.Localization;
@@ -35,19 +36,16 @@ namespace KSPCommunityFixes
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FlightUIModeController), "Start"),
-                this));
+            GameEvents.onGUIApplicationLauncherReady.Add(OnGUIApplicationLauncherReady);
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MapView), "enterMapView"),
+                AccessTools.Method(typeof(MapView), nameof(MapView.enterMapView)),
                 this));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(MapView), "exitMapView"),
+                AccessTools.Method(typeof(MapView), nameof(MapView.exitMapView)),
                 this));
         }
 
@@ -98,10 +96,13 @@ namespace KSPCommunityFixes
             topFrame.anchorMin = new Vector2(anchorPos, topFrame.anchorMin.y);
         }
 
-        static void FlightUIModeController_Start_Postfix()
+        private void OnGUIApplicationLauncherReady()
         {
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT || FlightUIModeController.Instance.IsNullOrDestroyed())
+                return;
+
             // position the altimeter
-            SetTopFramePosition();
+            FlightUIModeController.Instance.StartCoroutine(RepositionAltimeterOnFlightSceneLoad());
 
             // hide map the vessel filters button
             GameObject trackingFiltersHoverArea = FlightUIModeController.Instance.DestroyedAsNull()?
@@ -112,6 +113,15 @@ namespace KSPCommunityFixes
             {
                 trackingFiltersHoverArea.SetActive(false);
             }
+        }
+
+        // Fix https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/125
+        // we need to wait a frame to ensure the ApplicationLauncher layout has been set and 
+        // updated so we can rely on its calculated width.
+        static IEnumerator RepositionAltimeterOnFlightSceneLoad()
+        {
+            yield return null;
+            SetTopFramePosition();
         }
 
         // show the map vessel filters button when entering map view
