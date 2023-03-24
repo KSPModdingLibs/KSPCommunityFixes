@@ -23,18 +23,12 @@ namespace KSPCommunityFixes.QoL
 
         private static void ModuleProceduralFairing_OnSave_Prefix(ModuleProceduralFairing __instance, ConfigNode node)
         {
-            if (HighLogic.LoadedScene == GameScenes.EDITOR)
-            {
-                node.SetValue(nameof(ModuleProceduralFairing.isFadeLocked), __instance.isFadeLocked, true);
-            }
+            node.SetValue(nameof(ModuleProceduralFairing.isFadeLocked), __instance.isFadeLocked, true);
         }
 
         private static void ModuleProceduralFairing_OnLoad_Prefix(ModuleProceduralFairing __instance, ConfigNode node)
         {
-            if (HighLogic.LoadedScene == GameScenes.EDITOR)
-            {
-                node.TryGetValue(nameof(ModuleProceduralFairing.isFadeLocked), ref __instance.isFadeLocked);
-            }
+            node.TryGetValue(nameof(ModuleProceduralFairing.isFadeLocked), ref __instance.isFadeLocked);
         }
     }
 }
