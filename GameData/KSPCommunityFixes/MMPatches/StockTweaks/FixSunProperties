@@ -1,0 +1,33 @@
+@Kopernicus:AFTER[Kopernicus]
+{
+	@Body[Sun]
+	{
+		@Properties
+		{
+		  %geeASL = 1.74686750012706
+			%gravParameter = 1.17234684736824E+18
+		}
+  }
+}
+
+//Calculating the gravitational constant G by dividing Kerbin's given gravitational parameter (GM = 3531600000000) 
+//by it's listed mass (5.29151583439215E+22) provides a value of 0.000000000066740800000000100000, approximately 6.67408E-11.
+
+//A gravitational parameter was also calculated from the body's geeASL and radius with the following derived formula: geeASL * 9.80665 * radius * radius
+//This second GM was compared to the first via subtraction to test accuracy of all given values (geeASL, radius, mass, GM) and zero difference was found.
+
+//All other bodies in the stock system give the same results (save some floating point error such as is present in the value of G listed above),
+//EXCEPT the Sun, which, when plugging in its listed GM (1172332794832490000) and M (1.75656696858329E+28) 
+//results in a value for G of 6.674E-11, ignoring the 8E-16 term. While minimal, this appears to be an oversight.
+
+//Additionally, plugging in the Sun's provided geeASL (1.7462500333786) and radius (261600000) calculates an alternative GM of 1171932456926000000, 
+//different than the first by ~0.034%).
+
+//Assuming precidence of the given radius and mass, and using the standard G value of 6.67408E-11 (as all other bodies use this),
+//a new GM can be calculated, equal to 1172346847368240000. Likewise a new geeASL can be calculated, granting a new value of 1.74686750012706.
+//To confirm accuracy, an alternate GM was calculated from this new geeASL and the radius, which also gave 1172346847368240000, a difference of zero.
+//(Subtracting the values from one another gave me a difference of 1024 (an error of < 9E-16), which is likely attributable to floating point error.)
+
+//Again, while a minimal error, of ~0.034% (or a bit more than 1 in 3000), it is not entirely insignificant.
+//This aims to fix the incorrect geeASL and gravParameter of the Sun for proper in-game information display, 
+//and potential calculations (or at least in mods that may utilize such information, such as Principia).
