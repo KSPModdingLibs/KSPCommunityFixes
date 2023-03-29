@@ -157,6 +157,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.25.4
+- Fixed [issue #133](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) : FastLoader allow the game to launch even when unrecoverable errors happen during loading.
+
 ##### 1.25.3
 - Fixed [issue #128](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/128) : Fairing Expansion disable not retained after revert to hangar from launch
 - Fixed [issue #125](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/125) : Altimeter position was accounting for the AppLauncher width when using the settings slider, but didn't anymore after a scene reload, resulting in a slightly offset position.

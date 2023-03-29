@@ -22,6 +22,9 @@ using static UrlDir;
 using Debug = UnityEngine.Debug;
 using UnityEngine.Experimental.Rendering;
 using KSP.Localization;
+using TMPro;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -1639,10 +1642,13 @@ namespace KSPCommunityFixes.Performance
         /// </summary>
         static IEnumerator FrameUnlockedCoroutine(IEnumerator coroutine)
         {
+            LoaderExceptionInfo exceptionInfo = null;
             float nextFrameTime = Time.realtimeSinceStartup + minFrameTime;
 
             Stack<IEnumerator> enumerators = new Stack<IEnumerator>();
             enumerators.Push(coroutine);
+
+
 
             while (enumerators.TryPop(out IEnumerator currentEnumerator))
             {
@@ -1656,6 +1662,7 @@ namespace KSPCommunityFixes.Performance
                 {
                     Debug.LogException(e);
                     moveNext = false;
+                    exceptionInfo = new LoaderExceptionInfo(e, coroutine);
                 }
 
                 while (moveNext)
@@ -1680,9 +1687,21 @@ namespace KSPCommunityFixes.Performance
                     }
                     catch (Exception e)
                     {
+                        object currentObject = currentEnumerator.Current;
                         Debug.LogException(e);
                         moveNext = false;
+                        exceptionInfo = new LoaderExceptionInfo(e, coroutine);
                     }
+                }
+            }
+
+            if (exceptionInfo != null)
+            {
+                exceptionInfo.Show();
+                while (true)
+                {
+                    Thread.Sleep(10);
+                    yield return null;
                 }
             }
         }
@@ -2089,6 +2108,112 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        private class LoaderExceptionInfo
+        {
+            private string message;
+            private string stackTrace;
+            private string loader;
+            private string origin;
+            private IEnumerator rootEnumerator;
+
+            public LoaderExceptionInfo(Exception e, IEnumerator rootEnumerator)
+            {
+                message = $"{e.GetType()}: {e.Message}";
+                stackTrace = e.StackTrace;
+
+                string enumeratorTypeName = rootEnumerator.GetType().Name;
+
+                try
+                {
+                    if (enumeratorTypeName.Contains(nameof(PartLoader.CompileParts)))
+                    {
+                        FieldInfo apField = rootEnumerator.GetType().GetFields(AccessTools.all).FirstOrDefault(p => p.FieldType == typeof(AvailablePart));
+                        if (apField != null)
+                        {
+                            loader = "Part compilation";
+                            origin = "Part";
+                            AvailablePart ap = (AvailablePart)apField.GetValue(rootEnumerator);
+                            if (ap != null)
+                            {
+                                origin += ": ";
+                                if (ap.title != null)
+                                    origin += ap.title;
+
+                                if (ap.partUrl != null)
+                                    origin += $" ({ap.partUrl})";
+                            }
+                        }
+                    }
+                    else if (enumeratorTypeName.Contains(nameof(PartLoader.CompileInternalProps)))
+                    {
+                        loader = "Internal props compilation";
+                        FieldInfo[] fields = rootEnumerator.GetType().GetFields(AccessTools.all);
+                        FieldInfo allPropNodesField = fields.FirstOrDefault(p => p.FieldType == typeof(UrlConfig[]));
+                        FieldInfo indexField = fields.FirstOrDefault(p => p.Name.Contains("<i>"));
+                        UrlConfig[] allPropNodes = allPropNodesField?.GetValue(rootEnumerator) as UrlConfig[];
+
+                        if (indexField != null && allPropNodes != null)
+                        {
+                            int index = (int)indexField.GetValue(rootEnumerator);
+                            if (index >= 0 && index < allPropNodes.Length)
+                                origin = $"Prop: {allPropNodes[index].url}";
+                        }
+                    }
+                    else if (enumeratorTypeName.Contains(nameof(PartLoader.CompileInternalSpaces)))
+                    {
+                        loader = "Internal spaces compilation";
+                        FieldInfo[] fields = rootEnumerator.GetType().GetFields(AccessTools.all);
+                        FieldInfo allSpaceNodesField = fields.FirstOrDefault(p => p.FieldType == typeof(UrlConfig[]));
+                        FieldInfo indexField = fields.FirstOrDefault(p => p.Name.Contains("<i>"));
+                        UrlConfig[] allSpaceNodes = allSpaceNodesField?.GetValue(rootEnumerator) as UrlConfig[];
+
+                        if (indexField != null && allSpaceNodes != null)
+                        {
+                            int index = (int)indexField.GetValue(rootEnumerator);
+                            if (index >= 0 && index < allSpaceNodes.Length)
+                                origin = $"Space: {allSpaceNodes[index].url}";
+                        }
+                    }
+                }
+                catch {}
+            }
+
+            public void Show()
+            {
+                string content = "Loading has failed due to an unhandled error\n\n";
+                if (loader != null)
+                    content += $"Failure in subsystem : {loader}\n";
+                if (origin != null)
+                    content += $"{origin}\n";
+
+                content += $"\n{message}\n{stackTrace}";
+
+                DialogGUITextInput input = new DialogGUITextInput(content, true, int.MaxValue, s => s, () => content, TMP_InputField.ContentType.Standard);
+
+                MultiOptionDialog dialog = new MultiOptionDialog("loadingFailed",
+                    string.Empty,
+                    "Loading failed",
+                    HighLogic.UISkin, 600f,
+                    input,
+                    new DialogGUIHorizontalLayout(true, false,
+                    new DialogGUIButton("Copy to clipboard", () => GUIUtility.systemCopyBuffer = content, false),
+                    new DialogGUIButton("Quit", Application.Quit)));
+                PopupDialog.SpawnPopupDialog(dialog, true, HighLogic.UISkin);
+                input.field.textComponent.enableWordWrapping = false;
+                input.field.textComponent.overflowMode = TextOverflowModes.Overflow;
+                input.uiItem.GetComponent<LayoutElement>().minHeight = input.field.textComponent.GetPreferredHeight() + 15f;
+            }
+        }
+
+
         #endregion
     }
+
+public class GetInfoThrowModule : PartModule
+{
+    public override string GetInfo()
+    {
+        throw new Exception("ExceptionFromGetInfo");
+    }
+}
 }
