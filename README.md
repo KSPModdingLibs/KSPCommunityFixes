@@ -157,6 +157,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.25.5
+- Fixed [issue #134](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) : fix for [issue #133](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) was overly conservative, causing loading to stop on exceptions that don't cause a fatal error in stock.
+
 ##### 1.25.4
 - Fixed [issue #133](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) : FastLoader allow the game to launch even when unrecoverable errors happen during loading.
 

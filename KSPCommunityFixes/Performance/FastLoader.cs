@@ -23,7 +23,6 @@ using Debug = UnityEngine.Debug;
 using UnityEngine.Experimental.Rendering;
 using KSP.Localization;
 using TMPro;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace KSPCommunityFixes.Performance
@@ -1661,8 +1660,18 @@ namespace KSPCommunityFixes.Performance
                 catch (Exception e)
                 {
                     Debug.LogException(e);
-                    moveNext = false;
-                    exceptionInfo = new LoaderExceptionInfo(e, coroutine);
+                    
+                    if (currentEnumerator == coroutine)
+                    {
+                        exceptionInfo = new LoaderExceptionInfo(e, coroutine);
+                        moveNext = false;
+                    }
+                    else
+                    {
+                        enumerators.Clear();
+                        enumerators.Push(coroutine);
+                        continue;
+                    }
                 }
 
                 while (moveNext)
@@ -1687,10 +1696,18 @@ namespace KSPCommunityFixes.Performance
                     }
                     catch (Exception e)
                     {
-                        object currentObject = currentEnumerator.Current;
                         Debug.LogException(e);
-                        moveNext = false;
-                        exceptionInfo = new LoaderExceptionInfo(e, coroutine);
+
+                        if (currentEnumerator == coroutine)
+                        {
+                            exceptionInfo = new LoaderExceptionInfo(e, coroutine);
+                            moveNext = false;
+                        }
+                        else
+                        {
+                            enumerators.Clear();
+                            enumerators.Push(coroutine);
+                        }
                     }
                 }
             }
@@ -2209,11 +2226,29 @@ namespace KSPCommunityFixes.Performance
         #endregion
     }
 
-public class GetInfoThrowModule : PartModule
-{
-    public override string GetInfo()
+#if DEBUG
+    public class GetInfoThrowModule : PartModule
     {
-        throw new Exception("ExceptionFromGetInfo");
+        public override string GetInfo()
+        {
+            // this should be fatal an stop the loading process
+            throw new Exception("Exception from GetInfo");
+        }
     }
-}
+
+    public class AssumeDragCubePositionThrowModule : PartModule, IMultipleDragCube
+    {
+        public string[] GetDragCubeNames() => new[] { "A", "B" };
+
+        // this shouldn't be fatal and shouldn't stop the loading process
+        public void AssumeDragCubePosition(string name)
+        {
+            throw new Exception("Exception from AssumeDragCubePosition");
+        }
+
+        public bool UsesProceduralDragCubes() => false;
+
+        public bool IsMultipleCubesActive => true;
+    }
+#endif
 }
