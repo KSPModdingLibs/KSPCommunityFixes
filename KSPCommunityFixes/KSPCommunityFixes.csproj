@@ -100,6 +100,7 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />

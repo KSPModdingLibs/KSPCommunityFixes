@@ -73,6 +73,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[MapSOCorrectWrapping](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/83)** [KSP 1.10.0 - 1.12.5]<br/>Fixes issues with biomes crossing the poles (South pole biome at north pole and vice versa). Fixes "polar spikes" in the terrain for 8-bit heightmaps.
 - **[ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107)** [KSP 1.10.0 - 1.12.5]<br/>Fix spread angle still being applied after decoupling symmetry-placed parachutes.
 - **[CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126)** [KSP 1.12.3 - 1.12.5]<br/>Fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
+- **LadderToggleableLight** [KSP 1.8.0 - 1.12.5]<br/>Fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
 
 #### Quality of Life tweaks 
 
@@ -122,6 +123,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
+- **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)**<br/>Fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear.
 
 ### License
 
@@ -156,6 +158,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.26.0
+- New stock configs fix, **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)** : fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear.
+- New KSP bugfix/QoL patch, **LadderToggleableLight** : fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
 
 ##### 1.25.5
 - Fixed [issue #134](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) : fix for [issue #133](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/133) was overly conservative, causing loading to stop on exceptions that don't cause a fatal error in stock.
