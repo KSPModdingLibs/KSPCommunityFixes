@@ -82,9 +82,9 @@ namespace KSPCommunityFixes.BugFixes
 
         /// <summary>
         /// If not defined, the controller will target the first found ModuleLight on the part.
-        /// If defined, the controller will target the ModuleLight with a matching "lightName".
+        /// If defined, the controller will target the ModuleLight with a matching "moduleID".
         /// </summary>
-        [KSPField] public string lightName;
+        [KSPField] public string lightModuleID;
 
         private bool refsLoaded;
         private RetractableLadder retractableLadder;
@@ -104,9 +104,9 @@ namespace KSPCommunityFixes.BugFixes
                 PartModule pm = part.modules[i];
                 if (moduleLight.IsNullRef() && pm is ModuleLight ml)
                 {
-                    if (!string.IsNullOrEmpty(lightName))
+                    if (!string.IsNullOrEmpty(lightModuleID))
                     {
-                        if (ml.lightName == lightName)
+                        if (ml.moduleID == lightModuleID)
                         {
                             moduleLight = ml;
                         }
