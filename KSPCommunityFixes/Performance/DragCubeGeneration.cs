@@ -183,7 +183,11 @@ namespace KSPCommunityFixes.Performance
                         yield break;
                     }
 
-                    yield return DragCubeSystem.Instance.StartCoroutine(RenderDragCubesOnCopy(part, dragConfig));
+                    if (KSPCFFastLoader.PartCompilationInProgress)
+                        yield return RenderDragCubesOnCopy(part, dragConfig);
+                    else
+                        yield return DragCubeSystem.Instance.StartCoroutine(RenderDragCubesOnCopy(part, dragConfig));
+
                     yield return null;
                     yield break;
                 }
