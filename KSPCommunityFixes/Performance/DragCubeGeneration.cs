@@ -183,6 +183,7 @@ namespace KSPCommunityFixes.Performance
                         yield break;
                     }
 
+                    Debug.Log($"[KSPCF/DragCubeGeneration] Creating drag cubes for part '{part.partInfo.name}'");
                     if (KSPCFFastLoader.PartCompilationInProgress)
                         yield return RenderDragCubesOnCopy(part, dragConfig);
                     else
@@ -341,8 +342,8 @@ namespace KSPCommunityFixes.Performance
 
                 if (component is Transform)
                 {
-                    GameObject gameObject = component.gameObject;
-                    if (gameObject.layer != 1) // don't change if layer is transparentFX
+                    //GameObject gameObject = component.gameObject;
+                    //if (gameObject.layer != 1) // don't change if layer is transparentFX
                         component.gameObject.layer = cameraLayer;
 
                     continue;
@@ -351,7 +352,7 @@ namespace KSPCommunityFixes.Performance
 
             if (staticIMultipleDragCubeBuffer.Count > 2)
             {
-                Debug.LogWarning($"DragCubeSystem: Part '{part.partInfo.name}' has more than two IMultipleDragCube part modules. You should consider procedural drag cubes.");
+                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Part '{part.partInfo.name}' has more than two IMultipleDragCube part modules. You should consider procedural drag cubes.");
             }
 
             if (modulePartVariants.IsNotNullRef() && moduleJettison.IsNotNullRef())
@@ -383,8 +384,16 @@ namespace KSPCommunityFixes.Performance
                     foreach (string cubeName in cubeNames)
                     {
                         DragCube dragCube = new DragCube(cubeName);
-                        multipleDragCube.AssumeDragCubePosition(cubeName);
-
+                        try
+                        {
+                            multipleDragCube.AssumeDragCubePosition(cubeName);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogWarning($"[KSPCF/DragCubeGeneration] Call to '{multipleDragCube.GetType().Name}.AssumeDragCubePosition()' failed on part '{part.partInfo.name}' for drag cube '{cubeName}'\n{e}");
+                            continue;
+                        }
+                        
                         KSPCFFastLoader.RequestFrameSkip();
                         yield return null;
 
@@ -677,6 +686,32 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        private static Dictionary<Shader, bool> translucentShaders = new Dictionary<Shader, bool>();
+        private static List<Material> materialBuffer = new List<Material>();
+
+        private static bool IsUsingTranslucentShader(Renderer renderer)
+        {
+            renderer.GetMaterials(materialBuffer);
+            for (int i = materialBuffer.Count; i-- > 0;)
+            {
+                Shader shader = materialBuffer[i].shader;
+                if (!translucentShaders.TryGetValue(shader, out bool translucent))
+                {
+                    translucent = shader.name.Contains("Translucent");
+                    translucentShaders.Add(shader, translucent);
+                }
+
+                if (translucent)
+                {
+                    materialBuffer.Clear();
+                    return true;
+                }
+            }
+
+            materialBuffer.Clear();
+            return false;
+        }
+
         private static List<DragRendererInfo> AnalyzeDragRenderers(Part part, List<Renderer> partRenderers, bool checkActive, out Bounds partBounds)
         {
             partRenderersBuffer.Clear();
@@ -699,8 +734,10 @@ namespace KSPCommunityFixes.Performance
                 if (checkActive && !IsTransformActiveInHierarchyBelow(renderer.transform, partTransform))
                     continue;
 
-                GameObject gameObject = renderer.gameObject;
-                if (gameObject.CompareTag("Drag_Hidden") || gameObject.layer == 1) // ignore transparentFX (usually lights)
+                if (renderer.gameObject.CompareTag("Drag_Hidden"))
+                    continue;
+
+                if (IsUsingTranslucentShader(renderer))
                     continue;
 
                 Bounds meshBounds;
@@ -1001,6 +1038,8 @@ namespace KSPCommunityFixes.Performance
             AddButton(titleRow.gameObject, "Select part", SelectPart);
             partTitle = AddText(titleRow.gameObject, "No part selected");
             AddButton(titleRow.gameObject, "Exit", text => Close());
+
+
 
             RectTransform topRow = AddEmptyPanel(layout.gameObject);
             HorizontalLayoutGroup topRowLayout = topRow.gameObject.AddComponent<HorizontalLayoutGroup>();
