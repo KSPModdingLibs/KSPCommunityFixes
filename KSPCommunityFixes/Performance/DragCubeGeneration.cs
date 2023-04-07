@@ -93,7 +93,7 @@ namespace KSPCommunityFixes.Performance
 
         private static bool DragCubeSystem_RenderProceduralDragCube_Prefix(Part p, out DragCube __result)
         {
-            __result = RenderDragCubeImmediate(p);
+            __result = RenderDragCubeImmediate(p, string.Empty);
             return false;
         }
 
@@ -138,8 +138,8 @@ namespace KSPCommunityFixes.Performance
         internal const int textureSize = 256;
         private const float cameraOffset = 0.1f;
         private const float cameraDoubleOffset = cameraOffset * 2f;
-        private const string defaultCubeName = "Default";
-        private static string[] defaultCubeNameArray = { defaultCubeName };
+        public const string defaultCubeName = "Default";
+        public static string[] defaultCubeNameArray = { defaultCubeName };
 
         private static List<DragRendererInfo> partRenderersBuffer;
         private static CommandBuffer commandBuffer;
@@ -185,9 +185,9 @@ namespace KSPCommunityFixes.Performance
 
                     Debug.Log($"[KSPCF/DragCubeGeneration] Creating drag cubes for part '{part.partInfo.name}'");
                     if (KSPCFFastLoader.PartCompilationInProgress)
-                        yield return RenderDragCubesOnCopy(part, dragConfig);
+                        yield return RenderDragCubesOnCopy(part, part.dragCubes, dragConfig);
                     else
-                        yield return DragCubeSystem.Instance.StartCoroutine(RenderDragCubesOnCopy(part, dragConfig));
+                        yield return DragCubeSystem.Instance.StartCoroutine(RenderDragCubesOnCopy(part, part.dragCubes, dragConfig));
 
                     yield return null;
                     yield break;
@@ -204,8 +204,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             Debug.Log($"[KSPCF/DragCubeGeneration] Creating drag cubes for part '{part.partInfo.name}'");
-            DragCube dragCube = RenderDragCubeImmediate(part);
-            dragCube.name = defaultCubeName;
+            DragCube dragCube = RenderDragCubeImmediate(part, defaultCubeName);
             for (int i = 6; i-- > 0;)
             {
                 dragCube.drag[i] *= dragModifier;
@@ -224,7 +223,7 @@ namespace KSPCommunityFixes.Performance
         private static List<ModuleDragAreaModifier> staticModuleDragAreaModifierBuffer;
         
 
-        private static IEnumerator RenderDragCubesOnCopy(Part originalPart, ConfigNode dragConfig)
+        public static IEnumerator RenderDragCubesOnCopy(Part originalPart, DragCubeList dragCubeList, ConfigNode dragConfig)
         {
             //yield return DragCubeSystem.Instance.StartCoroutine(DragCubeSystem.Instance.RenderDragCubesCoroutine(originalPart, dragConfig));
             //yield break;
@@ -342,10 +341,7 @@ namespace KSPCommunityFixes.Performance
 
                 if (component is Transform)
                 {
-                    //GameObject gameObject = component.gameObject;
-                    //if (gameObject.layer != 1) // don't change if layer is transparentFX
-                        component.gameObject.layer = cameraLayer;
-
+                    component.gameObject.layer = cameraLayer;
                     continue;
                 }
             }
@@ -434,7 +430,7 @@ namespace KSPCommunityFixes.Performance
                             {
                                 DragCube.DragFace face = (DragCube.DragFace)i;
                                 SetupCameraForFace(face, part, partBounds, camera, cameraTransform, out float cameraSize, out float farClipPlane);
-                                Render(face, camera, output);
+                                Render(cubeName, face, camera, output);
                                 CalculateAerodynamics(output, cameraSize, farClipPlane, out float area, out float drag, out float depth);
 
                                 dragCube.Area[i] = area * areaModifier;
@@ -447,7 +443,7 @@ namespace KSPCommunityFixes.Performance
                             ClearCommandBuffer(camera);
                         }
 
-                        originalPart.DragCubes.Cubes.Add(dragCube);
+                        dragCubeList.Cubes.Add(dragCube);
                         dragConfig.AddValue("cube", dragCube.SaveToString());
                     }
                 }
@@ -465,9 +461,9 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        public static DragCube RenderDragCubeImmediate(Part part)
+        public static DragCube RenderDragCubeImmediate(Part part, string dragCubeName)
         {
-            DragCube dragCube = new DragCube();
+            DragCube dragCube = new DragCube(dragCubeName);
 
             List<Renderer> renderers = GetPartCachedRendererList(part);
             List<DragRendererInfo> dragRenderers = AnalyzeDragRenderers(part, renderers, true, out Bounds partBounds);
@@ -489,7 +485,7 @@ namespace KSPCommunityFixes.Performance
                 {
                     DragCube.DragFace face = (DragCube.DragFace)i;
                     SetupCameraForFace(face, part, partBounds, camera, cameraTransform, out float cameraSize, out float farClipPlane);
-                    Render(face, camera, output);
+                    Render(string.Empty, face, camera, output);
                     CalculateAerodynamics(output, cameraSize, farClipPlane, out float area, out float drag, out float depth);
 
                     dragCube.Area[i] = area;
@@ -524,7 +520,7 @@ namespace KSPCommunityFixes.Performance
             commandBuffer.Clear();
         }
 
-        private static void Render(DragCube.DragFace face, Camera camera, Texture2D output)
+        private static void Render(string dragCubeName, DragCube.DragFace face, Camera camera, Texture2D output)
         {
             Canvas.WillRenderCanvases savedDelegate = fieldRef_Canvas_WillRenderCanvases();
             fieldRef_Canvas_WillRenderCanvases() = null;
@@ -546,12 +542,8 @@ namespace KSPCommunityFixes.Performance
                 output.ReadPixels(new Rect(0f, 0f, textureSize, textureSize), 0, 0);
                 output.Apply();
 
-                if (DragCubeDebugger.isOpen)
-                {
-                    Texture2D debugTex = DragCubeDebugger.GetTextureToCopyTo(face);
-                    debugTex.ReadPixels(new Rect(0f, 0f, textureSize, textureSize), 0, 0);
-                    debugTex.Apply();
-                }
+                if (DragCubeDebugger.requireTextureCopy)
+                    DragCubeDebugger.CopyTextureToDebugger(dragCubeName, face);
             }
             finally
             {
@@ -931,20 +923,19 @@ namespace KSPCommunityFixes.Performance
 
     public class DragCubeDebugger : MonoBehaviour
     {
-        public Texture2D xp;
-        public Texture2D xn;
-        public Texture2D yp;
-        public Texture2D yn;
-        public Texture2D zp;
-        public Texture2D zn;
+        private Texture2D xp;
+        private Texture2D xn;
+        private Texture2D yp;
+        private Texture2D yn;
+        private Texture2D zp;
+        private Texture2D zn;
 
-        public static bool isOpen;
+        public static bool requireTextureCopy;
+        private static string currentDragCubeName;
         private static DragCubeDebugger instance;
 
         public static void Open()
         {
-            isOpen = true;
-
             if (instance.IsNullOrDestroyed())
             {
                 GameObject go = new GameObject("KSPCF_DragCubeDebugger");
@@ -954,8 +945,6 @@ namespace KSPCommunityFixes.Performance
 
         public static void Close()
         {
-            isOpen = false;
-
             if (instance.IsNullRef())
                 return;
 
@@ -965,9 +954,12 @@ namespace KSPCommunityFixes.Performance
             instance = null;
         }
 
-        public static Texture2D GetTextureToCopyTo(DragCube.DragFace face)
+        public static void CopyTextureToDebugger(string dragCubeName, DragCube.DragFace face)
         {
-            return face switch
+            if (currentDragCubeName != dragCubeName)
+                return;
+
+            Texture2D currentTexture = face switch
             {
                 DragCube.DragFace.XP => instance.xp,
                 DragCube.DragFace.XN => instance.xn,
@@ -976,6 +968,15 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.ZP => instance.zp,
                 DragCube.DragFace.ZN => instance.zn,
             };
+
+            if (currentTexture.IsNullOrDestroyed())
+            {
+                requireTextureCopy = false;
+                return;
+            }
+
+            currentTexture.ReadPixels(new Rect(0f, 0f, DragCubeGeneration.textureSize, DragCubeGeneration.textureSize), 0, 0);
+            currentTexture.Apply();
         }
 
         private void Start()
@@ -1031,15 +1032,33 @@ namespace KSPCommunityFixes.Performance
             HorizontalLayoutGroup titleRowLayout = titleRow.gameObject.AddComponent<HorizontalLayoutGroup>();
             titleRowLayout.childAlignment = TextAnchor.UpperLeft;
             titleRowLayout.childForceExpandHeight = true;
-            titleRowLayout.childForceExpandWidth = true;
+            titleRowLayout.childForceExpandWidth = false;
+            titleRowLayout.childControlWidth = false;
             titleRowLayout.spacing = 5;
             titleRowLayout.padding = new RectOffset(0, 0, 0, 0);
 
-            AddButton(titleRow.gameObject, "Select part", SelectPart);
-            partTitle = AddText(titleRow.gameObject, "No part selected");
-            AddButton(titleRow.gameObject, "Exit", text => Close());
+            AddButton(titleRow.gameObject, "Close", text => Close());
+            Button selectPartButton = AddButton(titleRow.gameObject, "Select part", SelectPart);
+            partSelectButtonText = selectPartButton.GetComponentInChildren<Text>();
+            AddButton(titleRow.gameObject, "Using part prefab", ToggleOnPrefab);
 
+            AddText(layout.gameObject, "Drag cubes :");
 
+            dragCubeSelection = AddEmptyPanel(layout.gameObject);
+            HorizontalLayoutGroup dragCubeSelectionLayout = dragCubeSelection.gameObject.AddComponent<HorizontalLayoutGroup>();
+            dragCubeSelectionLayout.childAlignment = TextAnchor.UpperLeft;
+            dragCubeSelectionLayout.childForceExpandHeight = true;
+            dragCubeSelectionLayout.childForceExpandWidth = false;
+            dragCubeSelectionLayout.childControlWidth = false;
+            dragCubeSelectionLayout.spacing = 5;
+            dragCubeSelectionLayout.padding = new RectOffset(0, 0, 0, 0);
+
+            dragCubeCenterAndSize = AddText(layout.gameObject, string.Empty);
+            dragCubeAreaAndDragModifiers = AddText(layout.gameObject, string.Empty);
+            Button clipboardButton = AddButton(layout.gameObject, "Copy drag cube config to clipboard", CopyCubeToClipboard);
+            //LayoutElement dragCubeSerializedLayout = clipboardButton.gameObject.AddComponent<LayoutElement>();
+            //dragCubeSerializedLayout.preferredWidth = 256 * 3;
+            //dragCubeSerializedLayout.preferredHeight = 14 * 2;
 
             RectTransform topRow = AddEmptyPanel(layout.gameObject);
             HorizontalLayoutGroup topRowLayout = topRow.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -1067,15 +1086,21 @@ namespace KSPCommunityFixes.Performance
         }
 
         private bool partSelectionMode = false;
+        private bool renderOnPrefab = true;
         private RectTransform mainWindow;
         private ScreenMessage partSelectionMessage;
-        private Text partTitle;
+        private Text partSelectButtonText;
         private Text cubeTextXP;
         private Text cubeTextXN;
         private Text cubeTextYP;
         private Text cubeTextYN;
         private Text cubeTextZP;
         private Text cubeTextZN;
+        private RectTransform dragCubeSelection;
+        private Part selectedPart;
+        private Text dragCubeCenterAndSize;
+        private Text dragCubeAreaAndDragModifiers;
+        private DragCube currentDragCube;
 
         private void SelectPart(Text textComponent)
         {
@@ -1092,8 +1117,24 @@ namespace KSPCommunityFixes.Performance
             ScreenMessages.PostScreenMessage(partSelectionMessage);
         }
 
+        private void ToggleOnPrefab(Text text)
+        {
+            ClearTexturesAndResetText();
+            renderOnPrefab = !renderOnPrefab;
+            if (renderOnPrefab)
+                text.text = "Using part prefab";
+            else
+                text.text = "Using selected part";
+        }
+
         private void LateUpdate()
         {
+            if (selectedPart.IsNotNullRef() && selectedPart.IsDestroyed())
+            {
+                selectedPart = null;
+                ClearTexturesAndResetText();
+            }
+
             if (!partSelectionMode)
                 return;
 
@@ -1103,21 +1144,38 @@ namespace KSPCommunityFixes.Performance
                 {
                     ExitSelectionMode();
 
-                    partTitle.text = $"{Mouse.HoveredPart.partInfo.title} ({Mouse.HoveredPart.partInfo.name})";
+                    selectedPart = Mouse.HoveredPart;
+                    partSelectButtonText.text = $"Selected part : {selectedPart.partInfo.title} ({selectedPart.partInfo.name})";
 
-                    DragCube dg = DragCubeGeneration.RenderDragCubeImmediate(Mouse.HoveredPart);
-                    SetDGText(cubeTextXP, DragCube.DragFace.XP, dg);
-                    SetDGText(cubeTextXN, DragCube.DragFace.XN, dg);
-                    SetDGText(cubeTextYP, DragCube.DragFace.YP, dg);
-                    SetDGText(cubeTextYN, DragCube.DragFace.YN, dg);
-                    SetDGText(cubeTextZP, DragCube.DragFace.ZP, dg);
-                    SetDGText(cubeTextZN, DragCube.DragFace.ZN, dg);
+                    dragCubeSelection.ClearChildren();
+                    List<string> dragCubeNames = GetDragCubeNames(selectedPart);
+                    for (int i = 0; i < dragCubeNames.Count; i++)
+                    {
+                        string dragCubeName = dragCubeNames[i];
+                        Button button = AddButton(dragCubeSelection.gameObject, dragCubeName, OnDragCubeSelect);
+                        if (i == 0)
+                        {
+                            button.onClick.Invoke();
+                        }
+                    }
                 }
             }
             else if (Input.anyKeyDown)
             {
                 ExitSelectionMode();
             }
+        }
+
+        private void OnDragCubeSelect(Text text)
+        {
+            foreach (Text buttonText in dragCubeSelection.gameObject.GetComponentsInChildren<Text>())
+                buttonText.fontStyle = FontStyle.Normal;
+
+            if (selectedPart.IsNullOrDestroyed())
+                return;
+
+            text.fontStyle = FontStyle.Bold;
+            RenderDragCube(selectedPart, text.text);
         }
 
         private void ExitSelectionMode()
@@ -1133,14 +1191,160 @@ namespace KSPCommunityFixes.Performance
             text.text = $"area={dg.Area[i]:G4} drag={dg.Drag[i]:G4} depth={dg.Depth[i]:G4}"; // G4 is what KSP uses for serializing
         }
 
+        private void CopyCubeToClipboard(Text text)
+        {
+            if (currentDragCube == null)
+                return;
+
+            GUIUtility.systemCopyBuffer = currentDragCube.SaveToString();
+        }
+
+        private List<string> GetDragCubeNames(Part part)
+        {
+            bool isProcedural = false;
+            List<string> dragCubeNames = new List<string>();
+
+            foreach (PartModule module in part.modules)
+            {
+                if (module is IMultipleDragCube multipleDragCube && multipleDragCube.IsMultipleCubesActive)
+                {
+                    if (multipleDragCube.UsesProceduralDragCubes())
+                    {
+                        isProcedural = true;
+                        break;
+                    }
+
+                    dragCubeNames.AddRange(multipleDragCube.GetDragCubeNames());
+                }
+            }
+
+            if (isProcedural)
+                dragCubeNames.Clear();
+
+            if (!isProcedural && dragCubeNames.Count == 0)
+                dragCubeNames.Add(DragCubeGeneration.defaultCubeName);
+
+            dragCubeNames.Insert(0, "Current/Procedural");
+
+            return dragCubeNames;
+        }
+
+        private void RenderDragCube(Part part, string dragCubeName)
+        {
+            StartCoroutine(RenderDragCubeCoroutine(part, dragCubeName));
+        }
+
+        private IEnumerator RenderDragCubeCoroutine(Part part, string dragCubeName)
+        {
+            float dragModifier = 1f;
+            float areaModifier = 1f;
+
+            if (renderOnPrefab && part.partInfo?.partPrefab != null)
+                part = part.partInfo.partPrefab;
+
+            requireTextureCopy = true;
+            if (dragCubeName == "Current/Procedural")
+            {
+                currentDragCubeName = string.Empty;
+                currentDragCube = DragCubeGeneration.RenderDragCubeImmediate(part, currentDragCubeName);
+                currentDragCube.name = DragCubeGeneration.defaultCubeName;
+            }
+            else
+            {
+                List<PartModule> modules = part.modules.modules;
+                bool isMultipleDragCube = false;
+                for (int i = modules.Count; i-- > 0;)
+                {
+                    PartModule pm = modules[i];
+                    if (pm is IMultipleDragCube iMultipleDragCube && iMultipleDragCube.IsMultipleCubesActive)
+                    {
+                        isMultipleDragCube = true;
+                    }
+                    if (pm is ModuleDragModifier moduleDragMod && moduleDragMod.dragCubeName == dragCubeName)
+                    {
+                        dragModifier = moduleDragMod.dragModifier;
+                    }
+                    else if (pm is ModuleDragAreaModifier moduleAreaMod && moduleAreaMod.dragCubeName == dragCubeName)
+                    {
+                        areaModifier = moduleAreaMod.areaModifier;
+                    }
+                }
+
+                if (isMultipleDragCube)
+                {
+                    currentDragCubeName = dragCubeName;
+                    DragCubeList dragCubeList = new DragCubeList();
+                    yield return DragCubeSystem.Instance.StartCoroutine(DragCubeGeneration.RenderDragCubesOnCopy(part, dragCubeList, new ConfigNode()));
+                    currentDragCube = dragCubeList.GetCube(dragCubeName);
+                }
+                else
+                {
+                    currentDragCubeName = dragCubeName;
+                    currentDragCube = DragCubeGeneration.RenderDragCubeImmediate(part, dragCubeName);
+                    for (int i = 6; i-- > 0;)
+                    {
+                        currentDragCube.drag[i] *= dragModifier;
+                        currentDragCube.area[i] *= areaModifier;
+                    }
+                }
+            }
+            requireTextureCopy = false;
+
+            if (currentDragCube == null)
+            {
+                ClearTexturesAndResetText();
+                dragCubeCenterAndSize.text = "Error generating drag cube";
+                yield break;
+            }
+
+            SetDGText(cubeTextXP, DragCube.DragFace.XP, currentDragCube);
+            SetDGText(cubeTextXN, DragCube.DragFace.XN, currentDragCube);
+            SetDGText(cubeTextYP, DragCube.DragFace.YP, currentDragCube);
+            SetDGText(cubeTextYN, DragCube.DragFace.YN, currentDragCube);
+            SetDGText(cubeTextZP, DragCube.DragFace.ZP, currentDragCube);
+            SetDGText(cubeTextZN, DragCube.DragFace.ZN, currentDragCube);
+
+            dragCubeCenterAndSize.text = $"Center={currentDragCube.center} Size={currentDragCube.size}";
+            dragCubeAreaAndDragModifiers.text = $"Drag modifier={dragModifier} Area modifier={areaModifier}";
+        }
+
         private void OnDestroy()
         {
+            requireTextureCopy = false;
             Destroy(xp);
             Destroy(xn);
             Destroy(yp);
             Destroy(yn);
             Destroy(zp);
             Destroy(zn);
+        }
+
+        private void ClearTexturesAndResetText()
+        {
+            ClearTexture(xp);
+            ClearTexture(xn);
+            ClearTexture(yp);
+            ClearTexture(yn);
+            ClearTexture(zp);
+            ClearTexture(zn);
+
+            cubeTextXP.text = string.Empty;
+            cubeTextXN.text = string.Empty;
+            cubeTextYP.text = string.Empty;
+            cubeTextYN.text = string.Empty;
+            cubeTextZP.text = string.Empty;
+            cubeTextZN.text = string.Empty;
+
+            dragCubeCenterAndSize.text = string.Empty;
+            dragCubeAreaAndDragModifiers.text = string.Empty;
+        }
+
+        private void ClearTexture(Texture2D texture)
+        {
+            NativeArray<byte> textureData = texture.GetRawTextureData<byte>();
+            for (int i = textureData.Length; i-- > 0;)
+                textureData[i] = 0;
+            texture.Apply();
         }
 
         private static RectTransform AddEmptyPanel(GameObject parent)
@@ -1242,7 +1446,7 @@ namespace KSPCommunityFixes.Performance
             VerticalLayoutGroup layout = contentObject.gameObject.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childForceExpandHeight = true;
-            layout.childForceExpandWidth = true;
+            layout.childForceExpandWidth = false;
             layout.spacing = 5;
             layout.padding = new RectOffset(0, 0, 0, 0);
 
