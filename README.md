@@ -110,6 +110,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**RestoreMaxPhysicsDT**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/95) [KSP 1.8.0 - 1.12.5]<br/>When using physics warp, Unity will set the max physics dt to be at least as high as the scaled physics dt. But KSP will never restore it back to the normal value from the settings. This can degrade performance as it allows more FixedUpdates to run per frame.
 - [**ContractProgressEnumCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/100) [KSP 1.8.0 - 1.12.5]<br/>Prevent performance drops when there are in-progress comet sample or rover construction contracts
 - [**DragCubeGeneration**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/137) [KSP 1.12.0 - 1.12.5]<br/> Faster and more reliable implementation of drag cube generation. Improves overall loading times (both game load and scene/vessel/ship load times), prevent occasional lag spikes (in the editor mostly) and fix some issues causing incorrect drag cubes to be generated (notable examples are the stock inflatable heat shield, the 1.25m and 2.5m nose cones and the Mainsail shroud). Note that by design, this patch results in a small deviation from the stock behavior for buyoancy, aerodynamics and thermodynamics, as the generated drag cubes will be slightly different.
+- **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -160,8 +161,13 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.27.0
+- New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
+- **FastLoader** : Faster implementation of the stock `translateLoadedNodes` method, can reduce loading time by up to 30 seconds in a heavily modded install (thanks to @siimav for spotting this).
+- **LandingGearLights** : fixed the patch not applying to the smaller LY-10 landing gear (Thanks to @JonnyOThan).
+
 ##### 1.26.0
-- New stock configs fix, **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)** : fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear.
+- New stock configs fix, **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)** : fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear (Thanks to @JonnyOThan for reporting)
 - New KSP bugfix/QoL patch, **LadderToggleableLight** : fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
 
 ##### 1.25.5
