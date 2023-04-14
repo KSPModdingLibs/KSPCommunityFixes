@@ -2,8 +2,9 @@
 
 using DDSHeaders;
 using HarmonyLib;
-using KSPCommunityFixes.Library.Collections;
+using KSP.Localization;
 using KSPCommunityFixes.Library.Buffers;
+using KSPCommunityFixes.Library.Collections;
 using System;
 using System.Buffers.Binary;
 using System.Collections;
@@ -14,16 +15,15 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
+using TMPro;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 using static GameDatabase;
 using static UrlDir;
 using Debug = UnityEngine.Debug;
-using UnityEngine.Experimental.Rendering;
-using KSP.Localization;
-using TMPro;
-using UnityEngine.UI;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -278,8 +278,21 @@ namespace KSPCommunityFixes.Performance
         static IEnumerator FastAssetLoader(List<ConfigFileType> configFileTypes)
         {
             GameDatabase gdb = GameDatabase.Instance;
+            gdb.progressTitle = "Loading configs...";
+            gdb.progressFraction = 0f;
+
+            // note : rebuilding the whole database here can be very long in a modde dinstall and
+            // is quite silly since it was already built just before.
+            // The intent is just to mark assets files with their type (UrlFile.fileType) according to
+            // the registered type in configFileTypes.
+            // However, the full reload means mods can take the opportunity to generate configs/assets on
+            // the fly from Awake() in a Startup.Instantly KSPAddon and have it being loaded. I've found
+            // at least 2 mods doing that, so unfortunately this can't really be optimized...
             gdb._root = new UrlDir(gdb.urlConfig.ToArray(), configFileTypes.ToArray());
-            gdb.translateLoadedNodes();
+
+            // Optimized version of GameDatabase.translateLoadedNodes()
+            TranslateLoadedNodes(gdb);
+            yield return null;
 
             gdb.progressTitle = "Waiting for PNGTextureCache opt-in...";
             while (!loader.userOptInChoiceDone)
@@ -289,7 +302,6 @@ namespace KSPCommunityFixes.Performance
             yield return null;
 
             double nextFrameTime = ElapsedTime + minFrameTimeD;
-            gdb.progressFraction = 0f;
 
             // Files loaded by our custom loaders
             List<UrlFile> audioFiles = new List<UrlFile>(1000);
@@ -597,6 +609,53 @@ namespace KSPCommunityFixes.Performance
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
             gdb.progressFraction = 1f;
             loadObjectsInProgress = false;
+        }
+
+        /// <summary>
+        /// ~100 times faster replacement for the stock GameDatabase.translateLoadedNodes() method (RP1 install 12500 ms -> 80 ms)
+        /// </summary>
+        private static void TranslateLoadedNodes(GameDatabase gdb)
+        {
+            Dictionary<string, string> tags = Localizer.Instance.tagValues;
+            UrlDir root = gdb._root;
+            Stack<UrlDir> dirStack = new Stack<UrlDir>(100);
+            Stack<ConfigNode> nodesStack = new Stack<ConfigNode>(100);
+
+            dirStack.Push(root);
+            while (dirStack.TryPop(out UrlDir urlDir))
+            {
+                foreach (UrlDir childUrlDir in urlDir.children)
+                    dirStack.Push(childUrlDir);
+
+                foreach (UrlFile urlFile in urlDir._files)
+                {
+                    if (urlFile._fileType != FileType.Config)
+                        continue;
+
+                    foreach (UrlConfig urlConfig in urlFile._configs)
+                    {
+                        nodesStack.Push(urlConfig.config);
+
+                        while (nodesStack.TryPop(out ConfigNode configNode))
+                        {
+                            foreach (ConfigNode childNode in configNode._nodes.nodes)
+                                nodesStack.Push(childNode);
+
+                            foreach (ConfigNode.Value configNodeValue in configNode._values.values)
+                            {
+                                string value = configNodeValue.value;
+                                if (string.IsNullOrEmpty(value))
+                                    continue;
+
+                                if (tags.TryGetValue(value, out string localizedValue))
+                                    value = localizedValue;
+
+                                configNodeValue.value = LocalizerPerf.UnescapeFormattedString(value);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         #endregion

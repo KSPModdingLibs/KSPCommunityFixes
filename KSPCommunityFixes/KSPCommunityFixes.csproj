@@ -87,6 +87,7 @@
   <!--Krafs.Publicizer items-->
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
+    <Publicize Include="Assembly-CSharp-firstpass" />
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
@@ -94,6 +95,7 @@
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
+    <Publicize Include="mscorlib:System.String.m_firstChar" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
@@ -117,6 +119,7 @@
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\FastLoader.cs" />
+    <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
