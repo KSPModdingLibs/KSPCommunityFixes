@@ -164,6 +164,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
 - **FastLoader** : Faster implementation of the stock `translateLoadedNodes` method, can reduce loading time by up to 30 seconds in a heavily modded install (thanks to @siimav for spotting this).
 - **LandingGearLights** : fixed the patch not applying to the smaller LY-10 landing gear (Thanks to @JonnyOThan).
+- Fixed [issue #98](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/98) : **ConfigNodePerf** patch ignoring the last key/value pair when parsing a node-less, values only input. Notably fix a compatibility issue with the SimpleConstruction mod causing missing vessel construction costs.
 
 ##### 1.26.0
 - New stock configs fix, **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)** : fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear (Thanks to @JonnyOThan for reporting)
