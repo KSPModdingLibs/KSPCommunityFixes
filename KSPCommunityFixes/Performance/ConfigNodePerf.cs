@@ -1,15 +1,15 @@
 ﻿//#define DEBUG_CONFIGNODE_PERF
-//#define COMPARE_LOAD_RESULTS
+//#define COMPARE_PARSE_RESULTS
 //#define CONFIGNODE_PERF_TEST
 using HarmonyLib;
+using KSP.Localization;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using UnityEngine;
 using static ConfigNode;
-using System.IO;
-using KSP.Localization;
-using System.Text;
-using System.Collections;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -227,6 +227,14 @@ namespace KSPCommunityFixes.Performance
                 {
                     __result = ParseConfigNode(pszInput, len);
                 }
+
+#if COMPARE_PARSE_RESULTS
+                ConfigNode stockNode = RecurseFormat(PreFormatConfig(s.Split('\n', '\r')));
+                if (!AreNodesEqual(__result, stockNode, true))
+                {
+                    Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf : mismatch in parsed node !\nSTOCK NODE\n{stockNode}\nKSPCF NODE\n{__result}");
+                }
+#endif
             }
             catch (Exception e)
             {
@@ -289,15 +297,6 @@ namespace KSPCommunityFixes.Performance
             _skipOtherPatches = false;
             var oldTime = sw.ElapsedMilliseconds;
             Debug.Log($"Ours: {_ourTime} (read {_readTime}), old: {oldTime + oldRead} (read {oldRead})");
-#if COMPARE_LOAD_RESULTS
-            if (!AreNodesEqual(__result, old, true))
-            {
-                Debug.LogError("@@@@ Mismatch in data!");
-                // to step through again
-                //AreNodesEqual(__result, old);
-                __result = old;
-            }
-#endif
 #endif
             _doClean = oldClean;
             return false;
@@ -745,13 +744,28 @@ namespace KSPCommunityFixes.Performance
             _readTime = sw.ElapsedMilliseconds;
 #endif
 
+            ConfigNode result;
             if (numChars == 0)
-                return new ConfigNode("root");
-
-            fixed (char* pBase = chars)
             {
-                return ParseConfigNode(pBase, numChars);
+                result = new ConfigNode("root");
             }
+            else
+            {
+                fixed (char* pBase = chars)
+                {
+                    result = ParseConfigNode(pBase, numChars);
+                }
+            }
+
+#if COMPARE_PARSE_RESULTS
+            string input = new string(chars, 0, numChars);
+            ConfigNode stockNode = RecurseFormat(PreFormatConfig(input.Split('\n', '\r')));
+            if (!AreNodesEqual(result, stockNode, true))
+            {
+                Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf : mismatch in parsed node !\nSTOCK NODE\n{stockNode}\nKSPCF NODE\n{result}");
+            }
+#endif
+            return result;
         }
 
         public static unsafe ConfigNode ParseConfigNode(char* pBase, int numChars)
@@ -977,11 +991,19 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
             }
+
+            if (_nodeStack.Count == 1 && mode == ParseMode.SkipToValue || mode == ParseMode.ReadValue)
+            {
+                int len = lastNonWS - start + 1;
+                string val = len > 0 ? new string(pBase, start, len) : string.Empty;
+                _nodeStack.Peek()._values.values.Add(new Value(savedName, val));
+            }
+
             _nodeStack.Clear();
             return node;
         }
 
-#if DEBUG_CONFIGNODE_PERF || CONFIGNODE_PERF_TEST
+#if DEBUG_CONFIGNODE_PERF || CONFIGNODE_PERF_TEST || COMPARE_PARSE_RESULTS
         private static string OldCleanupInput(string value)
         {
             value = value.Replace("\n", "");
