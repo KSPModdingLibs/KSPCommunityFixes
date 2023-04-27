@@ -74,6 +74,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107)** [KSP 1.10.0 - 1.12.5]<br/>Fix spread angle still being applied after decoupling symmetry-placed parachutes.
 - **[CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126)** [KSP 1.12.3 - 1.12.5]<br/>Fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
 - **LadderToggleableLight** [KSP 1.8.0 - 1.12.5]<br/>Fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
+- **ReRootPreserveSurfaceAttach** [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, which is unnecessary and doesn't work correctly, leading to permanently borked attachement nodes.
 
 #### Quality of Life tweaks 
 
