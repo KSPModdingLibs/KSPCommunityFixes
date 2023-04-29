@@ -97,7 +97,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.5]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.5]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
-- [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format.
+- [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format, also implements loading of additional DDS formats (see **BetterDDSSupport** patch in the API/modding tools section).
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.5]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
 - [**PQSCoroutineLeak**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) [KSP 1.8.0 - 1.12.5]<br/>Prevent KSP from spawning multiple PQS update coroutines for the same PQS after scene switches and on other occasions, causing large performance degradation over time.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.5]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
@@ -121,6 +121,15 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.5]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 - **[DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47)** [KSP 1.8.0 - 1.12.5]<br/> Fix administration building custom departement head image not being used when added by a mod.
 - **[ModUpgradePipeline](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/91)** [KSP 1.8.0 - 1.12.5]<br/>This will save mod versions in sfs and craft files, and use those versions for mods' SaveUpgradePipeline scripts so that mods can handle their own upgrade versioning using native KSP tools instead of having to always run their upgrade scripts.
+- **BetterDDSSupport** [KSP 1.12.3 - 1.12.5]<br/>Implement compatibility with the DXT10/DXGI specification, and support of loading additional texture formats :
+  - `BC4` : single channel (R) compressed 4 bpp 
+  - `BC5` : 2 channels (RG) compressed 8 bpp
+  - `BC6H` : 3 channels (RGB) compressed 8 bpp with HDR color range (**Not available on MacOS**)
+  - `BC7` : 4 channels (RGBA) compressed 8 bpp (**Not available on MacOS**)
+  - `R16G16B16A16` : 4 channels (RGBA) uncompressed 64 bpp
+  - `R16_FLOAT` / `R32_FLOAT` : single channel (R) uncompressed 16/32 bpp 
+  - `R16G16_FLOAT` / `R32G32_FLOAT` : 2 channels (RG) uncompressed 32/64 bpp
+  - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp 
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
@@ -159,6 +168,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.28.0
+- New API/modding patch : **BetterDDSSupport** (actually part of the **FastLoader** patch), implement support of loading additional DDS formats.
 
 ##### 1.27.0
 - New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
