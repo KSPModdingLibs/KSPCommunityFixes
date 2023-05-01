@@ -74,7 +74,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[ChutePhantomSymmetry](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/107)** [KSP 1.10.0 - 1.12.5]<br/>Fix spread angle still being applied after decoupling symmetry-placed parachutes.
 - **[CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126)** [KSP 1.12.3 - 1.12.5]<br/>Fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
 - **LadderToggleableLight** [KSP 1.8.0 - 1.12.5]<br/>Fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
-- **ReRootPreserveSurfaceAttach** [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, which is unnecessary and doesn't work correctly, leading to permanently borked attachement nodes.
+- [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
 
 #### Quality of Life tweaks 
 
@@ -160,6 +160,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.28.0
+- New KSP bugfix : [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5], disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
 
 ##### 1.27.0
 - New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.

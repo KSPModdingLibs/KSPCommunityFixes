@@ -1,10 +1,15 @@
-﻿//#define REROOT_DEBUG_MODULE
+﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142
+
+// #define REROOT_DEBUG_MODULE
 
 using HarmonyLib;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+
+#if REROOT_DEBUG_MODULE
 using UnityEngine;
+#endif
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -34,7 +39,7 @@ namespace KSPCommunityFixes.BugFixes
     }
 
 #if REROOT_DEBUG_MODULE
-    public class SrfAttachDebug : PartModule
+    public class SrfAttachInfo : PartModule
     {
         [KSPField(guiActive = true, guiActiveEditor = true)]
         public string attachInfo;
@@ -69,7 +74,8 @@ namespace KSPCommunityFixes.BugFixes
 
             Camera cam = GetActiveCam();
             GLStart();
-            DrawRay(cam, pos, dir, Color.green);
+            DrawPoint(cam, pos, Color.green);
+            DrawRay(cam, pos, dir * 0.5f, Color.red);
             GLEnd();
         }
 
@@ -124,9 +130,9 @@ namespace KSPCommunityFixes.BugFixes
 
         private static void DrawPoint(Camera cam, Vector3 position, Color color)
         {
-            DrawRay(cam, position + Vector3.up * 0.5f, -Vector3.up, color);
-            DrawRay(cam, position + Vector3.right * 0.5f, -Vector3.right, color);
-            DrawRay(cam, position + Vector3.forward * 0.5f, -Vector3.forward, color);
+            DrawRay(cam, position + Vector3.up * 0.1f, -Vector3.up * 0.2f, color);
+            DrawRay(cam, position + Vector3.right * 0.1f, -Vector3.right * 0.2f, color);
+            DrawRay(cam, position + Vector3.forward * 0.1f, -Vector3.forward * 0.2f, color);
         }
     }
 #endif
