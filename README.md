@@ -83,7 +83,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[TweakableWheelsAutostrut](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)** [KSP 1.8.0 - 1.12.5]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
 - **AutostrutActions** [KSP 1.8.0 - 1.12.5]<br/>Allow autostrut mode to be toggled with action groups (requires advanced tweakables to be enabled).
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.5]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
-- **DisableManeuverTool** [KSP 1.12.0 - 1.12.5]<br/>Allow disabling the KSP 1.12 maneuver planner tool in the KSPCF in-game settings menu. It can cause stutter and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
+- **DisableManeuverTool** [KSP 1.12.0 - 1.12.5]<br/>Allow disabling the KSP 1.12 maneuver/trip planner tool in the KSPCF in-game settings menu. It can cause stutters and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
 - **FairingMouseOverPersistence** [KSP 1.10.0 - 1.12.5]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
 - **HidePartUpgradeExtendedInfo** [KSP 1.8.0 - 1.12.5]<br/>Hides irrelevant extended info on the part tooltip for PartUpgrades in the RnD screen.
 - [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.5]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
@@ -173,6 +173,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ##### 1.28.0
 - New API/modding patch : **BetterDDSSupport** [KSP 1.12.3 - 1.12.5] (actually part of the **FastLoader** patch), implement support of loading additional DDS formats.
 - New performance patch : [**DisableHiddenPortraits**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/84) [KSP 1.8.0 - 1.12.5], prevent non-visible crew portraits from being rendered after a switch back from the map view (and other cases), causing a significant perf hit when there are many kerbals in the vessel.
+- **DisableManeuverTool** : added MM-patcheable flags to set the default enabled state of the maneuver tool or to forcefully disable it, see `Settings.cfg`.
 
 ##### 1.27.0
 - New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.

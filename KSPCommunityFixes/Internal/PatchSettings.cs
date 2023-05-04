@@ -40,7 +40,7 @@ namespace KSPCommunityFixes
                 entryCount++;
 
             if (KSPCFFastLoader.IsPatchEnabled)
-                entryCount++;
+            entryCount++;
 
             // NoIVA is always enabled
             entryCount++;
@@ -69,6 +69,7 @@ namespace KSPCommunityFixes
                         : Localizer.Format("#autoLOC_6001072"), //"Enabled"
                     DisableManeuverTool.OnToggleApp, 150f);
                 toggle.tooltipText = DisableManeuverTool.LOC_SettingsTooltip;
+                toggle.OptionInteractableCondition = () => !DisableManeuverTool.alwaysDisabled;
 
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => Localizer.Format("#autoLOC_6006123"), 150f), //"Maneuver Tool"
