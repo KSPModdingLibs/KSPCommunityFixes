@@ -83,7 +83,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[TweakableWheelsAutostrut](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/16)** [KSP 1.8.0 - 1.12.5]<br/>Allow tweaking the autostrut mode of wheels/landing legs. Still default to "Heaviest part".<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/TweakableWheelsAutostrut.gif"/>
 - **AutostrutActions** [KSP 1.8.0 - 1.12.5]<br/>Allow autostrut mode to be toggled with action groups (requires advanced tweakables to be enabled).
 - **UIFloatEditNumericInput** [KSP 1.8.0 - 1.12.5]<br/>Allow numeric input ("#" button) in "float edit" PAW items<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/UIFloatEditNumericInput.gif"/>
-- **DisableManeuverTool** [KSP 1.12.0 - 1.12.5]<br/>Allow disabling the KSP 1.12 maneuver planner tool in the KSPCF in-game settings menu. It can cause stutter and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
+- **DisableManeuverTool** [KSP 1.12.0 - 1.12.5]<br/>Allow disabling the KSP 1.12 maneuver/trip planner tool in the KSPCF in-game settings menu. It can cause stutters and freezes on scene load, when changing SOI or when editing maneuver nodes, especially with Kopernicus modified systems.
 - **FairingMouseOverPersistence** [KSP 1.10.0 - 1.12.5]<br/>Make the "Fairing Expansion" state persistent when reloading a craft in the editor.
 - **HidePartUpgradeExtendedInfo** [KSP 1.8.0 - 1.12.5]<br/>Hides irrelevant extended info on the part tooltip for PartUpgrades in the RnD screen.
 - [**AutoSavedCraftNameAtLaunch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/30) [KSP 1.8.0 - 1.12.5]<br/>Append `[Auto-Saved Ship]` when relevant in the Launchpad / Runway UI.<br/><img src="https://github.com/KSPModdingLibs/KSPCommunityFixes/raw/master/Screenshots/AutoSavedCraftNameAtLaunch.png" width="200"/>
@@ -97,7 +97,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.5]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.5]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
-- [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format.
+- [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format, also implements loading of additional DDS formats (see **BetterDDSSupport** patch in the API/modding tools section).
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.5]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
 - [**PQSCoroutineLeak**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) [KSP 1.8.0 - 1.12.5]<br/>Prevent KSP from spawning multiple PQS update coroutines for the same PQS after scene switches and on other occasions, causing large performance degradation over time.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.5]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
@@ -110,7 +110,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**RestoreMaxPhysicsDT**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/95) [KSP 1.8.0 - 1.12.5]<br/>When using physics warp, Unity will set the max physics dt to be at least as high as the scaled physics dt. But KSP will never restore it back to the normal value from the settings. This can degrade performance as it allows more FixedUpdates to run per frame.
 - [**ContractProgressEnumCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/100) [KSP 1.8.0 - 1.12.5]<br/>Prevent performance drops when there are in-progress comet sample or rover construction contracts
 - [**DragCubeGeneration**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/137) [KSP 1.12.0 - 1.12.5]<br/> Faster and more reliable implementation of drag cube generation. Improves overall loading times (both game load and scene/vessel/ship load times), prevent occasional lag spikes (in the editor mostly) and fix some issues causing incorrect drag cubes to be generated (notable examples are the stock inflatable heat shield, the 1.25m and 2.5m nose cones and the Mainsail shroud). Note that by design, this patch results in a small deviation from the stock behavior for buyoancy, aerodynamics and thermodynamics, as the generated drag cubes will be slightly different.
-- **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
+- **LocalizerPerf** [KSP 1.8.0 - 1.12.5]<br/>Faster and minimal-allocation replacements for the `Localizer.Format()` methods, can provide significant speedup for GUI-heavy mods using localized strings.
+- [**DisableHiddenPortraits**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/84) [KSP 1.8.0 - 1.12.5]<br/>Prevent non-visible crew portraits from being rendered after a switch back from the map view (and other cases), causing a significant perf hit when there are many kerbals in the vessel.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -122,6 +123,15 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **ReflectionTypeLoadExceptionHandler** [KSP 1.8.0 - 1.12.5]<br/>Patch the BCL `Assembly.GetTypes()` method to always handle (gracefully) an eventual `ReflectionTypeLoadException`. Since having an assembly failing to load is a quite common scenario, this ensure such a situation won't cause issues with other plugins. Those exceptions are logged (but not re-thrown), and detailed information about offending plugins is shown on screen during loading so users are aware there is an issue with their install. This patch is always enabled and has no entry in `Settings.cfg`.
 - **[DepartmentHeadImage](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/47)** [KSP 1.8.0 - 1.12.5]<br/> Fix administration building custom departement head image not being used when added by a mod.
 - **[ModUpgradePipeline](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/91)** [KSP 1.8.0 - 1.12.5]<br/>This will save mod versions in sfs and craft files, and use those versions for mods' SaveUpgradePipeline scripts so that mods can handle their own upgrade versioning using native KSP tools instead of having to always run their upgrade scripts.
+- **BetterDDSSupport** [KSP 1.12.3 - 1.12.5]<br/>Implement compatibility with the DXT10/DXGI specification, and support of loading additional texture formats :
+  - `BC4` : single channel (R) compressed 4 bpp 
+  - `BC5` : 2 channels (RG) compressed 8 bpp
+  - `BC6H` : 3 channels (RGB) compressed 8 bpp with HDR color range (**Not available on MacOS**)
+  - `BC7` : 4 channels (RGBA) compressed 8 bpp (**Not available on MacOS**)
+  - `R16G16B16A16` : 4 channels (RGBA) uncompressed 64 bpp
+  - `R16_FLOAT` / `R32_FLOAT` : single channel (R) uncompressed 16/32 bpp 
+  - `R16G16_FLOAT` / `R32G32_FLOAT` : 2 channels (RG) uncompressed 32/64 bpp
+  - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp 
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
@@ -161,10 +171,17 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.28.0
+- New API/modding patch : **BetterDDSSupport** [KSP 1.12.3 - 1.12.5] (actually part of the **FastLoader** patch), implement support of loading additional DDS formats.
+- New performance patch : [**DisableHiddenPortraits**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/84) [KSP 1.8.0 - 1.12.5], prevent non-visible crew portraits from being rendered after a switch back from the map view (and other cases), causing a significant perf hit when there are many kerbals in the vessel.
+- New performance/bugfix patch : [**DragCubeGeneration**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/137) [KSP 1.12.0 - 1.12.5], faster and more reliable implementation of drag cube generation. Improves overall loading times (both game load and scene/vessel/ship load times), prevent occasional lag spikes (in the editor mostly) and fix some issues causing incorrect drag cubes to be generated (notable examples are the stock inflatable heat shield, the 1.25m and 2.5m nose cones and the Mainsail shroud). Note that by design, this patch results in a small deviation from the stock behavior for buyoancy, aerodynamics and thermodynamics, as the generated drag cubes will be slightly different.
+- **DisableManeuverTool** : added MM-patcheable flags to set the default enabled state of the maneuver tool or to forcefully disable it, see `Settings.cfg`.
+
 ##### 1.27.0
 - New performance patch : **LocalizerPerf** [KSP 1.8.0 - 1.12.5] Faster and minimal-allocation replacements for the Localizer.Format() methods, can provide significant speedup for GUI-heavy mods using localized strings.
 - **FastLoader** : Faster implementation of the stock `translateLoadedNodes` method, can reduce loading time by up to 30 seconds in a heavily modded install (thanks to @siimav for spotting this).
 - **LandingGearLights** : fixed the patch not applying to the smaller LY-10 landing gear (Thanks to @JonnyOThan).
+- Fixed [issue #98](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/98) : **ConfigNodePerf** patch ignoring the last key/value pair when parsing a node-less, values only input. Notably fix a compatibility issue with the SimpleConstruction mod causing missing vessel construction costs.
 
 ##### 1.26.0
 - New stock configs fix, **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)** : fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear (Thanks to @JonnyOThan for reporting)

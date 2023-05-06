@@ -119,6 +119,7 @@
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
+    <Compile Include="Performance\DisableHiddenPortraits.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FastLoader.cs" />
