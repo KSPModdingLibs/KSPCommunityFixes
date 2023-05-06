@@ -1780,9 +1780,11 @@ namespace KSPCommunityFixes.Performance
             instance.APFinderByName.Clear();
             instance.CompileVariantThemes(configs2);
 
+            PartCompilationInProgress = true;
             IEnumerator compilePartsEnumerator = FrameUnlockedCoroutine(instance.CompileParts(configs));
             while (compilePartsEnumerator.MoveNext())
                 yield return null;
+            PartCompilationInProgress = false;
 
             IEnumerator compileInternalPropsEnumerator = FrameUnlockedCoroutine(instance.CompileInternalProps(allPropNodes));
             while (compileInternalPropsEnumerator.MoveNext())
@@ -1946,6 +1948,8 @@ namespace KSPCommunityFixes.Performance
         // Fix for issue #114 : Drag cubes are incorrectly calculated with KSPCF 1.24.1 
         private static bool frameSkipRequested;
         public static void RequestFrameSkip() => frameSkipRequested = true;
+
+        public static bool PartCompilationInProgress;
 
         private static IEnumerable<CodeInstruction> DragCubeSystem_RenderDragCubes_MoveNext_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
