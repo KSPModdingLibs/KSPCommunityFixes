@@ -17,20 +17,32 @@ namespace KSPCommunityFixes.QoL
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
+            ConfigNode defaultsNode = KSPCommunityFixes.SettingsNode.GetNode("MANEUVER_TOOL_DEFAULTS");
+
+            if (defaultsNode != null)
+            {
+                defaultsNode.TryGetValue("ManeuverToolEnabledByDefault", ref enableManeuverTool);
+                defaultsNode.TryGetValue("ManeuverToolAlwaysDisabled", ref alwaysDisabled);
+            }
+
+            if (alwaysDisabled)
+                enableManeuverTool = false;
+
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix, 
                 AccessTools.Method(typeof(ManeuverTool), "OnAppAboutToStart"), 
                 this));
         }
 
+        public static bool alwaysDisabled = false;
         public static bool enableManeuverTool = true;
 
         protected override void OnLoadData(ConfigNode node)
         {
-            if (!node.TryGetValue(nameof(enableManeuverTool), ref enableManeuverTool))
-            {
-                enableManeuverTool = true;
-            }
+            if (alwaysDisabled)
+                return;
+
+            node.TryGetValue(nameof(enableManeuverTool), ref enableManeuverTool);
         }
 
         private static bool ManeuverTool_OnAppAboutToStart_Prefix(ref bool __result)

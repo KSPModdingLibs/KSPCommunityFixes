@@ -7,7 +7,7 @@ using System.Reflection.Emit;
 // This patch is mainly intended as a fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active, 
 // even when the ladder is retracted.
 // But this also provide a generalized way of linking a RetractableLadder module to a ModuleLight module, see comments
-// in the module for how to use it.
+// in the RetractableLadderLightController module (further in this file) for how to use it.
 
 namespace KSPCommunityFixes.BugFixes
 {
