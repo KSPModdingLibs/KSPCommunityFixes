@@ -19,5 +19,14 @@ namespace KSPCommunityFixes
                 m.m10 * x + m.m11 * y + m.m12 * z,
                 m.m20 * x + m.m21 * y + m.m22 * z);
         }
+
+        /// <summary>
+        /// Get an assembly qualified type name in the "assemblyName:typeName" format
+        /// </summary>
+        public static string AssemblyQualifiedName(this object obj)
+        {
+            Type type = obj.GetType();
+            return $"{type.Assembly.GetName().Name}:{type.Name}";
+        }
     }
 }

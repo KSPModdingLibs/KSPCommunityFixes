@@ -233,7 +233,7 @@ namespace KSPCommunityFixes.Modding
         {
             if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommunityFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                Debug.LogError($"[KSPCommunityFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.AssemblyQualifiedName()}."
                     + "\nThis is probably because the value was specified twice in the config. Making that assumption and clamping.");
                 attribIndex = 0;
             }
@@ -264,7 +264,7 @@ namespace KSPCommunityFixes.Modding
         {
             if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommunityFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.GetType().Name}."
+                Debug.LogError($"[KSPCommunityFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.AssemblyQualifiedName()}."
                     + "\nThis is probably because the node was specified twice in the config. Making that assumption and clamping.");
                 attribIndex = 0;
             }

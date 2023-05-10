@@ -38,6 +38,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+using KSPCommunityFixes.Library;
 using TMPro;
 using Unity.Collections;
 using UnityEngine;
@@ -54,18 +55,17 @@ namespace KSPCommunityFixes.Performance
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             dragMaterial = new Material(DragCubeSystem.Instance.dragShader);
+            defaultCubeNameArray = new[] { defaultCubeName };
 
-            partRenderersBuffer = new List<DragRendererInfo>();
             childTransformsBuffer = new List<Transform>(20);
             staticComponentBuffer = new List<Component>(20);
-            staticRendererBuffer = new List<Renderer>(20);
-            staticIMultipleDragCubeBuffer = new List<IMultipleDragCube>();
-            staticModuleDragModifierBuffer = new List<ModuleDragModifier>();
-            staticModuleDragAreaModifierBuffer = new List<ModuleDragAreaModifier>();
-            defaultCubeNameArray = new []{ defaultCubeName };
 
-            commandBuffer = new CommandBuffer();
-            commandBuffer.name = "KSPCFDragCubeRenderer";
+            rendererListPool = new ListPool<Renderer>();
+            multipleDragCubeListPool = new ListPool<IMultipleDragCube>();
+            moduleDragModifierListPool = new ListPool<ModuleDragModifier>();
+            moduleDragAreaModifierListPool = new ListPool<ModuleDragAreaModifier>();
+            dragRendererInfoListPool = new ListPool<DragRendererInfo>();
+            commandBufferPool = new ObjectPool<CommandBuffer>(buffer => buffer.name = "KSPCFDragCubeRenderer", buffer => buffer.Clear());
 
             FieldInfo f_Canvas_willRenderCanvases = AccessTools.Field(typeof(Canvas), "willRenderCanvases");
             fieldRef_Canvas_WillRenderCanvases = AccessTools.FieldRefAccess<object, Canvas.WillRenderCanvases>(f_Canvas_willRenderCanvases);
@@ -141,10 +141,21 @@ namespace KSPCommunityFixes.Performance
         public const string defaultCubeName = "Default";
         public static string[] defaultCubeNameArray = { defaultCubeName };
 
-        private static List<DragRendererInfo> partRenderersBuffer;
-        private static CommandBuffer commandBuffer;
-        private static Material dragMaterial;
         private static AccessTools.FieldRef<object, Canvas.WillRenderCanvases> fieldRef_Canvas_WillRenderCanvases;
+
+        private static Material dragMaterial; // static instance is ok (created once and never modified)
+        private static List<Transform> childTransformsBuffer; // static buffer is ok (used in an atomic operation)
+        private static List<Component> staticComponentBuffer; // static buffer is ok (used in an atomic operation)
+
+        // these objects are used in the coroutine over the span of multiple frames, meaning we can't use a single static
+        // instance, each coroutine has to to get its own instance. So instead we use object pools to avoid allocations.
+        // see issue #146 : https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/146
+        private static ListPool<Renderer> rendererListPool = new ListPool<Renderer>();
+        private static ListPool<IMultipleDragCube> multipleDragCubeListPool = new ListPool<IMultipleDragCube>();
+        private static ListPool<ModuleDragModifier> moduleDragModifierListPool = new ListPool<ModuleDragModifier>();
+        private static ListPool<ModuleDragAreaModifier> moduleDragAreaModifierListPool = new ListPool<ModuleDragAreaModifier>();
+        private static ListPool<DragRendererInfo> dragRendererInfoListPool = new ListPool<DragRendererInfo>();
+        private static ObjectPool<CommandBuffer> commandBufferPool = new ObjectPool<CommandBuffer>();
 
         private struct DragRendererInfo
         {
@@ -215,19 +226,9 @@ namespace KSPCommunityFixes.Performance
             yield return null;
         }
 
-        private static List<Transform> childTransformsBuffer;
-        private static List<Component> staticComponentBuffer;
-        private static List<Renderer> staticRendererBuffer;
-        private static List<IMultipleDragCube> staticIMultipleDragCubeBuffer;
-        private static List<ModuleDragModifier> staticModuleDragModifierBuffer;
-        private static List<ModuleDragAreaModifier> staticModuleDragAreaModifierBuffer;
-        
-
+        // reimplementation of DragCubeSystem.Instance.RenderDragCubesCoroutine(originalPart, dragConfig)
         public static IEnumerator RenderDragCubesOnCopy(Part originalPart, DragCubeList dragCubeList, ConfigNode dragConfig)
         {
-            //yield return DragCubeSystem.Instance.StartCoroutine(DragCubeSystem.Instance.RenderDragCubesCoroutine(originalPart, dragConfig));
-            //yield break;
-
             int childCount = originalPart.children.Count;
             if (childCount > 0)
             {
@@ -285,68 +286,79 @@ namespace KSPCommunityFixes.Performance
             ModuleJettison moduleJettison = null;
             ModulePartVariants modulePartVariants = null;
 
-            partObject.GetComponentsInChildren(true, staticComponentBuffer);
-            DragCubeSystem dragCubeSystem = DragCubeSystem.Instance;
-            int cameraLayer = dragCubeSystem.cameraLayerInt;
+            List<IMultipleDragCube> multipleDragCubeList = multipleDragCubeListPool.Get();
+            List<ModuleDragModifier> moduleDragModifierList = moduleDragModifierListPool.Get();
+            List<ModuleDragAreaModifier> moduleDragAreaModifierList = moduleDragAreaModifierListPool.Get();
 
-            int componentCount = staticComponentBuffer.Count;
-            for (int i = 0; i < componentCount; i++)
+            try
             {
-                Component component = staticComponentBuffer[i];
+                partObject.GetComponentsInChildren(true, staticComponentBuffer);
+                DragCubeSystem dragCubeSystem = DragCubeSystem.Instance;
+                int cameraLayer = dragCubeSystem.cameraLayerInt;
 
-                if (component is MonoBehaviour monoBehaviour)
+                int componentCount = staticComponentBuffer.Count;
+                for (int i = 0; i < componentCount; i++)
                 {
-                    if (monoBehaviour is FXPrefab fxPrefab)
+                    Component component = staticComponentBuffer[i];
+
+                    if (component is MonoBehaviour monoBehaviour)
                     {
-                        ParticleSystem particleSystem = fxPrefab.particleSystem;
-                        Object.DestroyImmediate(fxPrefab);
-                        if (particleSystem.IsNotNullOrDestroyed())
-                            Object.DestroyImmediate(particleSystem);
+                        if (monoBehaviour is FXPrefab fxPrefab)
+                        {
+                            ParticleSystem particleSystem = fxPrefab.particleSystem;
+                            Object.DestroyImmediate(fxPrefab);
+                            if (particleSystem.IsNotNullOrDestroyed())
+                                Object.DestroyImmediate(particleSystem);
+
+                            continue;
+                        }
+
+                        monoBehaviour.enabled = false;
+
+                        if (monoBehaviour is IMultipleDragCube iMultipleDragCube && iMultipleDragCube.IsMultipleCubesActive)
+                        {
+                            if (monoBehaviour is ModuleJettison && moduleJettison.IsNullRef())
+                            {
+                                moduleJettison = (ModuleJettison)monoBehaviour;
+                            }
+                            else if (monoBehaviour is ModulePartVariants && modulePartVariants.IsNullRef())
+                            {
+                                modulePartVariants = (ModulePartVariants)monoBehaviour;
+                            }
+
+                            multipleDragCubeList.Add(iMultipleDragCube);
+                        }
+                        else if (monoBehaviour is ModuleDragModifier moduleDragMod)
+                        {
+                            moduleDragModifierList.Add(moduleDragMod);
+                        }
+                        else if (monoBehaviour is ModuleDragAreaModifier moduleAreaMod)
+                        {
+                            moduleDragAreaModifierList.Add(moduleAreaMod);
+                        }
 
                         continue;
                     }
 
-                    monoBehaviour.enabled = false;
-
-                    if (monoBehaviour is IMultipleDragCube iMultipleDragCube && iMultipleDragCube.IsMultipleCubesActive)
+                    if (component is Collider collider)
                     {
-                        if (monoBehaviour is ModuleJettison && moduleJettison.IsNullRef())
-                        {
-                            moduleJettison = (ModuleJettison)monoBehaviour;
-                        }
-                        else if (monoBehaviour is ModulePartVariants && modulePartVariants.IsNullRef())
-                        {
-                            modulePartVariants = (ModulePartVariants)monoBehaviour;
-                        }
-
-                        staticIMultipleDragCubeBuffer.Add(iMultipleDragCube);
-                    }
-                    else if (monoBehaviour is ModuleDragModifier moduleDragMod)
-                    {
-                        staticModuleDragModifierBuffer.Add(moduleDragMod);
-                    }
-                    else if (monoBehaviour is ModuleDragAreaModifier moduleAreaMod)
-                    {
-                        staticModuleDragAreaModifierBuffer.Add(moduleAreaMod);
+                        collider.enabled = false;
+                        continue;
                     }
 
-                    continue;
-                }
-
-                if (component is Collider collider)
-                {
-                    collider.enabled = false;
-                    continue;
-                }
-
-                if (component is Transform)
-                {
-                    component.gameObject.layer = cameraLayer;
-                    continue;
+                    if (component is Transform)
+                    {
+                        component.gameObject.layer = cameraLayer;
+                        continue;
+                    }
                 }
             }
+            finally
+            {
+                staticComponentBuffer.Clear();
+            }
 
-            if (staticIMultipleDragCubeBuffer.Count > 2)
+            if (multipleDragCubeList.Count > 2)
             {
                 Debug.LogWarning($"[KSPCF/DragCubeGeneration] Part '{part.partInfo.name}' has more than two IMultipleDragCube part modules. You should consider procedural drag cubes.");
             }
@@ -367,7 +379,7 @@ namespace KSPCommunityFixes.Performance
             {
                 camera.cullingMask = 0;
 
-                foreach (IMultipleDragCube multipleDragCube in staticIMultipleDragCubeBuffer)
+                foreach (IMultipleDragCube multipleDragCube in multipleDragCubeList)
                 {
                     string[] cubeNames = multipleDragCube.GetDragCubeNames();
 
@@ -386,7 +398,7 @@ namespace KSPCommunityFixes.Performance
                         }
                         catch (Exception e)
                         {
-                            Debug.LogWarning($"[KSPCF/DragCubeGeneration] Call to '{multipleDragCube.GetType().Name}.AssumeDragCubePosition()' failed on part '{part.partInfo.name}' for drag cube '{cubeName}'\n{e}");
+                            Debug.LogWarning($"[KSPCF/DragCubeGeneration] Call to '{multipleDragCube.AssemblyQualifiedName()}.AssumeDragCubePosition()' failed on part '{part.partInfo.name}' for drag cube '{cubeName}'\n{e}");
                             continue;
                         }
                         
@@ -396,9 +408,8 @@ namespace KSPCommunityFixes.Performance
                         float dragModifier = 1f;
                         float areaModifier = 1f;
 
-                        for (int i = 0; i < staticModuleDragModifierBuffer.Count; i++)
+                        foreach (ModuleDragModifier moduleDragModifier in moduleDragModifierList)
                         {
-                            ModuleDragModifier moduleDragModifier = staticModuleDragModifierBuffer[i];
                             if (moduleDragModifier.dragCubeName == cubeName)
                             {
                                 dragModifier = moduleDragModifier.dragModifier;
@@ -406,9 +417,8 @@ namespace KSPCommunityFixes.Performance
                             }
                         }
 
-                        for (int i = 0; i < staticModuleDragAreaModifierBuffer.Count; i++)
+                        foreach (ModuleDragAreaModifier moduleDragAreaModifier in moduleDragAreaModifierList)
                         {
-                            ModuleDragAreaModifier moduleDragAreaModifier = staticModuleDragAreaModifierBuffer[i];
                             if (moduleDragAreaModifier.dragCubeName == cubeName)
                             {
                                 areaModifier = moduleDragAreaModifier.areaModifier;
@@ -416,16 +426,20 @@ namespace KSPCommunityFixes.Performance
                             }
                         }
 
-                        modelTransform.GetComponentsInChildren(false, staticRendererBuffer);
-                        List<DragRendererInfo> dragRenderers = AnalyzeDragRenderers(part, staticRendererBuffer, false, out Bounds partBounds);
-
-                        dragCube.center = partBounds.center;
-                        dragCube.size = partBounds.size;
-
-                        SetupCommandBuffer(camera, dragRenderers);
+                        List<Renderer> rendererList = rendererListPool.Get();
+                        List<DragRendererInfo> dragRenderers = dragRendererInfoListPool.Get();
+                        CommandBuffer commandBuffer = commandBufferPool.Get();
 
                         try
                         {
+                            modelTransform.GetComponentsInChildren(false, rendererList);
+                            AnalyzeDragRenderers(part, rendererList, false, dragRenderers, out Bounds partBounds);
+
+                            dragCube.center = partBounds.center;
+                            dragCube.size = partBounds.size;
+
+                            SetupCommandBuffer(commandBuffer, camera, dragRenderers);
+
                             for (int i = 0; i < 6; i++)
                             {
                                 DragCube.DragFace face = (DragCube.DragFace)i;
@@ -437,10 +451,14 @@ namespace KSPCommunityFixes.Performance
                                 dragCube.Drag[i] = drag * dragModifier;
                                 dragCube.Depth[i] = depth;
                             }
+
                         }
                         finally
                         {
-                            ClearCommandBuffer(camera);
+                            camera.RemoveAllCommandBuffers();
+                            rendererListPool.Release(rendererList);
+                            dragRendererInfoListPool.Release(dragRenderers);
+                            commandBufferPool.Release(commandBuffer);
                         }
 
                         dragCubeList.Cubes.Add(dragCube);
@@ -451,13 +469,13 @@ namespace KSPCommunityFixes.Performance
             finally
             {
                 camera.cullingMask = 1 << dgs.cameraLayerInt;
-                staticComponentBuffer.Clear();
-                staticRendererBuffer.Clear();
-                staticIMultipleDragCubeBuffer.Clear();
-                staticModuleDragModifierBuffer.Clear();
-                staticModuleDragAreaModifierBuffer.Clear();
+
                 partObject.SetActive(false);
                 Object.DestroyImmediate(partObject);
+
+                multipleDragCubeListPool.Release(multipleDragCubeList);
+                moduleDragModifierListPool.Release(moduleDragModifierList);
+                moduleDragAreaModifierListPool.Release(moduleDragAreaModifierList);
             }
         }
 
@@ -466,21 +484,24 @@ namespace KSPCommunityFixes.Performance
             DragCube dragCube = new DragCube(dragCubeName);
 
             List<Renderer> renderers = GetPartCachedRendererList(part);
-            List<DragRendererInfo> dragRenderers = AnalyzeDragRenderers(part, renderers, true, out Bounds partBounds);
-
-            dragCube.center = partBounds.center;
-            dragCube.size = partBounds.size;
+            List<DragRendererInfo> dragRenderers = dragRendererInfoListPool.Get();
+            CommandBuffer commandBuffer = commandBufferPool.Get();
 
             DragCubeSystem dgs = DragCubeSystem.Instance;
             Texture2D output = dgs.aeroTexture;
             Camera camera = dgs.aeroCamera;
             Transform cameraTransform = camera.transform;
 
-            camera.cullingMask = 0;
-            SetupCommandBuffer(camera, dragRenderers);
-
             try
             {
+                AnalyzeDragRenderers(part, renderers, true, dragRenderers, out Bounds partBounds);
+
+                dragCube.center = partBounds.center;
+                dragCube.size = partBounds.size;
+
+                camera.cullingMask = 0;
+                SetupCommandBuffer(commandBuffer, camera, dragRenderers);
+
                 for (int i = 0; i < 6; i++)
                 {
                     DragCube.DragFace face = (DragCube.DragFace)i;
@@ -496,28 +517,23 @@ namespace KSPCommunityFixes.Performance
             finally
             {
                 camera.cullingMask = 1 << dgs.cameraLayerInt;
-                ClearCommandBuffer(camera);
+                camera.RemoveAllCommandBuffers();
                 foreach (DragRendererInfo dragRendererInfo in dragRenderers)
                     dragRendererInfo.RestoreRendererState();
 
-                dragRenderers.Clear();
+                dragRendererInfoListPool.Release(dragRenderers);
+                commandBufferPool.Release(commandBuffer);
             }
 
             return dragCube;
         }
 
-        private static void SetupCommandBuffer(Camera camera, List<DragRendererInfo> renderers)
+        private static void SetupCommandBuffer(CommandBuffer commandBuffer, Camera camera, List<DragRendererInfo> renderers)
         {
             for (int i = renderers.Count; i-- > 0;)
                 commandBuffer.DrawRenderer(renderers[i].renderer, dragMaterial);
 
             camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
-        }
-
-        private static void ClearCommandBuffer(Camera camera)
-        {
-            camera.RemoveAllCommandBuffers();
-            commandBuffer.Clear();
         }
 
         private static void Render(string dragCubeName, DragCube.DragFace face, Camera camera, Texture2D output)
@@ -704,9 +720,8 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static List<DragRendererInfo> AnalyzeDragRenderers(Part part, List<Renderer> partRenderers, bool checkActive, out Bounds partBounds)
+        private static void AnalyzeDragRenderers(Part part, List<Renderer> partRenderers, bool checkActive, List<DragRendererInfo> result, out Bounds partBounds)
         {
-            partRenderersBuffer.Clear();
             Matrix4x4 partToWorldMatrix = part.transform.worldToLocalMatrix;
             Vector3 partMin = default;
             Vector3 partMax = default;
@@ -751,7 +766,7 @@ namespace KSPCommunityFixes.Performance
                     continue;
                 }
 
-                partRenderersBuffer.Add(new DragRendererInfo(renderer));
+                result.Add(new DragRendererInfo(renderer));
 
                 Matrix4x4 localToPart = partToWorldMatrix * renderer.transform.localToWorldMatrix;
 
@@ -784,7 +799,6 @@ namespace KSPCommunityFixes.Performance
             }
 
             partBounds.SetMinMax(partMin, partMax);
-            return partRenderersBuffer;
         }
 
         /// <summary>

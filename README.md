@@ -172,6 +172,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.28.1
+- **DragCubeGeneration** : fixed [issue #146](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/146), cache concurrency issues causing `InvalidOperation` exceptions and more generally incorrect drag cubes on dynamic editor/flight drag cube generation.
+
 ##### 1.28.0
 - New KSP bugfix : [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5], disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
 - New API/modding patch : **BetterDDSSupport** [KSP 1.12.3 - 1.12.5] (actually part of the **FastLoader** patch), implement support of loading additional DDS formats.

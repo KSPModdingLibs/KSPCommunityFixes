@@ -114,6 +114,7 @@
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
+    <Compile Include="Library\ObjectPool.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />

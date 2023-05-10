@@ -119,7 +119,7 @@ namespace KSPCommunityFixes.BugFixes
 
             if (!servoInfos.TryGetValue(p, out ServoInfo servoInfo))
             {
-                Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {p}, drift correction won't be applied !");
+                Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.AssemblyQualifiedName()} on {p}, drift correction won't be applied !");
                 return true;
             }
 
@@ -195,7 +195,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
                 {
-                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.AssemblyQualifiedName()} on {__instance.part}, drift correction won't be applied !");
                     return;
                 }
 
@@ -210,7 +210,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 if (!servoInfos.TryGetValue(__instance.part, out ServoInfo servoInfo))
                 {
-                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.GetType()} on {__instance.part}, drift correction won't be applied !");
+                    Debug.LogWarning($"[RoboticsDrift] Servo info not found for {__instance.AssemblyQualifiedName()} on {__instance.part}, drift correction won't be applied !");
                     return;
                 }
 
