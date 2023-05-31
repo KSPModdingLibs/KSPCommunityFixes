@@ -75,6 +75,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[CorrectDragForFlags](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/126)** [KSP 1.12.3 - 1.12.5]<br/>Fix the "panel" variants of the flag parts using a single drag cube, causing excessive drag for the smaller options.
 - **LadderToggleableLight** [KSP 1.8.0 - 1.12.5]<br/>Fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
 - [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
+- [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated.
 
 #### Quality of Life tweaks 
 
@@ -171,6 +172,11 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.29.0
+- **DragCubeGeneration** : fixed [issue #150](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150), fix for in-editor detached parts can cause incorrect drag cubes with modded shaders, notably fix incorrect drag for parachutes and solar panels when the Shaddy + TU mods are installed.
+- New KSP bugfix : [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated. Contributed by @JonnyOThan.
+
 
 ##### 1.28.1
 - **DragCubeGeneration** : fixed [issue #146](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/146), cache concurrency issues causing `InvalidOperation` exceptions and more generally incorrect drag cubes on dynamic editor/flight drag cube generation.

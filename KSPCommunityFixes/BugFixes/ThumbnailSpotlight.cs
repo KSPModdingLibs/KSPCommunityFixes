@@ -1,12 +1,8 @@
-﻿using HarmonyLib;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using UnityEngine;
+using HarmonyLib;
 
-namespace KSPCommunityFixes
+namespace KSPCommunityFixes.BugFixes
 {
     class ThumbnailSpotlight : BasePatch
     {
@@ -16,13 +12,13 @@ namespace KSPCommunityFixes
 		{
 			patches.Add(new PatchInfo(
 				PatchMethodType.Postfix,
-				AccessTools.Method(typeof(CraftThumbnail), "TakePartSnapshot"),
+				AccessTools.Method(typeof(CraftThumbnail), nameof(CraftThumbnail.TakePartSnapshot)),
 				this));
 		}
 
 		private static void CraftThumbnail_TakePartSnapshot_Postfix()
 		{
-			if (CraftThumbnail.snapshotCamera != null)
+			if (CraftThumbnail.snapshotCamera.IsNotNullOrDestroyed())
 			{
 				UnityEngine.Object.Destroy(CraftThumbnail.snapshotCamera.gameObject);
 			}
