@@ -229,6 +229,9 @@ namespace KSPCommunityFixes.Performance
         // reimplementation of DragCubeSystem.Instance.RenderDragCubesCoroutine(originalPart, dragConfig)
         public static IEnumerator RenderDragCubesOnCopy(Part originalPart, DragCubeList dragCubeList, ConfigNode dragConfig)
         {
+            if (originalPart.frozen)
+                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({originalPart.partInfo.name}) in the editor isn't supported and might give incorrect results.");
+
             int childCount = originalPart.children.Count;
             if (childCount > 0)
             {
@@ -346,10 +349,21 @@ namespace KSPCommunityFixes.Performance
                         continue;
                     }
 
-                    if (component is Transform)
+                    if (component is Renderer renderer)
                     {
-                        component.gameObject.layer = cameraLayer;
-                        continue;
+                        GameObject go = renderer.gameObject;
+
+                        // See https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150
+                        // Stock rules for drag cube generation is to ignore any renderer on layer 1 (TransparentFX)
+                        // But when a part is detached in the editor, all renderers are set to this layer, resulting
+                        // in no drag cube being generated at all. We can mitigate the issue by ignoring that rule
+                        // when the part is detached by checking the "frozen" state, however this is imperfect as
+                        // this flag isn't set until the part has been dropped, and renderers that should be ignored
+                        // won't be, potentially generating incorrect drag cubes.
+                        if (go.layer == 1 && !part.frozen)
+                            renderer.enabled = false;
+
+                        go.layer = cameraLayer;
                     }
                 }
             }
@@ -481,6 +495,9 @@ namespace KSPCommunityFixes.Performance
 
         public static DragCube RenderDragCubeImmediate(Part part, string dragCubeName)
         {
+            if (part.frozen)
+                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({part.partInfo.name}) in the editor isn't supported and might give incorrect results.");
+
             DragCube dragCube = new DragCube(dragCubeName);
 
             List<Renderer> renderers = GetPartCachedRendererList(part);
@@ -694,32 +711,6 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        private static Dictionary<Shader, bool> translucentShaders = new Dictionary<Shader, bool>();
-        private static List<Material> materialBuffer = new List<Material>();
-
-        private static bool IsUsingTranslucentShader(Renderer renderer)
-        {
-            renderer.GetMaterials(materialBuffer);
-            for (int i = materialBuffer.Count; i-- > 0;)
-            {
-                Shader shader = materialBuffer[i].shader;
-                if (!translucentShaders.TryGetValue(shader, out bool translucent))
-                {
-                    translucent = shader.name.Contains("Translucent");
-                    translucentShaders.Add(shader, translucent);
-                }
-
-                if (translucent)
-                {
-                    materialBuffer.Clear();
-                    return true;
-                }
-            }
-
-            materialBuffer.Clear();
-            return false;
-        }
-
         private static void AnalyzeDragRenderers(Part part, List<Renderer> partRenderers, bool checkActive, List<DragRendererInfo> result, out Bounds partBounds)
         {
             Matrix4x4 partToWorldMatrix = part.transform.worldToLocalMatrix;
@@ -741,10 +732,12 @@ namespace KSPCommunityFixes.Performance
                 if (checkActive && !IsTransformActiveInHierarchyBelow(renderer.transform, partTransform))
                     continue;
 
-                if (renderer.gameObject.CompareTag("Drag_Hidden"))
+                GameObject rendererObject = renderer.gameObject;
+
+                if (rendererObject.CompareTag("Drag_Hidden"))
                     continue;
 
-                if (IsUsingTranslucentShader(renderer))
+                if (rendererObject.layer == 1)
                     continue;
 
                 Bounds meshBounds;
@@ -865,7 +858,7 @@ namespace KSPCommunityFixes.Performance
 
         /// <summary>
         /// Reimplementation of the stock Part.FindModelRenderersCached() method returning the cached list instead of
-        /// instantiating of copying it in a new list, and with improved performance when a cache update is required.
+        /// instantiating a new list, and with improved performance when a cache update is required.
         /// </summary>
         public static List<Renderer> GetPartCachedRendererList(Part part)
         {
