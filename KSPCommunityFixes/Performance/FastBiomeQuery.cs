@@ -23,7 +23,7 @@ namespace KSPCommunityFixes.Performance
     /// calling the GetAtt() method.
     /// Notable changes are :<br/>
     /// - Storing directly the Attribute index in the byte array (instead of a color), reducing memory usage
-    /// to 8bpp instead of 24bpp, and making the array a lookup table instead of having to compare colors.<br/>
+    /// to 8Bpp instead of 24Bpp, and making the array a lookup table instead of having to compare colors.<br/>
     /// - Fixed a bug in the stock bilinear interpolation, causing incorrect results in a specific direction
     /// on biome transitions.
     /// </summary>
