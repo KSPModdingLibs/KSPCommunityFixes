@@ -1,523 +1,774 @@
-﻿using Smooth.Algebraics;
+﻿//#define BIOME_CONVERSION_VALIDATE
+//#define DEBUG_BIOME_MISMATCH
+//#define WITH_STOCK_BILINEAR_BUG
+//#define BIOME_FLIGHTDEBUG
+
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Steamworks;
+using Unity.Collections;
 using UnityEngine;
-using VehiclePhysics;
 using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
 namespace KSPCommunityFixes.Performance
 {
-    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
-    internal class BiomeMapOptimizer : MonoBehaviour
+    /// <summary>
+    /// Reimplemementation of the stock biome map class (CBAttributeMapSO), fixing a bug and massively
+    /// improving performance (around x17 on average, up to x30 on bodies with a large amount of biomes) when
+    /// calling the GetAtt() method.
+    /// Notable changes are :<br/>
+    /// - Storing directly the Attribute index in the byte array (instead of a color), reducing memory usage
+    /// to 8bpp instead of 24bpp, and making the array a lookup table instead of having to compare colors.<br/>
+    /// - Fixed a bug in the stock bilinear interpolation, causing incorrect results in a specific direction
+    /// on biome transitions.
+    /// </summary>
+    public class KSPCFFastBiomeMap : CBAttributeMapSO
     {
-        const float Byte2Float = 0.003921569f;
+        private static readonly double lessThanOneDouble = StaticHelpers.BitDecrement(1.0);
 
-        public static byte[][] biomeMaps;
-
-        void Start()
+        /// <summary>
+        /// Return the biome definition at the given position defined in normalized [0, 1] texture coordinates,
+        /// performing bilinear sampling at biomes intersections.
+        /// </summary>
+        private MapAttribute GetPixelBiome(double x, double y)
         {
-            biomeMaps = new byte[FlightGlobals.Bodies.Count][];
+            GetBilinearCoordinates(x, y, _width, _height, out int minX, out int maxX, out int minY, out int maxY, out double midX, out double midY);
 
-            foreach (CelestialBody body in FlightGlobals.Bodies)
+            // Get the 4 closest pixels for bilinear interpolation
+            byte b00 = _data[minX + minY * _rowWidth];
+            byte b10 = _data[maxX + minY * _rowWidth];
+            byte b01 = _data[minX + maxY * _rowWidth];
+            byte b11 = _data[maxX + maxY * _rowWidth];
+
+            byte biomeIndex;
+
+            // if all 4 pixels are the same, we don't need to interpolate
+            if (b00 == b10 && b00 == b01 && b00 == b11)
             {
-                if (body.BiomeMap != null)
-                {
-                    byte[] newMap = Optimize(body.BiomeMap);
-                    biomeMaps[body.flightGlobalsIndex] = newMap;
-                }
+                biomeIndex = b00;
             }
+            else
+            {
+                // Cast to double once
+                double d00 = b00;
+                double d10 = b10;
+                double d01 = b01;
+                double d11 = b11;
+
+                // Get bilinear value
+                double d20 = d00 + (d10 - d00) * midX;
+                double d21 = d01 + (d11 - d01) * midX;
+                double bilinear = d20 + (d21 - d20) * midY;
+
+                // Amongst the 4 candidates, find the closest one to the bilinear value
+                biomeIndex = b00;
+                double bestMagnitude = DiffMagnitude(d00, bilinear);
+                double candidateMagnitude = DiffMagnitude(d10, bilinear);
+                if (candidateMagnitude < bestMagnitude)
+                {
+                    bestMagnitude = candidateMagnitude;
+                    biomeIndex = b10;
+                }
+
+                candidateMagnitude = DiffMagnitude(d01, bilinear);
+                if (candidateMagnitude < bestMagnitude)
+                {
+                    bestMagnitude = candidateMagnitude;
+                    biomeIndex = b01;
+                }
+
+                // Note : the equivalent code in the stock implementation has a bug causing
+                // the last sampled pixel to be ignored, resulting in non-interpolated results
+                // in a specific direction. Getting the same results as the stock implementation
+                // can be achieved by commenting this last check
+#if !WITH_STOCK_BILINEAR_BUG
+                candidateMagnitude = DiffMagnitude(d11, bilinear);
+                if (candidateMagnitude < bestMagnitude)
+                {
+                    biomeIndex = b11;
+                }
+#endif
+            }
+
+            return Attributes[biomeIndex];
         }
 
-        void Update()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static double DiffMagnitude(double valA, double valB)
         {
-
+            double diff = valA - valB;
+            return diff * diff;
         }
-
-        private byte[] Optimize(CBAttributeMapSO biomeMap)
-        {
-            int biomeCount = biomeMap.Attributes.Length;
-            Color[] biomeColors = new Color[biomeCount];
-            for (int i = 0; i < biomeCount; i++)
-            {
-                biomeColors[i] = biomeMap.Attributes[i].mapColor;
-            }
-
-            byte[] oldMap = biomeMap._data;
-            int bpp = biomeMap._bpp;
-
-            byte[] newMap = new byte[biomeMap._height * biomeMap._width];
-
-            for (int i = 0; i < newMap.Length; i++)
-            {
-                int colorIndex = i * bpp;
-                float r = oldMap[colorIndex] * Byte2Float;
-                float g = oldMap[colorIndex + 1] * Byte2Float;
-                float b = oldMap[colorIndex + 2] * Byte2Float;
-
-                int biomeIndex = TryGetExactBiomeColorIndex(r, g, b, biomeColors);
-                if (biomeIndex > -1)
-                {
-                    newMap[i] = (byte)biomeIndex;
-                    continue;
-                }
-
-                biomeIndex = TryGetNearBiomeColorIndex(r, g, b, biomeMap.neighborColorThresh, biomeColors);
-                if (biomeIndex > -1)
-                {
-                    newMap[i] = (byte)biomeIndex;
-                    continue;
-                }
-
-                biomeIndex = GetBestNeighborBiomeColorIndex(r, g, b, i, biomeMap, biomeColors);
-                newMap[i] = (byte)biomeIndex;
-            }
-
-            return newMap;
-        }
-
-        private int TryGetExactBiomeColorIndex(float r, float g, float b, Color[] biomeColors)
-        {
-            for (int i = 0; i < biomeColors.Length; i++)
-            {
-                Color biomeColor = biomeColors[i];
-                if (biomeColor.r == r && biomeColor.g == g && biomeColor.b == b)
-                    return i;
-            }
-
-            return -1;
-        }
-
-        private static int TryGetNearBiomeColorIndex(float r, float g, float b, float threshold, Color[] biomeColors)
-        {
-            int bestIndex = -1;
-            float bestColorDiff = float.MaxValue;
-
-            for (int i = 0; i < biomeColors.Length; i++)
-            {
-                Color biomeColor = biomeColors[i];
-                float colorDiff = EuclideanColorDiff(r, g, b, biomeColor.r, biomeColor.g, biomeColor.b);
-                if (colorDiff < threshold && colorDiff < bestColorDiff)
-                {
-                    bestColorDiff = colorDiff;
-                    bestIndex = i;
-                }
-            }
-
-            return bestIndex;
-        }
-
-        private static int[] neighborIndices = new int[9];
-        private static List<Color> colorBuffer = new List<Color>(9);
-
-        private static int GetBestNeighborBiomeColorIndex(float r, float g, float b, int pixelIndex, CBAttributeMapSO biomeMap, Color[] biomeColors)
-        {
-            int width = biomeMap._width;
-            neighborIndices[0] = pixelIndex - 1 - width; // top-left
-            neighborIndices[1] = pixelIndex - width; // top
-            neighborIndices[2] = pixelIndex + 1 - width; // top-right
-            neighborIndices[3] = pixelIndex + 1; // right
-            neighborIndices[4] = pixelIndex + 1 + width; // bottom-right
-            neighborIndices[5] = pixelIndex + width; // bottom
-            neighborIndices[6] = pixelIndex - 1 + width; // bottom-left
-            neighborIndices[7] = pixelIndex - 1; // left
-            neighborIndices[8] = pixelIndex; // center
-
-            colorBuffer.Clear();
-            int textureSize = biomeMap._width * biomeMap._height;
-            int bpp = biomeMap._bpp;
-            byte[] data = biomeMap._data;
-            for (int i = 0; i < 8; i++)
-            {
-                int neighborIndex = neighborIndices[i];
-                if (neighborIndex < 0)
-                    neighborIndex += textureSize;
-                else if (neighborIndex >= textureSize)
-                    neighborIndex -= textureSize;
-
-                int colorIndex = neighborIndex * bpp;
-
-                Color neighborColor = new Color(data[colorIndex] * Byte2Float, data[colorIndex + 1] * Byte2Float, data[colorIndex + 2] * Byte2Float, 1f);
-                if (!colorBuffer.Contains(neighborColor))
-                    colorBuffer.Add(neighborColor);
-            }
-
-            int bestIndex = 0;
-            float bestColorWeight = float.MaxValue;
-
-            for (int i = 0; i < biomeColors.Length; i++)
-            {
-                float colorWeight = 0f;
-                Color biomeColor = biomeColors[i];
-                for (int j = 0; j < colorBuffer.Count; j++)
-                {
-                    colorWeight += EuclideanColorDiff(colorBuffer[j], biomeColor);
-                }
-
-                if (colorWeight < bestColorWeight)
-                {
-                    bestIndex = i;
-                    bestColorWeight = colorWeight;
-                }
-            }
-
-            return bestIndex;
-        }
-
-        private static float EuclideanColorDiff(float r1, float g1, float b1, float r2, float g2, float b2)
-        {
-            float r = r1 - r2;
-            float g = g1 - g2;
-            float b = b1 - b2;
-            return r * r + g * g + b * b;
-        }
-
-        private static float EuclideanColorDiff(Color colA, Color colB)
-        {
-            float r = colA.r - colB.r;
-            float g = colA.g - colB.g;
-            float b = colA.b - colB.b;
-            return r * r + g * g + b * b;
-        }
-    }
-
-
-    //[KSPAddon(KSPAddon.Startup.MainMenu, false)]
-    internal class FastBiomeQuery : MonoBehaviour
-    {
-        private static RGBA32[][] biomeColorsByBody;
-
-        IEnumerator Start()
-        {
-            for (int i = 0; i < 60; i++)
-            {
-                yield return null;
-            }
-
-            biomeColorsByBody = new RGBA32[FlightGlobals.Bodies.Count][];
-
-            foreach (CelestialBody body in FlightGlobals.Bodies)
-            {
-                CBAttributeMapSO biomeMap = body.BiomeMap;
-                if (biomeMap == null)
-                    continue;
-
-                RGBA32[] biomeColors = new RGBA32[biomeMap.Attributes.Length];
-                biomeColorsByBody[body.flightGlobalsIndex] = biomeColors;
-
-                for (int i = 0; i < biomeMap.Attributes.Length; i++)
-                {
-                    biomeColors[i] = biomeMap.Attributes[i].mapColor;
-                }
-            }
-
-            List<double> ratios = new List<double>();
-
-            foreach (CelestialBody body in FlightGlobals.Bodies)
-            {
-                if (body.BiomeMap == null)
-                    continue;
-
-                CBAttributeMapSO biomeMap = body.BiomeMap;
-                Debug.Log($"[{body.name}] exactSearch={biomeMap.exactSearch}, neighborColorThresh={biomeMap.neighborColorThresh}, nonExactThreshold={biomeMap.nonExactThreshold}, bpp={biomeMap._bpp}");
-
-                int sampleCount = 1000000;
-                Vector2d[] coords = new Vector2d[sampleCount];
-                for (int i = 0; i < sampleCount; i++)
-                {
-                    double lat = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLat(Random.Range(-90f, 90f)));
-                    double lon = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLon(Random.Range(-180f, 180f)));
-                    coords[i] = new Vector2d(lat, lon);
-                }
-
-                CBAttributeMapSO.MapAttribute[] stockBiomes = new CBAttributeMapSO.MapAttribute[sampleCount];
-                Stopwatch stockWatch = new Stopwatch();
-
-                stockWatch.Start();
-                for (int i = 0; i < sampleCount; i++)
-                {
-                    Vector2d latLon = coords[i];
-                    stockBiomes[i] = biomeMap.GetAtt(latLon.x, latLon.y);
-                }
-                stockWatch.Stop();
-                //Debug.Log($"[FastBiomeQuery] Stock sampling : {stockWatch.Elapsed.TotalMilliseconds:F3}ms");
-
-                CBAttributeMapSO.MapAttribute[] cfBiomes = new CBAttributeMapSO.MapAttribute[sampleCount];
-                Stopwatch cfWatch = new Stopwatch();
-
-                cfWatch.Start();
-                for (int i = 0; i < sampleCount; i++)
-                {
-                    Vector2d latLon = coords[i];
-                    cfBiomes[i] = GetAttInt(biomeMap, body.flightGlobalsIndex, latLon.x, latLon.y);
-                    //cfBiomes[i] = GetAtt(biomeMap, latLon.x, latLon.y);
-                }
-                cfWatch.Stop();
-
-                double ratio = stockWatch.Elapsed.TotalMilliseconds / cfWatch.Elapsed.TotalMilliseconds;
-                ratios.Add(ratio);
-                Debug.Log($"[FastBiomeQuery] Sampling {sampleCount} biomes on {body.name,10} : {cfWatch.Elapsed.TotalMilliseconds,8:F2}ms vs {stockWatch.Elapsed.TotalMilliseconds,8:F2}ms, ratio:{ratio:F1}");
-
-                //for (int i = 0; i < sampleCount; i++)
-                //{
-                //    if (stockBiomes[i] != cfBiomes[i])
-                //    {
-                //        Debug.LogWarning($"[FastBiomeQuery] Result mismatch at coords {coords[i]}, stock={stockBiomes[i].name}, kspcf={cfBiomes[i].name}");
-                //    }
-                //}
-
-                int mismatchCount = 0;
-                for (int i = 0; i < sampleCount; i++)
-                {
-                    if (stockBiomes[i] != cfBiomes[i])
-                    {
-                        mismatchCount++;
-                    }
-                }
-
-                Debug.LogWarning($"[FastBiomeQuery] {mismatchCount} mismatchs ({mismatchCount/sampleCount:P3})");
-            }
-
-            Debug.Log($"[FastBiomeQuery] Average ratio : {ratios.Average():F2}");
-        }
-
-
-
-
 
         private const double HalfPI = Math.PI / 2.0;
         private const double DoublePI = Math.PI * 2.0;
         private const double InversePI = 1.0 / Math.PI;
         private const double InverseDoublePI = 1.0 / (2.0 * Math.PI);
 
-        public static CBAttributeMapSO.MapAttribute GetAttInt(CBAttributeMapSO biomeMap, int bodyIndex, double lat, double lon)
+        public override MapAttribute GetAtt(double lat, double lon)
         {
-            //if (biomeMap.exactSearch || biomeMap.nonExactThreshold != -1f)
-            //{
-            //    return biomeMap.GetAtt(lat, lon);
-            //}
-
+            // Transform lat/lon into normalized texture coordinates
             lon -= HalfPI;
             if (lon < 0.0)
                 lon += DoublePI;
             lon %= DoublePI;
             double x = 1.0 - lon * InverseDoublePI;
+
             double y = lat * InversePI + 0.5;
 
-            biomeMap.ConstructBilinearCoords(x, y);
-            RGBA32 c0 = GetColorRGBA32(biomeMap, biomeMap.minX, biomeMap.minY);
-            RGBA32 c1 = GetColorRGBA32(biomeMap, biomeMap.maxX, biomeMap.minY);
-            RGBA32 c2 = GetColorRGBA32(biomeMap, biomeMap.minX, biomeMap.maxY);
-            RGBA32 c3 = GetColorRGBA32(biomeMap, biomeMap.maxX, biomeMap.maxY);
-
-            RGBA32 pixelColor;
-
-            if (c0 == c1 && c0 == c2 && c0 == c3)
-            {
-                pixelColor = c0;
-            }
-            else
-            {
-                Color cf0 = c0;
-                Color cf1 = c1;
-                Color cf2 = c2;
-                Color cf3 = c3;
-
-                Color lerpColor = BilinearColor(cf0, cf1, cf2, cf3, biomeMap.midX, biomeMap.midY);
-                pixelColor = c0;
-                float maxMag = RGBADiffSqrMag(cf0, lerpColor);
-                float mag = RGBADiffSqrMag(cf1, lerpColor);
-                if (mag < maxMag)
-                {
-                    maxMag = mag;
-                    pixelColor = c1;
-                }
-
-                mag = RGBADiffSqrMag(cf2, lerpColor);
-                if (mag < maxMag)
-                {
-                    maxMag = mag;
-                    pixelColor = c2;
-                }
-
-                // There is a bug in the stock method, where it doesn't check the fourth color...
-                //mag = RGBADiffSqrMag(cf3, lerpColor);
-                //if (mag < maxMag)
-                //{
-                //    pixelColor = c3;
-                //}
-            }
-
-            RGBA32[] biomeColors = biomeColorsByBody[bodyIndex];
-            int length = biomeColors.Length;
-            for (int i = 0; i < length; i++)
-            {
-                if (biomeColors[i] == pixelColor)
-                {
-                    return biomeMap.Attributes[i];
-                }
-            }
-
-            // fallback path if the color doesn't match exactly for some reason, this is the default stock code
-            CBAttributeMapSO.MapAttribute result = biomeMap.Attributes[0];
-            float maxColorMag = float.MaxValue;
-            for (int i = 0; i < length; i++)
-            {
-                float colorMag = EuclideanColorDiff(pixelColor, biomeColors[i]);
-                if (colorMag < maxColorMag)
-                {
-                    result = biomeMap.Attributes[i];
-                    maxColorMag = colorMag;
-                }
-            }
-
-            return result;
+            return GetPixelBiome(x, y);
         }
 
-        private static Color BilinearColor(Color col0, Color col1, Color col2, Color col3, double midX, double midY)
+        public override Color GetPixelColor(double x, double y)
         {
-            double r0 = col0.r + (col1.r - col0.r) * midX;
-            double r1 = col2.r + (col3.r - col2.r) * midX;
-            double r = r0 + (r1 - r0) * midY;
-
-            double g0 = col0.g + (col1.g - col0.g) * midX;
-            double g1 = col2.g + (col3.g - col2.g) * midX;
-            double g = g0 + (g1 - g0) * midY;
-
-            double b0 = col0.b + (col1.b - col0.b) * midX;
-            double b1 = col2.b + (col3.b - col2.b) * midX;
-            double b = b0 + (b1 - b0) * midY;
-
-            //double a0 = col0.a + (col1.a - col0.a) * midX;
-            //double a1 = col2.a + (col3.a - col2.a) * midX;
-            //double a = a0 + (a1 - a0) * midY;
-
-            return new Color((float)r, (float)g, (float)b, 1f);
+            return GetPixelBiome(x, y).mapColor;
         }
 
-        private static float EuclideanColorDiff(Color colA, Color colB)
+        public override Color GetPixelColor(float x, float y)
         {
-            float r = colA.r - colB.r;
-            float g = colA.g - colB.g;
-            float b = colA.b - colB.b;
+            return GetPixelBiome(x, y).mapColor;
+        }
+
+        public override Color GetPixelColor(int x, int y)
+        {
+            return Attributes[_data[x + y * _rowWidth]].mapColor;
+        }
+
+        public override Color GetPixelColor32(double x, double y)
+        {
+            return GetPixelBiome(x, y).mapColor;
+        }
+
+        public override Color GetPixelColor32(float x, float y)
+        {
+            return GetPixelBiome(x, y).mapColor;
+        }
+
+        public override Color32 GetPixelColor32(int x, int y)
+        {
+            return Attributes[_data[x + y * _rowWidth]].mapColor;
+        }
+
+        public override void CreateMap(MapDepth depth, string name, int width, int height)
+        {
+            _name = name;
+            _width = width;
+            _height = height;
+            _bpp = 1;
+            _rowWidth = _width;
+            _data = new byte[_width * _height];
+            _isCompiled = true;
+        }
+
+        /// <summary>
+        /// Create a "compiled" biome map from a texture. Attributes **must** be populated prior to calling this.
+        /// Note that the depth param is ignored, as we always encode biomes in a 1 Bpp array.
+        /// </summary>
+        public override void CreateMap(MapDepth depth, Texture2D tex)
+        {
+            _name = tex.name;
+            _width = tex.width;
+            _height = tex.height;
+            _bpp = 1;
+            _rowWidth = _width;
+            _isCompiled = true;
+
+            if (Attributes == null || Attributes.Length == 0)
+                throw new Exception("Attributes must be populated before creating the map from a texture !");
+
+            int biomeCount = Attributes.Length;
+            RGBA32[] biomeColors = new RGBA32[biomeCount];
+
+            for (int i = biomeCount; i-- > 0;)
+                biomeColors[i] = Attributes[i].mapColor;
+
+            int badPixelsCount = 0;
+            int size = _height * _width;
+
+            Color32[] colorData = tex.GetPixels32();
+            _data = new byte[size];
+
+            Parallel.For(0, _width, x =>
+            {
+                for (int y = _height; y-- > 0;)
+                {
+                    int biomeIndex = -1;
+                    RGBA32 pixelColor = colorData[x + y * _width];
+                    pixelColor.ClearAlpha();
+
+                    for (int i = biomeCount; i-- > 0;)
+                    {
+                        if (biomeColors[i] == pixelColor)
+                        {
+                            biomeIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (biomeIndex == -1)
+                    {
+                        Interlocked.Increment(ref badPixelsCount);
+                        biomeIndex = GetBiomeIndexFromTexture((double)x / _width, (double)y / _height, biomeColors, colorData, _width, _height, nonExactThreshold);
+                    }
+
+                    _data[x + y * _width] = (byte)biomeIndex;
+                }
+            });
+
+            if (badPixelsCount > 0)
+            {
+                Debug.LogWarning($"[KSPCF/FastBiomeMap] Loading {_name} : {badPixelsCount} ({(badPixelsCount / (float)size):P3}) pixels not matching a biome color, check the biome texture and biome definitions.");
+            }
+        }
+
+        private static int GetBiomeIndexFromTexture(double x, double y, RGBA32[] biomeColors, Color32[] colorData, int width, int height, float nonExactThreshold)
+        {
+            GetBilinearCoordinates(x, y, width, height, out int minX, out int maxX, out int minY, out int maxY, out double midX, out double midY);
+
+            // Get 4 samples pixels for bilinear interpolation
+            RGBA32 c00 = GetRGBA32AtTextureCoords(minX, minY, colorData, width);
+            RGBA32 c10 = GetRGBA32AtTextureCoords(maxX, minY, colorData, width);
+            RGBA32 c01 = GetRGBA32AtTextureCoords(minX, maxY, colorData, width);
+            RGBA32 c11 = GetRGBA32AtTextureCoords(maxX, maxY, colorData, width);
+
+            return GetBiomeIndexStockBilinearSampling(biomeColors, c00, c10, c01, c11, midX, midY, GetIntNonExactThreshold(nonExactThreshold));
+        }
+
+        /// <summary>
+        /// Convert a 3 Bpp stock biome map encoding rgb colors into a 1 Bpp biome map encoding biome indices.
+        /// </summary>
+        public bool CopyFromMap(CBAttributeMapSO fromMap)
+        {
+            if (fromMap._bpp != 3)
+                return false;
+
+            Attributes = fromMap.Attributes;
+            _name = fromMap._name;
+            _width = fromMap._width;
+            _height = fromMap._height;
+            _bpp = 1;
+            _rowWidth = _width;
+            _isCompiled = true;
+
+            int biomeCount = Attributes.Length;
+            RGBA32[] biomeColors = new RGBA32[biomeCount];
+
+            for (int i = biomeCount; i-- > 0;)
+                biomeColors[i] = Attributes[i].mapColor;
+
+            int badPixelsCount = 0;
+            int size = _height * _width;
+            int fromDataRowWidth = fromMap._rowWidth;
+            byte[] fromData = fromMap._data;
+            _data = new byte[size];
+
+            Parallel.For(0, _width, x =>
+            {
+                for (int y = _height; y-- > 0;)
+                {
+                    int fromDataIndex = x * 3 + y * fromDataRowWidth;
+                    RGBA32 pixelColor = new RGBA32(fromData[fromDataIndex], fromData[fromDataIndex + 1], fromData[fromDataIndex + 2]);
+
+                    int biomeIndex = -1;
+                    for (int i = biomeCount; i-- > 0;)
+                    {
+                        if (biomeColors[i] == pixelColor)
+                        {
+                            biomeIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (biomeIndex == -1)
+                    {
+                        Interlocked.Increment(ref badPixelsCount);
+                        biomeIndex = GetBiomeIndexFromStockBiomeMap((double)x / _width, (double)y / _height, biomeColors, fromData, _width, _height, fromMap._rowWidth, fromMap.nonExactThreshold);
+                    }
+
+                    _data[x + y * _width] = (byte)biomeIndex;
+                }
+            });
+
+            if (badPixelsCount > 0)
+            {
+                Debug.LogWarning($"[KSPCF/FastBiomeMap] Converting {fromMap._name} : {badPixelsCount} ({(badPixelsCount / (float)size):P3}) pixels not matching a biome color, check the biome texture and biome definitions.");
+            }
+
+            return true;
+        }
+
+        private static int GetBiomeIndexFromStockBiomeMap(double x, double y, RGBA32[] biomeColors, byte[] rgbData, int width, int height, int rowWidth, float nonExactThreshold)
+        {
+            GetBilinearCoordinates(x, y, width, height, out int minX, out int maxX, out int minY, out int maxY, out double midX, out double midY);
+
+            // Get 4 samples pixels for bilinear interpolation
+            RGBA32 c00 = GetRGB3BppAtTextureCoords(minX, minY, rgbData, rowWidth);
+            RGBA32 c10 = GetRGB3BppAtTextureCoords(maxX, minY, rgbData, rowWidth);
+            RGBA32 c01 = GetRGB3BppAtTextureCoords(minX, maxY, rgbData, rowWidth);
+            RGBA32 c11 = GetRGB3BppAtTextureCoords(maxX, maxY, rgbData, rowWidth);
+
+            return GetBiomeIndexStockBilinearSampling(biomeColors, c00, c10, c01, c11, midX, midY, GetIntNonExactThreshold(nonExactThreshold));
+        }
+
+        public override void ConstructBilinearCoords(double x, double y)
+        {
+            // X wraps around [0, 1[ as it is longitude.
+            x = Math.Abs(x - Math.Floor(x));
+            centerXD = x * _width;
+            minX = (int)centerXD;
+            maxX = minX + 1;
+            midX = (float)(centerXD - minX);
+            if (maxX == _width)
+                maxX = 0;
+
+            // Y is clamped to [0, 1[ as it latitude and the poles don't wrap to each other.
+            if (y >= 1.0)
+                y = lessThanOneDouble;
+            else if (y < 0.0)
+                y = 0.0;
+            centerYD = y * _height;
+            minY = (int)centerYD;
+            maxY = minY + 1;
+            midY = (float)(centerYD - minY);
+            if (maxY == _height)
+                maxY = _height - 1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void GetBilinearCoordinates(double x, double y, int width, int height, out int minX, out int maxX, out int minY, out int maxY, out double midX, out double midY)
+        {
+            // X wraps around [0, 1[ as it is longitude.
+            x = Math.Abs(x - Math.Floor(x));
+            double centerXD = x * width;
+            minX = (int)centerXD;
+            maxX = minX + 1;
+            midX = centerXD - minX;
+            if (maxX == width)
+                maxX = 0;
+
+            // Y is clamped to [0, 1[ as it latitude and the poles don't wrap to each other.
+            if (y >= 1.0)
+                y = lessThanOneDouble;
+            else if (y < 0.0)
+                y = 0.0;
+            double centerYD = y * height;
+            minY = (int)centerYD;
+            maxY = minY + 1;
+            midY = centerYD - minY;
+            if (maxY == height)
+                maxY = height - 1;
+        }
+
+        /// <summary>
+        /// Reimplementation of the stock biome sampler (CBAttributeMapSO.GetAtt()), including all the stock sampling stuff handling incorrect pixel colors in the base texture.
+        /// </summary>
+        private static unsafe int GetBiomeIndexStockBilinearSampling(RGBA32[] biomeColors, RGBA32 c00, RGBA32 c10, RGBA32 c01, RGBA32 c11, double midX, double midY, int nonExactThreshold)
+        {
+            int biomeCount = biomeColors.Length;
+            bool flag = true; // I still don't understand the logic behind this...
+            bool* notNear = stackalloc bool[biomeCount];
+
+            // note : iterating in reverse order from stock, but shouldn't matter here
+            for (int i = biomeCount; i-- > 0;)
+            {
+                RGBA32 biomeColor = biomeColors[i];
+                if (biomeColor != c00 && biomeColor != c10 && biomeColor != c01 && biomeColor != c11)
+                {
+                    notNear[i] = true;
+                }
+                else
+                {
+                    notNear[i] = false;
+                    flag = false;
+                }
+            }
+
+            RGBA32 bilinearSample = BilinearSample(c00, c10, c01, c11, midX, midY);
+
+            int biomeIndex = 0;
+            int bestMag = int.MaxValue;
+
+            if (flag)
+            {
+                for (int i = biomeCount; i-- > 0;)
+                {
+                    int mag = RGBEuclideanDiff(bilinearSample, biomeColors[i]);
+                    if (mag < bestMag && mag < nonExactThreshold)
+                    {
+                        biomeIndex = i;
+                        bestMag = mag;
+                    }
+                }
+
+                return biomeIndex;
+            }
+
+            RGBA32 bestSample = c00;
+            bestMag = RGBEuclideanDiff(c00, bilinearSample);
+            int sampleMag = RGBEuclideanDiff(c10, bilinearSample);
+            if (sampleMag < bestMag)
+            {
+                bestMag = sampleMag;
+                bestSample = c10;
+            }
+
+            sampleMag = RGBEuclideanDiff(c01, bilinearSample);
+            if (sampleMag < bestMag)
+            {
+                bestMag = sampleMag;
+                bestSample = c01;
+            }
+
+            sampleMag = RGBEuclideanDiff(c11, bilinearSample);
+            if (sampleMag < bestMag)
+            {
+                bestSample = c11;
+            }
+
+            bestMag = int.MaxValue;
+            for (int i = biomeCount; i-- > 0;)
+            {
+                if (notNear[i])
+                    continue;
+
+                int mag = RGBEuclideanDiff(bestSample, biomeColors[i]);
+                if (mag < bestMag && mag < nonExactThreshold)
+                {
+                    biomeIndex = i;
+                    bestMag = mag;
+                }
+            }
+
+            return biomeIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetIntNonExactThreshold(float nonExactThreshold)
+        {
+            return nonExactThreshold < 0f ? int.MaxValue : (int)(nonExactThreshold * (255 * 255));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static RGBA32 GetRGB3BppAtTextureCoords(int x, int y, byte[] rgbData, int rowWidth)
+        {
+            int index = x * 3 + y * rowWidth;
+            return new RGBA32(rgbData[index], rgbData[index + 1], rgbData[index + 2]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static RGBA32 GetRGBA32AtTextureCoords(int x, int y, Color32[] colorData, int width)
+        {
+            Color32 color32 = colorData[x + y * width];
+            color32.a = 255;
+            return color32;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int RGBEuclideanDiff(RGBA32 c1, RGBA32 c2)
+        {
+            int r = c1.r - c2.r;
+            int g = c1.g - c2.g;
+            int b = c1.b - c2.b;
             return r * r + g * g + b * b;
         }
 
-        private static float RGBADiffSqrMag(Color colA, Color colB)
+        private static RGBA32 BilinearSample(RGBA32 c00, RGBA32 c10, RGBA32 c01, RGBA32 c11, double midX, double midY)
         {
-            float r = colA.r - colB.r;
-            float g = colA.g - colB.g;
-            float b = colA.b - colB.b;
-            float a = colA.a - colB.a;
-            return r * r + g * g + b * b + a * a;
-        }
-
-        private static RGBA32 BilinearRGBA32(RGBA32 col0, RGBA32 col1, RGBA32 col2, RGBA32 col3, double midX, double midY)
-        {
-            double r0 = col0.r + (col1.r - col0.r) * midX;
-            double r1 = col2.r + (col3.r - col2.r) * midX;
+            double r0 = c00.r + (c10.r - c00.r) * midX;
+            double r1 = c01.r + (c11.r - c01.r) * midX;
             double r = r0 + (r1 - r0) * midY;
 
-            double g0 = col0.g + (col1.g - col0.g) * midX;
-            double g1 = col2.g + (col3.g - col2.g) * midX;
+            double g0 = c00.g + (c10.g - c00.g) * midX;
+            double g1 = c01.g + (c11.g - c01.g) * midX;
             double g = g0 + (g1 - g0) * midY;
 
-            double b0 = col0.b + (col1.b - col0.b) * midX;
-            double b1 = col2.b + (col3.b - col2.b) * midX;
+            double b0 = c00.b + (c10.b - c00.b) * midX;
+            double b1 = c01.b + (c11.b - c01.b) * midX;
             double b = b0 + (b1 - b0) * midY;
 
-            //double a0 = col0.a + (col1.a - col0.a) * midX;
-            //double a1 = col2.a + (col3.a - col2.a) * midX;
-            //double a = a0 + (a1 - a0) * midY;
-
-            return new RGBA32((byte)r, (byte)g, (byte)b, 255);
+            return new RGBA32((byte)Math.Round(r), (byte)Math.Round(g), (byte)Math.Round(b));
         }
 
-        private static int RGBA32DiffSqrMag(RGBA32 colA, RGBA32 colB)
-        {
-            int r = colA.r - colB.r;
-            int g = colA.g - colB.g;
-            int b = colA.b - colB.b;
-            return r * r + g * g + b * b;
-        }
+        public override Texture2D CompileToTexture() => CompileRGB();
 
-        private static RGBA32 GetColorRGBA32(CBAttributeMapSO biomeMap, int x, int y)
+        public override Texture2D CompileRGB()
         {
-            int index = biomeMap.PixelIndex(x, y);
-            byte[] data = biomeMap._data;
-
-            switch (biomeMap._bpp)
+            Texture2D texture2D = new Texture2D(_width, _height, TextureFormat.RGB24, mipChain: false);
+            NativeArray<byte> textureData = texture2D.GetRawTextureData<byte>();
+            for (int i = _data.Length; i-- > 0;)
             {
-                case 3:
-                    return new RGBA32(data[index], data[index + 1], data[index + 2], 255);
-                case 4:
-                    return new RGBA32(data[index], data[index + 1], data[index + 2], data[index + 3]);
-                case 2:
-                {
-                    byte rgb = data[index];
-                    return new RGBA32(rgb, rgb, rgb, data[index + 1]);
-                }
-                default:
-                {
-                    byte rgb = data[index];
-                    return new RGBA32(rgb, rgb, rgb, 255);
-                }
+                Color pixelColor = Attributes[_data[i]].mapColor;
+                int texIndex = i * 3;
+                textureData[texIndex] = (byte)Math.Round(pixelColor.r * 255f);
+                textureData[texIndex + 1] = (byte)Math.Round(pixelColor.g * 255f);
+                textureData[texIndex + 2] = (byte)Math.Round(pixelColor.b * 255f);
             }
+
+            texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+            return texture2D;
         }
 
+        public override Texture2D CompileRGBA()
+        {
+            Texture2D texture2D = new Texture2D(_width, _height, TextureFormat.RGBA32, mipChain: false);
+            NativeArray<Color32> textureData = texture2D.GetRawTextureData<Color32>();
+            for (int i = _data.Length; i-- > 0;)
+            {
+                Color pixelColor = Attributes[_data[i]].mapColor;
+                textureData[i] = new Color32(
+                    (byte)Math.Round(pixelColor.r * 255f),
+                    (byte)Math.Round(pixelColor.g * 255f),
+                    (byte)Math.Round(pixelColor.b * 255f),
+                    255);
+            }
+
+            texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+            return texture2D;
+        }
+
+        public override Texture2D CompileGreyscale() => throw new NotImplementedException("Can't create Greyscale texture from a biome map");
+
+        public override Texture2D CompileHeightAlpha() => throw new NotImplementedException("Can't create HeightAlpha texture from a biome map");
+
+        /// <summary>
+        /// RGB24 color with identical layout to Color32 with FieldOffset tricks to provide fast equality comparison. 
+        /// </summary>
         [StructLayout(LayoutKind.Explicit)]
         private struct RGBA32
         {
-            private const float Byte2Float = 0.003921569f;
+            [FieldOffset(0)] public byte r;
+            [FieldOffset(1)] public byte g;
+            [FieldOffset(2)] public byte b;
+            [FieldOffset(3)] private byte a;
 
-            [FieldOffset(0)]
-            public int rgba;
+            [FieldOffset(0)] private int rgba;
 
-            [FieldOffset(0)]
-            public byte r;
-
-            [FieldOffset(1)]
-            public byte g;
-
-            [FieldOffset(2)]
-            public byte b;
-
-            [FieldOffset(3)]
-            public byte a;
-
-            public RGBA32(byte r, byte g, byte b, byte a)
+            public RGBA32(byte r, byte g, byte b)
             {
                 rgba = 0;
                 this.r = r;
                 this.g = g;
                 this.b = b;
-                this.a = a;
+                a = 255;
             }
+
+            public void ClearAlpha() => a = 255;
 
             public static implicit operator RGBA32(Color c)
             {
-                return new RGBA32((byte)(c.r * 255f), (byte)(c.g * 255f), (byte)(c.b * 255f), (byte)(c.a * 255f));
+                return new RGBA32((byte)Math.Round(c.r * 255f), (byte)Math.Round(c.g * 255f), (byte)Math.Round(c.b * 255f));
             }
 
-            public static implicit operator Color(RGBA32 c)
+            public static unsafe implicit operator RGBA32(Color32 c)
             {
-                return new Color(c.r * Byte2Float, c.g * Byte2Float, c.b * Byte2Float, c.a * Byte2Float);
+                return *(RGBA32*)&c;
             }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool operator ==(RGBA32 lhs, RGBA32 rhs) => lhs.rgba == rhs.rgba;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool operator !=(RGBA32 lhs, RGBA32 rhs) => lhs.rgba != rhs.rgba;
 
             public bool Equals(RGBA32 other) => rgba == other.rgba;
-            public override bool Equals(object obj) => obj is RGBA32 other && Equals(other);
-            public static bool operator ==(RGBA32 lhs, RGBA32 rhs) => lhs.rgba == rhs.rgba;
-            public static bool operator !=(RGBA32 lhs, RGBA32 rhs) => lhs.rgba != rhs.rgba;
+            public override bool Equals(object obj) => obj is RGBA32 other && rgba == other.rgba;
             public override int GetHashCode() => rgba;
         }
     }
+
+    /// <summary>
+    /// Convert all biome maps on the fly after system spawn, before main menu is loaded.
+    /// </summary>
+    [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
+    internal class BiomeMapOptimizer : MonoBehaviour
+    {
+#if BIOME_FLIGHTDEBUG
+        public static CBAttributeMapSO[] stockBiomeMaps;
+#endif
+
+        void OnDestroy()
+        {
+            Stopwatch watch = new Stopwatch();
+            List<string> optimizedBodies = new List<string>(FlightGlobals.Bodies.Count);
+            long oldMapsBytes = 0;
+            long newMapsBytes = 0;
+
+#if BIOME_FLIGHTDEBUG
+            stockBiomeMaps = new CBAttributeMapSO[FlightGlobals.Bodies.Count];
+#endif
+            foreach (CelestialBody body in FlightGlobals.Bodies)
+            {
+                if (body.BiomeMap == null)
+                    continue;
+
+                CBAttributeMapSO stockMap = body.BiomeMap;
+                if (stockMap.GetType() != typeof(CBAttributeMapSO))
+                    continue;
+
+                watch.Start();
+                KSPCFFastBiomeMap fastBiomeMap = ScriptableObject.CreateInstance<KSPCFFastBiomeMap>();
+                if (!fastBiomeMap.CopyFromMap(stockMap))
+                {
+                    Debug.LogWarning($"[KSPCF/FastBiomeMap] Unable to optimize biome map for {body.name}, {stockMap._bpp} Bpp maps aren't supported");
+                    Destroy(fastBiomeMap);
+                    continue;
+                }
+
+                body.BiomeMap = fastBiomeMap;
+
+                optimizedBodies.Add(body.name);
+                oldMapsBytes += stockMap.Size;
+                newMapsBytes += fastBiomeMap.Size;
+                watch.Stop();
+
+#if BIOME_CONVERSION_VALIDATE
+                Validate(body, stockMap, fastBiomeMap);
+#endif
+#if BIOME_FLIGHTDEBUG
+                stockBiomeMaps[body.flightGlobalsIndex] = stockMap;
+#endif
+                Destroy(stockMap);
+            }
+
+            if (optimizedBodies.Count > 0)
+            {
+                Debug.Log($"[KSPCF/FastBiomeMap] Optimized {optimizedBodies.Count} biome maps in {watch.Elapsed.TotalSeconds:F3}s, old size: {StaticHelpers.HumanReadableBytes(oldMapsBytes)}, new size: {StaticHelpers.HumanReadableBytes(newMapsBytes)}\nOptimized bodies : {string.Join(", ", optimizedBodies)}");
+            }
+        }
+
+#if BIOME_CONVERSION_VALIDATE
+        void Validate(CelestialBody body, CBAttributeMapSO stockMap, KSPCFFastBiomeMap fastBiomeMap)
+        {
+            Random.InitState(0);
+            int sampleCount = 1000000;
+            Vector2d[] coords = new Vector2d[sampleCount];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                double lat = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLat(Random.Range(-90f, 90f)));
+                double lon = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLon(Random.Range(-180f, 180f)));
+                coords[i] = new Vector2d(lat, lon);
+            }
+
+            CBAttributeMapSO.MapAttribute[] stockBiomes = new CBAttributeMapSO.MapAttribute[sampleCount];
+            Stopwatch stockWatch = new Stopwatch();
+
+            stockWatch.Start();
+            for (int i = 0; i < sampleCount; i++)
+            {
+                Vector2d latLon = coords[i];
+                stockBiomes[i] = stockMap.GetAtt(latLon.x, latLon.y);
+            }
+            stockWatch.Stop();
+
+            CBAttributeMapSO.MapAttribute[] cfBiomes = new CBAttributeMapSO.MapAttribute[sampleCount];
+
+            Stopwatch cfWatch = new Stopwatch();
+            cfWatch.Start();
+            for (int i = 0; i < sampleCount; i++)
+            {
+                Vector2d latLon = coords[i];
+                cfBiomes[i] = fastBiomeMap.GetAtt(latLon.x, latLon.y);
+            }
+            cfWatch.Stop();
+
+            double ratio = stockWatch.Elapsed.TotalMilliseconds / cfWatch.Elapsed.TotalMilliseconds;
+            int mismatchCount = 0;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                if (stockBiomes[i] != cfBiomes[i])
+                {
+                    mismatchCount++;
+#if DEBUG_BIOME_MISMATCH
+                    Vector2d latLon = coords[i];
+                    Debug.Log($"[KSPCF/FastBiomeMap] Biome mismatch on {body.name,10}, lat/lon: {latLon.x * Mathf.Rad2Deg,7:F2} / {latLon.y * Mathf.Rad2Deg,7:F2}, {stockBiomes[i].name,15} / {cfBiomes[i].name,15} (stock/fast)");
+#endif
+                }
+            }
+            Debug.Log($"[KSPCF/FastBiomeMap] Sampling {sampleCount} biomes on {body.name,10} : {cfWatch.Elapsed.TotalMilliseconds,8:F2}ms vs {stockWatch.Elapsed.TotalMilliseconds,8:F2}ms, ratio: {ratio,4:F1}, samples mismatchs :{mismatchCount,6} ({(mismatchCount / (float)sampleCount),6:P3})");
+        }
+#endif
+
+    }
+
+#if BIOME_FLIGHTDEBUG
+
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class CheckBiome : MonoBehaviour
+    {
+        private static Vector3 defaultScale = new Vector3(75f, 75f, 75f);
+        const int count = 50;
+        GameObject[] spheres = new GameObject[count * count];
+        Material[] sphereMaterials = new Material[count * count];
+
+        private void Start()
+        {
+            for (int i = 0; i < spheres.Length; i++)
+            {
+                GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                sphere.transform.localScale = defaultScale;
+                Destroy(sphere.GetComponent<Collider>());
+                spheres[i] = sphere;
+                sphereMaterials[i] = sphere.GetComponent<Renderer>().material;
+            }
+        }
+
+        private void Update()
+        {
+            if (FlightGlobals.ActiveVessel == null || FlightGlobals.currentMainBody == null)
+                return;
+
+            Vector3 vesselPos = FlightGlobals.ActiveVessel.transform.position;
+            Vector3 down = (FlightGlobals.currentMainBody.position - vesselPos).normalized;
+            Vector3 up = -down;
+
+            float du = Vector3.Dot(up, Vector3.up);
+            float df = Vector3.Dot(up, Vector3.forward);
+            Vector3 v1 = Mathf.Abs(du) < Mathf.Abs(df) ? Vector3.up : Vector3.forward;
+            Vector3 forward = Vector3.Cross(v1, up).normalized;
+            Vector3 right = Vector3.Cross(up, forward);
+
+            Vector3 upOrigin = up * 500f;
+
+            LayerMask mask = LayerMask.GetMask("Local Scenery");
+
+            CelestialBody body = FlightGlobals.currentMainBody;
+            CBAttributeMapSO stockMap = BiomeMapOptimizer.stockBiomeMaps[body.flightGlobalsIndex];
+            CBAttributeMapSO fastMap = FlightGlobals.currentMainBody.BiomeMap;
+
+            for (int i = 0; i < count; i++)
+            {
+                for (int j = 0; j < count; j++)
+                {
+                    Vector3 origin = vesselPos + upOrigin + (forward * (i - count / 2) * 100f) + (right * (j - count / 2) * 100f);
+                    if (Physics.Raycast(origin, down, out RaycastHit hitInfo, 5000f, mask))
+                    {
+                        body.GetLatLonAlt(origin, out double lat, out double lon, out _);
+                        lat = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLat(lat));
+                        lon = ResourceUtilities.Deg2Rad(ResourceUtilities.clampLon(lon));
+
+                        CBAttributeMapSO.MapAttribute stockBiome = stockMap.GetAtt(lat, lon);
+                        CBAttributeMapSO.MapAttribute fastBiome = fastMap.GetAtt(lat, lon);
+
+                        int index = i * count + j;
+
+                        sphereMaterials[index].color = fastBiome.mapColor;
+
+                        Transform transform = spheres[index].transform;
+                        transform.position = hitInfo.point;
+                        if (stockBiome == fastBiome)
+                            transform.localScale = defaultScale;
+                        else
+                            transform.localScale = defaultScale * 2f;
+                    }
+                }
+            }
+        }
+    }
+
+#endif
 }
