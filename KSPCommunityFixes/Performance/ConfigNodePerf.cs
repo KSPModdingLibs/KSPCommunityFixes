@@ -381,7 +381,9 @@ namespace KSPCommunityFixes.Performance
                 }
                 ConfigNode newNode = new ConfigNode(string.Empty); // will be set above when we recurse.
                 node._nodes.nodes.Add(newNode);
-                ConfigNode_CopyToRecursive_Prefix(sub, newNode, overwrite);
+                ConfigNode_CopyToRecursive_Prefix(sub, newNode, false); // stock recurses with overwrite false, always.
+                // this leads to duplicating subnodes rather than merging them, when this is initially triggered with overwrite=true
+                // but we need to maintain this behavior.
             }
             return false;
         }
