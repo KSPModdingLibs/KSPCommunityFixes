@@ -173,6 +173,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.29.1
+- **ConfigNodePerf** : fixed [issue #152](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/152), fix CopyTo in overwrite mode not allowing subnodes with duplicate values.
+
 ##### 1.29.0
 - **DragCubeGeneration** : fixed [issue #150](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150), fix for in-editor detached parts can cause incorrect drag cubes with modded shaders, notably fix incorrect drag for parachutes and solar panels when the Shaddy + TU mods are installed.
 - New KSP bugfix : [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated. Contributed by @JonnyOThan.
