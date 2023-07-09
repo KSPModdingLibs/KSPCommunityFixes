@@ -173,6 +173,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.29.2
+- **ModUpgradePipeline** : fixed [issue #156](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/156), fix to correctly load mod versions on reading sfs/craft file and to correctly sanity-check UpgradeScripts vs current mod version not loaded version.
+
 ##### 1.29.1
 - **ConfigNodePerf** : fixed [issue #152](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/152), fix CopyTo in overwrite mode not allowing subnodes with duplicate values.
 
