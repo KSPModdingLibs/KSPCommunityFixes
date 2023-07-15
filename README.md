@@ -174,6 +174,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.29.0
+- **DragCubeGeneration** : disabled by default since it continues to cause issues with fairings and some other parts. Will be reenabled by default when issues are fixed.
+- New KSP bugfix : [**FixGetUnivseralTime**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/155) [KSP 1.8.0 - 1.12.5], fix Planetarium.GetUniversalTime returning bad values in the editor.
+
 ##### 1.29.2
 - **ModUpgradePipeline** : fixed [issue #156](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/156), fix to correctly load mod versions on reading sfs/craft file and to correctly sanity-check UpgradeScripts vs current mod version not loaded version.
 
