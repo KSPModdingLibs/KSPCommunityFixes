@@ -105,6 +105,7 @@
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
+    <Compile Include="BugFixes\FixGetUnivseralTime.cs" />
     <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
     <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
