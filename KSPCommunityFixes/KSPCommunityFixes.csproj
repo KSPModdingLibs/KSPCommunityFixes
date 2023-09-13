@@ -134,6 +134,7 @@
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
+    <Compile Include="BugFixes\DockingPortConserveMomentum.cs" />
     <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
     <Compile Include="BugFixes\ExtendedDeployableParts.cs" />
     <Compile Include="BugFixes\DeltaVHideWhenDisabled.cs" />

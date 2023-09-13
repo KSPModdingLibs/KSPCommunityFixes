@@ -77,6 +77,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
 - [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated.
 - [**FixGetUnivseralTime**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/155) [KSP 1.8.0 - 1.12.5]<br/>Fix Planetarium.GetUniversalTime returning bad values in the editor.
+- [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5]<br/>Make docking ports conserve momentum by averaging the acquire force between the two ports. Notably, docking port Kraken drives will no longer work.
 
 #### Quality of Life tweaks 
 
@@ -173,6 +174,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.31.0
+
+- New KSP bugfix : [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5], make docking ports conserve momentum by averaging the acquire forces between the two ports.
 
 ##### 1.30.0
 - **DragCubeGeneration** : disabled by default since it continues to cause issues with fairings and some other parts. Will be reenabled by default when issues are fixed.
