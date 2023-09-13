@@ -176,8 +176,11 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.31.0
-
 - New KSP bugfix : [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5], make docking ports conserve momentum by averaging the acquire forces between the two ports.
+- **DragCubeGeneration** : fixed [issue #154](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/154), fix broken map view (and various other issues) when a drag cube is generated on a root part having multiple drag cubes.
+- **DragCubeGeneration** : fixed [issue #162](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/162), fix incorrect drag cubes generated for stock procedural fairings (and potentially mods doing procedural mesh generation).
+- **DragCubeGeneration** : patch enabled by default, hopefully all bugs fixed :)
+- **PersistentIConfigNode** : adress [issue #159](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/159), add some logging when an enum parsing error happens instead of swallowing it silently.
 
 ##### 1.30.0
 - **DragCubeGeneration** : disabled by default since it continues to cause issues with fairings and some other parts. Will be reenabled by default when issues are fixed.
