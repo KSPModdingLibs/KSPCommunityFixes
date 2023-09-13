@@ -502,7 +502,7 @@ namespace KSPCommunityFixes.Performance
 
             DragCube dragCube = new DragCube(dragCubeName);
 
-            List<Renderer> renderers = GetPartCachedRendererList(part);
+            List<Renderer> rendererList = rendererListPool.Get();
             List<DragRendererInfo> dragRenderers = dragRendererInfoListPool.Get();
             CommandBuffer commandBuffer = commandBufferPool.Get();
 
@@ -513,7 +513,9 @@ namespace KSPCommunityFixes.Performance
 
             try
             {
-                AnalyzeDragRenderers(part, renderers, true, dragRenderers, out Bounds partBounds);
+                Transform modelTransform = GetModelTransform(part);
+                modelTransform.GetComponentsInChildren(false, rendererList);
+                AnalyzeDragRenderers(part, rendererList, false, dragRenderers, out Bounds partBounds);
 
                 dragCube.center = partBounds.center;
                 dragCube.size = partBounds.size;
@@ -540,6 +542,7 @@ namespace KSPCommunityFixes.Performance
                 foreach (DragRendererInfo dragRendererInfo in dragRenderers)
                     dragRendererInfo.RestoreRendererState();
 
+                rendererListPool.Release(rendererList);
                 dragRendererInfoListPool.Release(dragRenderers);
                 commandBufferPool.Release(commandBuffer);
             }
@@ -855,43 +858,6 @@ namespace KSPCommunityFixes.Performance
                 min.z = maxZ;
             else if (maxZ > max.z)
                 max.z = maxZ;
-        }
-
-
-        /// <summary>
-        /// Reimplementation of the stock Part.FindModelRenderersCached() method returning the cached list instead of
-        /// instantiating a new list, and with improved performance when a cache update is required.
-        /// </summary>
-        public static List<Renderer> GetPartCachedRendererList(Part part)
-        {
-            if (part.modelRenderersCache == null)
-            {
-                part.modelRenderersCache = new List<Renderer>();
-                UpdatePartRendererCache(part);
-            }
-            else
-            {
-                for (int i = part.modelRenderersCache.Count; i-- > 0;)
-                {
-                    if (part.modelRenderersCache[i].IsDestroyed())
-                    {
-                        part.modelRenderersCache.Clear();
-                        UpdatePartRendererCache(part);
-                        break;
-                    }
-                }
-            }
-
-            return part.modelRenderersCache;
-        }
-
-        private static void UpdatePartRendererCache(Part part)
-        {
-            Transform modelTransform = GetModelTransform(part);
-            if (modelTransform.IsNullRef())
-                return;
-
-            modelTransform.GetComponentsInChildren(true, part.modelRenderersCache);
         }
 
         private static Transform GetModelTransform(Part part)
