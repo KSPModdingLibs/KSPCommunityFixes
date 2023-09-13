@@ -230,7 +230,7 @@ namespace KSPCommunityFixes.Performance
         public static IEnumerator RenderDragCubesOnCopy(Part originalPart, DragCubeList dragCubeList, ConfigNode dragConfig)
         {
             if (originalPart.frozen)
-                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({originalPart.partInfo.name}) in the editor isn't supported and might give incorrect results.");
+                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({originalPart.partInfo.name}) in the editor isn't supported and will give incorrect results.");
 
             int childCount = originalPart.children.Count;
             if (childCount > 0)
@@ -284,6 +284,8 @@ namespace KSPCommunityFixes.Performance
             }
 
             GameObject partObject = part.gameObject;
+            // fix issue #154 : that substring in the name is actually checked in the Vessel.OnDestroy() method, doing a bunch of cleanup...
+            partObject.name += " Drag Rendering Clone"; 
             partObject.SetActive(true);
 
             ModuleJettison moduleJettison = null;
@@ -496,7 +498,7 @@ namespace KSPCommunityFixes.Performance
         public static DragCube RenderDragCubeImmediate(Part part, string dragCubeName)
         {
             if (part.frozen)
-                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({part.partInfo.name}) in the editor isn't supported and might give incorrect results.");
+                Debug.LogWarning($"[KSPCF/DragCubeGeneration] Generating drag cubes on detached part ({part.partInfo.name}) in the editor isn't supported and will give incorrect results.");
 
             DragCube dragCube = new DragCube(dragCubeName);
 
