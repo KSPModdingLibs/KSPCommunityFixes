@@ -35,7 +35,6 @@ namespace KSPCommunityFixes.Modding
                 try
                 {
                     assemblyName = assembly.GetName().Name;
-                    assemblyLocation = assembly.Location.Remove(0, kspRootPathLength);
 
                     Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
                     List<string> loadedAssemblyNames = new List<string>(loadedAssemblies.Length);
@@ -53,7 +52,18 @@ namespace KSPCommunityFixes.Modding
                 catch
                 {
                     assemblyName = assembly.FullName;
-                    assemblyLocation = assembly.Location;
+                }
+
+                try
+                {
+                    if (assembly.IsDynamic)
+                        assemblyLocation = "Dynamic";
+                    else
+                        assemblyLocation = assembly.Location.Remove(0, kspRootPathLength);
+                }
+                catch (Exception)
+                {
+                    assemblyLocation = "Unknown";
                 }
 
                 errorMessage = $"[KSPCF] A ReflectionTypeLoadException thrown by Assembly.GetTypes() has been handled by KSP Community Fixes." +
