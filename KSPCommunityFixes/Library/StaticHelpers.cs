@@ -42,7 +42,12 @@ namespace KSPCommunityFixes
             return readable.ToString("0.### ") + suffix;
         }
 
-        // https://github.com/dotnet/runtime/blob/af4efb1936b407ca5f4576e81484cf5687b79a26/src/libraries/System.Private.CoreLib/src/System/Math.cs#L210
+        /// <summary>
+        /// Returns the largest value that compares less than a specified value.
+        /// </summary>
+        /// <param name="x">The value to decrement.</param>
+        /// <returns>The largest value that compares less than x, or NegativeInfinity if x equals NegativeInfinity, or NaN if x equals NaN.</returns>
+        /// // https://github.com/dotnet/runtime/blob/af4efb1936b407ca5f4576e81484cf5687b79a26/src/libraries/System.Private.CoreLib/src/System/Math.cs#L210
         public static double BitDecrement(double x)
         {
             long bits = BitConverter.DoubleToInt64Bits(x);
