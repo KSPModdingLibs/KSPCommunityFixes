@@ -157,7 +157,15 @@ namespace KSPCommunityFixes.Modding
             _versionString = sb.ToStringAndRelease();
         }
 
-        private static Version GetVersion(Assembly asm)
+        /// <summary>
+        /// This gets the version that is in the sfs/craft file, or (once upgrading has begun)
+        /// the current version state while upgrading (since this version can be incremented as
+        /// patching runs).
+        /// Note: If the mod is not in the sfs/craft file, the version is assumed to be 0.0.0.0
+        /// </summary>
+        /// <param name="asm"></param>
+        /// <returns></returns>
+        private static Version GetModCfgNodeVersion(Assembly asm)
         {
             if (_versionsLoaded.TryGetValue(asm, out Version v))
                 return v;
@@ -197,7 +205,7 @@ namespace KSPCommunityFixes.Modding
             _versionsLoadedString.Clear();
             _versionsLoaded.Clear();
 
-            if (n != null)
+            if (n == null)
                 return false;
 
             string versionStr;
@@ -251,13 +259,9 @@ namespace KSPCommunityFixes.Modding
             else
             {
                 _scriptToType.TryGetValue(uSC, out var usType);
-                Version v = AppVersion;
                 bool isStock = usType == null;
-                if (!isStock)
-                {
-                    v = GetVersion(usType.Assembly);
-                }
-                if (v != _EmptyVersion && (uSC.TargetVersion > v || uSC.EarliestCompatibleVersion > v))
+                Version v = isStock ? AppVersion : _versionsCurrent[usType.Assembly];
+                if (uSC.TargetVersion > v || uSC.EarliestCompatibleVersion > v)
                 {
                     UnityEngine.Debug.LogError("[SaveUpgradePipeline]: A script's versions should never exceed the current " + (isStock ? "application" : "mod") + " version. " + uSC.Name + " will be skipped.");
                     __result = false;
@@ -447,7 +451,7 @@ namespace KSPCommunityFixes.Modding
             }
             else
             {
-                v = GetVersion(_currentAsm);
+                v = GetModCfgNodeVersion(_currentAsm);
                 UnityEngine.Debug.Log($"[KSPCommunityFixes] Testing UpgradeScript {_scriptToType[__instance].Name} from assembly {_scriptToType[__instance].Assembly.GetName().Name}, using version {v}");
             }
             TestResult tRst = __instance.VersionTest(v);

@@ -76,6 +76,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **LadderToggleableLight** [KSP 1.8.0 - 1.12.5]<br/>Fix for the stock "Kelus-LV Bay Mobility Enhancer" light being always active even when the ladder is retracted, and implements manual control of the light.
 - [**ReRootPreserveSurfaceAttach**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/142) [KSP 1.8.0 - 1.12.5]<br/>Disable the stock behavior of altering surface attachment nodes on re-rooting, a questionable QoL feature that doesn't work correctly, leading to permanently borked attachement nodes.
 - [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated.
+- [**FixGetUnivseralTime**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/155) [KSP 1.8.0 - 1.12.5]<br/>Fix Planetarium.GetUniversalTime returning bad values in the editor.
+- [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5]<br/>Make docking ports conserve momentum by averaging the acquire force between the two ports. Notably, docking port Kraken drives will no longer work.
 
 #### Quality of Life tweaks 
 
@@ -172,6 +174,27 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.31.1
+- **DragCubeGeneration** : Actually enable patch by default, I somehow failed to push that change in the last release (Thanks @dok_377 for reporting)
+- **ReflectionTypeLoadExceptionHandler** : Fixed the exception handler itself throwing an exception in a corner case situation where a dynamic assembly is loaded, causing a call to `Assembly.Location` to throw (Thanks @Lisias for reporting).
+
+##### 1.31.0
+- New KSP bugfix : [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5], make docking ports conserve momentum by averaging the acquire forces between the two ports.
+- **DragCubeGeneration** : fixed [issue #154](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/154), fix broken map view (and various other issues) when a drag cube is generated on a root part having multiple drag cubes.
+- **DragCubeGeneration** : fixed [issue #162](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/162), fix incorrect drag cubes generated for stock procedural fairings (and potentially mods doing procedural mesh generation).
+- **DragCubeGeneration** : patch enabled by default, hopefully all bugs fixed :)
+- **PersistentIConfigNode** : adress [issue #159](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/159), add some logging when an enum parsing error happens instead of swallowing it silently.
+
+##### 1.30.0
+- **DragCubeGeneration** : disabled by default since it continues to cause issues with fairings and some other parts. Will be reenabled by default when issues are fixed.
+- New KSP bugfix : [**FixGetUnivseralTime**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/155) [KSP 1.8.0 - 1.12.5], fix Planetarium.GetUniversalTime returning bad values in the editor.
+
+##### 1.29.2
+- **ModUpgradePipeline** : fixed [issue #156](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/156), fix to correctly load mod versions on reading sfs/craft file and to correctly sanity-check UpgradeScripts vs current mod version not loaded version.
+
+##### 1.29.1
+- **ConfigNodePerf** : fixed [issue #152](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/152), fix CopyTo in overwrite mode not allowing subnodes with duplicate values.
 
 ##### 1.29.0
 - **DragCubeGeneration** : fixed [issue #150](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150), fix for in-editor detached parts can cause incorrect drag cubes with modded shaders, notably fix incorrect drag for parachutes and solar panels when the Shaddy + TU mods are installed.

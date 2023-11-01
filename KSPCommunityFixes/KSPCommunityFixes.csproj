@@ -105,6 +105,7 @@
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
+    <Compile Include="BugFixes\FixGetUnivseralTime.cs" />
     <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
     <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
@@ -134,6 +135,7 @@
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
     <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
     <Compile Include="BugFixes\AutoStrutDrift.cs" />
+    <Compile Include="BugFixes\DockingPortConserveMomentum.cs" />
     <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
     <Compile Include="BugFixes\ExtendedDeployableParts.cs" />
     <Compile Include="BugFixes\DeltaVHideWhenDisabled.cs" />

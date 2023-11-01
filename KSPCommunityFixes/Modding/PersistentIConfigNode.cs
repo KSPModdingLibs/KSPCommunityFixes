@@ -629,6 +629,9 @@ namespace KSPCommunityFixes.Modding
                     }
                     catch
                     {
+                        string[] enumNames = fieldType.GetEnumNames();
+                        string defaultName = enumNames.Length > 0 ? enumNames[0] : string.Empty;
+                        Debug.LogWarning($"[KSPCF] Couldn't parse value '{value}' for enum '{fieldType.Name}', default value '{defaultName}' will be used.\nValid values are {string.Join(", ", enumNames)}");
                         return null;
                     }
                 case DataType.ValueVector2:
