@@ -1,4 +1,6 @@
-﻿namespace KSPCommunityFixes
+﻿using UnityEngine;
+
+namespace KSPCommunityFixes
 {
     static class StaticHelpers
     {
@@ -37,6 +39,11 @@
             readable /= 1024.0;
             // Return formatted number with suffix
             return readable.ToString("0.### ") + suffix;
+        }
+
+        public static Quaternion Swizzle(this Quaternion q)
+        {
+            return new Quaternion(0f - q.x, 0f - q.z, 0f - q.y, q.w);
         }
     }
 }
