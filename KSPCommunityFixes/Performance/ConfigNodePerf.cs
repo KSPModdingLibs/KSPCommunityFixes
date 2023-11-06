@@ -790,7 +790,7 @@ namespace KSPCommunityFixes.Performance
                 // first eat the rest of the line, if it's a comment
                 if (mode == ParseMode.EatComment)
                 {
-                    if (c == '\n')
+                    if (c == '\n' || c == '\r')
                     {
                         mode = ParseMode.SkipToKey;
                         start = pos + 1;
@@ -803,7 +803,7 @@ namespace KSPCommunityFixes.Performance
                 if (char.IsWhiteSpace(c))
                 {
                     // handle EOL
-                    if (c == '\n')
+                    if (c == '\n' || c == '\r')
                     {
                         //ProcessString(pBase, start, lastNonWS);
                         if (mode == ParseMode.ReadKey)
