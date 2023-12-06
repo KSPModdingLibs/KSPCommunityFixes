@@ -78,6 +78,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ThumbnailSpotlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/149) [KSP 1.12.0 - 1.12.5], fix rogue spotlight staying in the scene when a part thumbnail fails to be generated.
 - [**FixGetUnivseralTime**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/155) [KSP 1.8.0 - 1.12.5]<br/>Fix Planetarium.GetUniversalTime returning bad values in the editor.
 - [**DockingPortConserveMomentum**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/160) [KSP 1.12.3 - 1.12.5]<br/>Make docking ports conserve momentum by averaging the acquire force between the two ports. Notably, docking port Kraken drives will no longer work.
+- [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5]<br/>Fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.
 
 #### Quality of Life tweaks 
 
@@ -174,6 +175,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.32.0
+- **ConfigNodePerf** : fixed [issue #167](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/167), incorrect parsing of config files using `cr` only (old MacOs style) line endings.
+- New KSP bugfix : [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5], fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.
 
 ##### 1.31.1
 - **DragCubeGeneration** : Actually enable patch by default, I somehow failed to push that change in the last release (Thanks @dok_377 for reporting)
