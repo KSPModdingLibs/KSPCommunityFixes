@@ -179,10 +179,11 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ### Changelog
 
 ##### 1.32.0
-- **ConfigNodePerf** : fixed [issue #167](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/167), incorrect parsing of config files using `cr` only (old Mac style) line endings.
-- New KSP bugfix : [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5], fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.
 - New KSP bugfix : [**TimeWarpOrbitShift**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/170) [KSP 1.8.0 - 1.12.5], fix active vessel orbit moving randomly when engaging timewarp while under heavy CPU load.
-- Fix KSP [issue #153](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/153), prevent a bunch of flight related events to be registered from ModuleScienceExperiment on the prefabs and in other scenes. This was added to the **MemoryLeaks** patch, since that patch already handle a bunch of GameEvents related issues/leaks.
+- New KSP bugfix : [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5], fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.
+- New KSP bugfix : [**PropellantFlowDescription**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/165) [KSP 1.8.0 - KSP 1.12.5], fix printing the resource's base flow mode instead of the (potentially overridden) propellant's flow mode when printing propellants in an engine's info panel in the Part Tooltip.
+- Fix KSP [issue #153](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/153), prevent flight related events to be registered from ModuleScienceExperiment on the prefabs and in other scenes. This was added to the **MemoryLeaks** patch, since that patch already handle a bunch of GameEvents related issues/leaks.
+- **ConfigNodePerf** : fixed [issue #167](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/167), incorrect parsing of config files using `cr` only (old Mac style) line endings.
 
 ##### 1.31.1
 - **DragCubeGeneration** : Actually enable patch by default, I somehow failed to push that change in the last release (Thanks @dok_377 for reporting)
