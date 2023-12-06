@@ -107,8 +107,10 @@
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
     <Compile Include="BugFixes\FixGetUnivseralTime.cs" />
+    <Compile Include="BugFixes\ModuleAnimateGenericCrewModSpawnIVA.cs" />
     <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
     <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
+    <Compile Include="BugFixes\TimeWarpOrbitShift.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />
     <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />

@@ -68,6 +68,11 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnDestroy)),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake)),
+                this));
+
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
@@ -566,6 +571,13 @@ namespace KSPCommunityFixes.Performance
         {
             GameEvents.onVariantApplied.Remove(__instance.onVariantApplied);
             GameEvents.onVariantsAdded.Remove(__instance.onVariantsAdded);
+        }
+
+        // Not really a leak, but prevent a bunch of flight related events to be registered from the prefabs.
+        // see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/153
+        static bool ModuleScienceExperiment_OnAwake_Prefix()
+        {
+            return HighLogic.LoadedSceneIsFlight;
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
