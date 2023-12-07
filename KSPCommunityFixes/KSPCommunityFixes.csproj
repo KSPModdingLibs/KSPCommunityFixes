@@ -92,16 +92,7 @@
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility.current" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility.Begin" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility.SelectIDList" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility+LayoutCache" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility+LayoutCache.topLevel" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility+LayoutCache.layoutGroups" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutUtility+LayoutCache.windows" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutEntry" />
-    <Publicize Include="UnityEngine.IMGUIModule:UnityEngine.GUILayoutGroup" />
+    <Publicize Include="UnityEngine.IMGUIModule" />
     <Publicize Include="mscorlib:System.IO.MonoIO" />
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />

@@ -179,6 +179,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.32.1
+- **IMGUIOptimization** : fixed issue where the patch was breaking some mods UIs due to not resetting some internal state correctly.
+
 ##### 1.32.0
 - New KSP bugfix : [**TimeWarpOrbitShift**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/170) [KSP 1.8.0 - 1.12.5], fix active vessel orbit moving randomly when engaging timewarp while under heavy CPU load.
 - New KSP bugfix : [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5], fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.

@@ -1,4 +1,4 @@
-﻿// Copypasted from https://forum.unity.com/threads/garbage-collector-spikes-because-of-gui.60217/page-2#post-6317280
+﻿// Based upon https://forum.unity.com/threads/garbage-collector-spikes-because-of-gui.60217/page-2#post-6317280
 // Basically, every OnGUI() method implies a call to GUILayout.Repaint(), itself calling GUILayoutUtility.Begin(),
 // which does a bunch of allocations (even if the OnGUI() method does nothing). This replacement method reuse the
 // existing objects instead of instantiating new ones, which both reduce GC pressure (about 0.36 KB/frame per OnGUI()
@@ -33,21 +33,57 @@ namespace KSPCommunityFixes.Performance
             {
                 if (layoutCache.topLevel == null)
                     layoutCache.topLevel = new GUILayoutGroup();
+                else
+                    ResetGUILayoutGroup(layoutCache.topLevel);
+
                 if (layoutCache.windows == null)
                     layoutCache.windows = new GUILayoutGroup();
-
-                layoutCache.topLevel.entries.Clear();
-                layoutCache.windows.entries.Clear();
+                else
+                    ResetGUILayoutGroup(layoutCache.windows);
 
                 GUILayoutUtility.current.topLevel = layoutCache.topLevel;
                 GUILayoutUtility.current.layoutGroups.Clear();
                 GUILayoutUtility.current.layoutGroups.Push(GUILayoutUtility.current.topLevel);
+                GUILayoutUtility.current.windows = layoutCache.windows;
                 return false;
             }
             GUILayoutUtility.current.topLevel = layoutCache.topLevel;
             GUILayoutUtility.current.layoutGroups = layoutCache.layoutGroups;
             GUILayoutUtility.current.windows = layoutCache.windows;
             return false;
+        }
+
+        static void ResetGUILayoutGroup(GUILayoutGroup layoutGroup)
+        {
+            layoutGroup.entries.Clear();
+            layoutGroup.isVertical = true;
+            layoutGroup.resetCoords = false;
+            layoutGroup.spacing = 0f;
+            layoutGroup.sameSize = true;
+            layoutGroup.isWindow = false;
+            layoutGroup.windowID = -1;
+            layoutGroup.m_Cursor = 0;
+            layoutGroup.m_StretchableCountX = 100;
+            layoutGroup.m_StretchableCountY = 100;
+            layoutGroup.m_UserSpecifiedWidth = false;
+            layoutGroup.m_UserSpecifiedHeight = false;
+            layoutGroup.m_ChildMinWidth = 100f;
+            layoutGroup.m_ChildMaxWidth = 100f;
+            layoutGroup.m_ChildMinHeight = 100f;
+            layoutGroup.m_ChildMaxHeight = 100f;
+            layoutGroup.m_MarginLeft = 0;
+            layoutGroup.m_MarginRight = 0;
+            layoutGroup.m_MarginTop = 0;
+            layoutGroup.m_MarginBottom = 0;
+            layoutGroup.rect = new Rect(0f, 0f, 0f, 0f);
+            layoutGroup.consideredForMargin = true;
+            layoutGroup.m_Style = GUIStyle.none;
+            layoutGroup.stretchWidth = 1;
+            layoutGroup.stretchHeight = 0;
+            layoutGroup.minWidth = 0f;
+            layoutGroup.maxWidth = 0f;
+            layoutGroup.minHeight = 0f;
+            layoutGroup.maxHeight = 0f;
         }
     }
 }
