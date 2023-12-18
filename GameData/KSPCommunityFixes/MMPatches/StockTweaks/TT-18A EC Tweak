@@ -1,1 +1,15 @@
-t
+// Changes TT-18A Launch Clamp to have a much higher EC charge rate (100 EC/s)
+// Necessary for certain mod parts that always use a lot of electricity and cannot generate it on the pad
+
+@PART[launchClamp1]:FIRST
+{
+	MODULE
+	{
+		name = ModuleGenerator
+		isAlwaysActive = true
+		isGroundFixture = true
+		OUTPUT_RESOURCE
+		{
+			name = ElectricCharge
+			rate = 100
+		}
