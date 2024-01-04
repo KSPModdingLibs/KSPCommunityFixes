@@ -131,6 +131,7 @@
     <Compile Include="Performance\DisableHiddenPortraits.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
+    <Compile Include="Performance\FastBiomeQuery.cs" />
     <Compile Include="Performance\FastLoader.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
