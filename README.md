@@ -120,6 +120,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **LocalizerPerf** [KSP 1.8.0 - 1.12.5]<br/>Faster and minimal-allocation replacements for the `Localizer.Format()` methods, can provide significant speedup for GUI-heavy mods using localized strings.
 - [**DisableHiddenPortraits**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/84) [KSP 1.8.0 - 1.12.5]<br/>Prevent non-visible crew portraits from being rendered after a switch back from the map view (and other cases), causing a significant perf hit when there are many kerbals in the vessel.
 - **IMGUIOptimization** [KSP 1.8.0 - 1.12.5]<br/>Eliminate structural GC allocations and reduce performance overhead of OnGUI() methods. Can provide significant performance gains when having many mods using IMGUI heavily.
+- [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) [KSP 1.11.0 - 1.12.5]<br/>3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -178,6 +179,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.33.0
+- New KSP performance patch : [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) : 3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.
 
 ##### 1.32.1
 - **IMGUIOptimization** : fixed issue where the patch was breaking some mods UIs due to not resetting some internal state correctly.
