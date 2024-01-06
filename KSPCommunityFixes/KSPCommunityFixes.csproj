@@ -134,6 +134,7 @@
     <Compile Include="Performance\FastLoader.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
+    <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
