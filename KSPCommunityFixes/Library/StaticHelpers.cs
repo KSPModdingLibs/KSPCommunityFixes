@@ -1,4 +1,8 @@
-﻿namespace KSPCommunityFixes
+﻿using System;
+using KSP.UI.TooltipTypes;
+using UnityEngine;
+
+namespace KSPCommunityFixes
 {
     static class StaticHelpers
     {
@@ -37,6 +41,15 @@
             readable /= 1024.0;
             // Return formatted number with suffix
             return readable.ToString("0.### ") + suffix;
+        }
+
+        private static Tooltip_Text _tooltipTextPrefab;
+
+        public static TooltipController_Text AddUITooltip(GameObject go)
+        {
+            TooltipController_Text tooltip = go.AddComponent<TooltipController_Text>();
+            tooltip.prefab = _tooltipTextPrefab ??= AssetBase.GetPrefab<Tooltip_Text>("Tooltip_Text");
+            return tooltip;
         }
     }
 }
