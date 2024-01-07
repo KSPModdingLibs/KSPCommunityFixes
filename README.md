@@ -99,6 +99,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **DisableNewGameIntro** [KSP 1.8.0 - 1.12.5]<br/>Disable the "intro" popups appearing in the space center, VAB/SPH and tracking station upon creating a new career game. Disabled by default.
 - [**ToolbarShowHide**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) [KSP 1.8.0 - 1.12.5]<br/>Add a button for hiding/showing the stock toolbar. Also allow accessing the toolbar while in the space center facilities windows (mission control, admin building, R&D...).
 - **ResourceLockActions** [KSP 1.8.0 - 1.12.5]<br/>Add part actions for locking/unlocking resources flow state.
+- [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) [KSP 1.12.3 - 1.12.5]<br/>Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.
 
 #### Performance tweaks 
 
@@ -184,6 +185,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.34.0
 - New KSP QoL/performance patch : [**LowerMinPhysicsDTPerFrame**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/175) : Allow a min value of 0.02 instead of 0.03 for the "Max Physics Delta-Time Per Frame" main menu setting. This was already possible by manually editing the `settings.cfg` file, but changes would revert when going into the settings screen.
+- New KSP QoL patch : [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) : Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.
 
 ##### 1.33.0
 - New KSP performance patch : [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) : 3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.

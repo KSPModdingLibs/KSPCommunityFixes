@@ -1,25 +1,27 @@
-﻿// backups are created from :
-// - KerbalFSM
-//   - pod_select : root part dropped ?
-//   - podDeleted : root part deleted ?
-//   - partPicked : any attached part picked
-//   - partDropped : any part dropped without attaching ?
-//   - partAttached : any part attached
-// - variant changed
-// - action group edited
-// - offset/rotate gizmo updated
+﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172
 
-// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172
-// In stock, undo state is captured after part events are complete, which is annoying as undoing will loose any tweaks made in between
-// This patch invert the undo/redo state capture logic, by moving state capture before attaching / detaching instead of after
+// In stock, undo state is captured after part events are complete, and undoing will restore that state captured before that.
+// This make the user experience quite poor as undoing will loose all PAW tweaks made in between attach/detach actions.
+// This patch invert the undo/redo state capture logic, by moving state capture before attaching / detaching instead of after, 
+// and by capturing the current state when undoing is requested, in case a redo is requested next (see the RestoreState() patch)
 // Unfortunately, the crew assignement (VesselCrewManifest) is updated based on the last serialized undo state, so doing this notably
-// result in the crew assignement window being out of sync with the ship current state, but this will likely have other weird side effects.
-// My thanks to the spaghetti mess of the editor code...
-// Not sure this is really fixable, this would likely require a complete rewrite of the VesselCrewManifest creation/update as well.
-// Of course I could just double-save the ship and update the crew manifest separatly, but the whole point was trying to avoid the stutter
-// induced by excessive ship state saving... 
+// result in the crew assignement window being out of sync with the ship current state. To fix this, after attaching or detaching,
+// we call a reimplementation of the VesselCrewManifest update using the live ship state instead of the serialized state.
 
+// Still, due to many mostly unrelated code paths being triggered from the undo/redo code, this patch introduce a bunch of unavoidable
+// behavior changes. We fix the most obvious, ie GameEvents.onEditorShipModified.Fire() being called before attach/detach, but
+// this still introduce other more subtle changes, which might cause weird side effects in plugins overly relying on the notably
+// messy editor code paths.
+
+// enable additional debug logging
+// #define BEUR_DEBUG
+
+// use replacement callbacks with modified stock code instead of stock code transpilers
+// #define BEUR_REPLACE_CALLBACKS
+
+using System;
 using HarmonyLib;
+using KSP.UI;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -31,17 +33,25 @@ namespace KSPCommunityFixes.QoL
     {
         private static bool editorPatched = false;
 
+        private static MethodInfo m_EditorLogic_SetBackup;
+        private static MethodInfo m_EditorLogicSetBackupNoShipModifiedEvent;
+        private static MethodInfo m_EditorShipModifiedGameEvent;
+        private static MethodInfo m_EditorLogic_attachPart;
+        private static MethodInfo m_EditorLogic_RefreshCrewAssignment;
+        private static MethodInfo m_RefreshCrewAssignmentFromLiveState;
+        private static MethodInfo m_ShipConstruct_Contains;
+
+        protected override Version VersionMin => new Version(1, 12, 3); // too many changes in previous versions, too lazy to check
+
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState)),
-                this));
+            m_EditorLogic_SetBackup = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup));
+            m_EditorLogicSetBackupNoShipModifiedEvent = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(EditorLogicSetBackupNoShipModifiedEvent));
+            m_EditorShipModifiedGameEvent = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(EditorShipModifiedGameEvent));
+            m_EditorLogic_attachPart = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.attachPart));
+            m_EditorLogic_RefreshCrewAssignment = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RefreshCrewAssignment));
+            m_RefreshCrewAssignmentFromLiveState = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(RefreshCrewAssignmentFromLiveState));
+            m_ShipConstruct_Contains = AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.Contains), new[] { typeof(Part) });
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -52,8 +62,21 @@ namespace KSPCommunityFixes.QoL
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM)),
                 this));
+
+#if BEUR_DEBUG
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState)),
+                this));
+#endif
         }
 
+#if BEUR_DEBUG
         static void EditorLogic_SetBackup_Postfix(EditorLogic __instance)
         {
             if (__instance.ship.parts.Count == 0)
@@ -61,11 +84,14 @@ namespace KSPCommunityFixes.QoL
 
             Debug.Log($"[UNDO/REDO] backup created, undoLevel={__instance.undoLevel}, states={ShipConstruction.backups.Count}");
         }
+#endif
 
+#if BEUR_DEBUG
         static void EditorLogic_RestoreState_Postfix(EditorLogic __instance, int offset)
         {
             Debug.Log($"[UNDO/REDO] state {offset} restored, undoLevel={__instance.undoLevel}, states={ShipConstruction.backups.Count}");
         }
+#endif
 
         static void EditorLogic_RestoreState_Prefix(EditorLogic __instance, int offset)
         {
@@ -74,11 +100,18 @@ namespace KSPCommunityFixes.QoL
 
             __instance.SetBackup();
 
+#if BEUR_DEBUG
             Debug.Log($"[UNDO/REDO] created backup for redo");
+#endif
         }
 
         static void EditorLogic_SetupFSM_Postfix(EditorLogic __instance)
         {
+
+#if BEUR_REPLACE_CALLBACKS
+            __instance.on_partPicked.OnEvent = OnPartPickedReplacement;
+            __instance.on_partAttached.OnEvent = OnPartAttachedReplacement;
+#else
             if (editorPatched)
                 return;
 
@@ -89,37 +122,137 @@ namespace KSPCommunityFixes.QoL
 
             KSPCommunityFixes.Harmony.Patch(m_onPartPicked, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartPickedTranspiler))));
             KSPCommunityFixes.Harmony.Patch(m_onPartAttached, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartAttachedTranspiler))));
+#endif
         }
+
+        /// <summary>
+        /// Reimplementation of the EditorLogic.RefreshCrewAssignment() method using the live ship state
+        /// instead of the last serialized ship state found at ShipConstruction.ShipManifest
+        /// As a bonus, this is significantly faster...
+        /// </summary>
+        static void RefreshCrewAssignmentFromLiveState()
+        {
+            if (CrewAssignmentDialog.Instance == null)
+                return;
+
+            VesselCrewManifest oldVesselCrewManifest = ShipConstruction.ShipManifest;
+            VesselCrewManifest newVesselCrewManifest = new VesselCrewManifest();
+
+            List<Part> shipParts = EditorLogic.fetch.ship.parts;
+            int shipPartsCount = shipParts.Count;
+            for (int i = 0; i < shipPartsCount; i++)
+            {
+                Part part = shipParts[i];
+
+                if (part.partInfo == null)
+                    continue;
+
+                PartCrewManifest partCrewManifest = new PartCrewManifest(newVesselCrewManifest);
+                partCrewManifest.partInfo = part.partInfo;
+                partCrewManifest.partID = part.craftID;
+
+                int crewCapacity = partCrewManifest.partInfo.partPrefab.CrewCapacity;
+                partCrewManifest.partCrew = new string[crewCapacity];
+                for (int j = 0; j < crewCapacity; j++)
+                    partCrewManifest.partCrew[j] = string.Empty;
+
+                newVesselCrewManifest.SetPartManifest(partCrewManifest.PartID, partCrewManifest);
+            }
+
+            List<Part> allParts = Part.allParts;
+            HashSet<uint> allPartIdsHashSet = null;
+            int count = oldVesselCrewManifest.partManifests.Count;
+            for (int i = 0; i < count; i++)
+            {
+                PartCrewManifest oldPartCrewManifest = oldVesselCrewManifest.partManifests[i];
+
+                if (oldPartCrewManifest.partCrew.Length == 0)
+                    continue;
+
+                if (allPartIdsHashSet == null)
+                {
+                    allPartIdsHashSet = new HashSet<uint>(allParts.Count);
+                    for (int j = allParts.Count; j-- > 0;)
+                        allPartIdsHashSet.Add(allParts[j].craftID);
+                }
+
+                if (allPartIdsHashSet.Contains(oldPartCrewManifest.partID))
+                    newVesselCrewManifest.UpdatePartManifest(oldPartCrewManifest.partID, oldPartCrewManifest);
+            }
+
+            ShipConstruction.ShipManifest = newVesselCrewManifest;
+            CrewAssignmentDialog.Instance.RefreshCrewLists(newVesselCrewManifest, setAsDefault: false, updateUI: false);
+            GameEvents.onEditorShipCrewModified.Fire(newVesselCrewManifest);
+        }
+
+        static void EditorLogicSetBackupNoShipModifiedEvent()
+        {
+            EditorLogic el = EditorLogic.fetch;
+
+            if (el.ship.parts.Count == 0)
+                return;
+
+            if (el.undoLevel < ShipConstruction.backups.Count)
+            {
+                Debug.Log($"Clearing undo states from #{el.undoLevel} forward ({ShipConstruction.backups.Count - el.undoLevel} entries)");
+                ShipConstruction.backups.RemoveRange(el.undoLevel, ShipConstruction.backups.Count - el.undoLevel);
+            }
+
+            el.ship.shipName = el.shipNameField.text;
+            el.ship.shipDescription = el.shipDescriptionField.text;
+            el.ship.missionFlag = EditorLogic.FlagURL;
+
+            if (ShipConstruction.backups.Count >= el.undoLimit)
+                ShipConstruction.ShiftAndCreateBackup(el.ship);
+            else
+                ShipConstruction.CreateBackup(el.ship);
+
+            el.undoLevel = ShipConstruction.backups.Count;
+            GameEvents.onEditorSetBackup.Fire(el.ship);
+        }
+
+        static void EditorShipModifiedGameEvent(EditorLogic editorLogic)
+        {
+            GameEvents.onEditorShipModified.Fire(editorLogic.ship);
+        }
+
+#if BEUR_DEBUG
+        static void OnAttachedMessage() => Debug.Log("[UNDO/REDO] State captured before attaching");
+        static void OnPickedMessage() => Debug.Log("[UNDO/REDO] State captured before detaching");
+#endif
 
         static IEnumerable<CodeInstruction> OnPartPickedTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGenerator)
         {
-            MethodInfo m_EditorLogic_SetBackup = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup));
-            MethodInfo m_ShipConstruct_Contains = AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.Contains), new[] { typeof(Part) });
-
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-
-            for (int i = 0; i < code.Count; i++)
+            foreach (CodeInstruction il in instructions)
             {
-                CodeInstruction il = code[i];
                 if (il.opcode == OpCodes.Callvirt && ReferenceEquals(il.operand, m_ShipConstruct_Contains))
                 {
                     yield return il;
                     Label label = ilGenerator.DefineLabel();
                     yield return new CodeInstruction(OpCodes.Dup); 
                     yield return new CodeInstruction(OpCodes.Brfalse_S, label);
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Call, m_EditorLogic_SetBackup);
+                    yield return new CodeInstruction(OpCodes.Call, m_EditorLogicSetBackupNoShipModifiedEvent);
+#if BEUR_DEBUG
                     yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPickedMessage)));
+#endif
                     CodeInstruction next = new CodeInstruction(OpCodes.Nop);
                     next.labels.Add(label);
                     yield return next;
                     continue;
                 }
 
+                if (il.opcode == OpCodes.Call && ReferenceEquals(il.operand, m_EditorLogic_RefreshCrewAssignment))
+                {
+                    yield return new CodeInstruction(OpCodes.Pop);
+                    yield return new CodeInstruction(OpCodes.Pop);
+                    yield return new CodeInstruction(OpCodes.Pop);
+                    yield return new CodeInstruction(OpCodes.Call, m_RefreshCrewAssignmentFromLiveState);
+                    continue;
+                }
+
                 if (il.opcode == OpCodes.Call && ReferenceEquals(il.operand, m_EditorLogic_SetBackup))
                 {
-                    il.opcode = OpCodes.Pop;
-                    il.operand = null;
+                    il.operand = m_EditorShipModifiedGameEvent;
                 }
 
                 yield return il;
@@ -128,9 +261,6 @@ namespace KSPCommunityFixes.QoL
 
         static IEnumerable<CodeInstruction> OnPartAttachedTranspiler(IEnumerable<CodeInstruction> instructions)
         {
-            MethodInfo m_EditorLogic_SetBackup = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup));
-            MethodInfo m_EditorLogic_attachPart = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.attachPart));
-
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
             for (int i = 0; i < code.Count; i++)
@@ -143,11 +273,12 @@ namespace KSPCommunityFixes.QoL
                         if (code[j].opcode == OpCodes.Ldarg_0 && code[j + 1].opcode == OpCodes.Ldarg_0)
                         {
                             CodeInstruction callStart = code[j];
-                            CodeInstruction newCallStart = new CodeInstruction(OpCodes.Ldarg_0);
+                            CodeInstruction newCallStart = new CodeInstruction(OpCodes.Call, m_EditorLogicSetBackupNoShipModifiedEvent);
                             int adds = 0;
                             code.Insert(j + adds++, newCallStart);
-                            code.Insert(j + adds++, new CodeInstruction(OpCodes.Call, m_EditorLogic_SetBackup));
+#if BEUR_DEBUG
                             code.Insert(j + adds++, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnAttachedMessage))));
+#endif
                             i += adds;
 
                             if (callStart.labels.Count > 0)
@@ -155,8 +286,6 @@ namespace KSPCommunityFixes.QoL
                                 newCallStart.labels.AddRange(callStart.labels);
                                 callStart.labels.Clear();
                             }
-
-                            
                             break;
                         }
                     }
@@ -164,15 +293,145 @@ namespace KSPCommunityFixes.QoL
 
                 if (il.opcode == OpCodes.Call && ReferenceEquals(il.operand, m_EditorLogic_SetBackup))
                 {
-                    il.opcode = OpCodes.Pop;
-                    il.operand = null;
+                    il.operand = m_EditorShipModifiedGameEvent;
+                }
+
+                if (il.opcode == OpCodes.Call && ReferenceEquals(il.operand, m_EditorLogic_RefreshCrewAssignment))
+                {
+                    code.Insert(i, new CodeInstruction(OpCodes.Pop));
+                    code.Insert(i, new CodeInstruction(OpCodes.Pop));
+                    code.Insert(i, new CodeInstruction(OpCodes.Pop));
+                    il.operand = m_RefreshCrewAssignmentFromLiveState;
+                    i += 3;
+                    continue;
                 }
             }
 
             return code;
         }
 
-        static void OnAttachedMessage() => Debug.Log("[UNDO/REDO] State captured before attaching");
-        static void OnPickedMessage() => Debug.Log("[UNDO/REDO] State captured before detaching");
+#if BEUR_REPLACE_CALLBACKS
+        static void OnPartPickedReplacement()
+        {
+            EditorLogic el = EditorLogic.fetch;
+
+            if (el.selectedPart != el.selectedPart.localRoot)
+            {
+                bool pickedPartIsOnShip = el.ship.Contains(el.selectedPart);
+
+                if (pickedPartIsOnShip) // added
+                {
+                    EditorLogicSetBackupNoShipModifiedEvent(); // added
+#if BEUR_DEBUG
+                    OnPickedMessage(); // added
+#endif
+                }
+
+                el.detachPart(el.selectedPart);
+                el.deleteSymmetryParts();
+
+                if (pickedPartIsOnShip)
+                {
+                    GameEvents.onEditorPartPicked.Fire(el.selectedPart);
+                    //el.SetBackup(); // removed
+                    EditorShipModifiedGameEvent(el); // added
+                    if (el.selectedPart.CrewCapacity > 0)
+                    {
+                        //el.RefreshCrewAssignment(ShipConstruction.ShipConfig, el.GetPartExistsFilter()); // removed
+                        RefreshCrewAssignmentFromLiveState(); // added
+                    }
+                    GameEvents.onEditorPartEvent.Fire(ConstructionEventType.PartDetached, el.selectedPart);
+                    return;
+                }
+            }
+            else
+            {
+                el.SetBackup();
+            }
+            if (el.selectedPart.frozen)
+            {
+                el.selectedPart.unfreeze();
+            }
+            el.isCurrentPartFlag = el.selectedPart != null && el.selectedPart.GetComponent<FlagDecalBackground>() != null;
+            if (el.selectedPart != null && el.selectedPart.FindModuleImplementing<ModuleCargoPart>() != null && UIPartActionControllerInventory.Instance != null)
+            {
+                UIPartActionControllerInventory.Instance.CurrentCargoPart = el.selectedPart;
+            }
+            GameEvents.onEditorPartEvent.Fire(ConstructionEventType.PartPicked, el.selectedPart);
+        }
+
+        static void OnPartAttachedReplacement()
+        {
+            EditorLogic el = EditorLogic.fetch;
+
+            el.isCurrentPartFlag = false;
+            if (el.selectedPart.symmetryCounterparts.Count > 0)
+            {
+                el.RestoreSymmetryState();
+                bool flag = true;
+                int num3 = el.cPartAttachments.Length;
+                while (num3-- > 0)
+                {
+                    if (!el.cPartAttachments[num3].possible)
+                    {
+                        flag = false;
+                        break;
+                    }
+                }
+                if (!flag)
+                {
+                    el.audioSource.PlayOneShot(el.cannotPlaceClip);
+                    el.on_partAttached.GoToStateOnEvent = el.st_place;
+                    if (UIPartActionControllerInventory.Instance != null)
+                    {
+                        UIPartActionControllerInventory.Instance.DestroyHeldPartAsIcon();
+                    }
+                    return;
+                }
+                EditorLogicSetBackupNoShipModifiedEvent(); // added
+#if BEUR_DEBUG
+                OnAttachedMessage();  // added
+#endif
+                el.attachPart(el.selectedPart, el.attachment);
+                el.attachSymParts(el.cPartAttachments);
+            }
+            else
+            {
+                EditorLogicSetBackupNoShipModifiedEvent(); // added
+#if BEUR_DEBUG
+                OnAttachedMessage();  // added
+#endif
+                el.attachPart(el.selectedPart, el.attachment);
+                if (el.symmetryModeBeforeNodeAttachment >= 0)
+                {
+                    el.RestoreSymmetryModeBeforeNodeAttachment();
+                }
+            }
+
+            //el.SetBackup(); // removed
+            EditorShipModifiedGameEvent(el); // added
+
+            if (el.selectedPart.CrewCapacity > 0)
+            {
+                //el.RefreshCrewAssignment(ShipConstruction.ShipConfig, el.GetPartExistsFilter()); // removed
+                RefreshCrewAssignmentFromLiveState(); // added
+            }
+
+            ModuleCargoPart moduleCargoPart = el.selectedPart.FindModuleImplementing<ModuleCargoPart>();
+            if (UIPartActionControllerInventory.Instance != null)
+            {
+                if (moduleCargoPart != null && !moduleCargoPart.IsDeployedSciencePart())
+                {
+                    UIPartActionControllerInventory.Instance.CurrentCargoPart = null;
+                    UIPartActionControllerInventory.Instance.CurrentInventory = null;
+                }
+                UIPartActionControllerInventory.Instance.DestroyHeldPartAsIcon();
+            }
+            el.audioSource.PlayOneShot(el.attachClip);
+            el.on_partAttached.GoToStateOnEvent = el.st_idle;
+            el.CenterDragPlane(el.selectedPart.transform.position + el.selPartGrabOffset);
+            GameEvents.onEditorPartEvent.Fire(ConstructionEventType.PartAttached, el.selectedPart);
+        }
+#endif
     }
 }
