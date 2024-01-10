@@ -100,6 +100,7 @@ namespace KSPCommunityFixes
                 }
                 Part p = GameObject.Instantiate(ap.partPrefab);
                 p.gameObject.transform.SetParent(_substitutePartRoot.transform, true);
+                p.name = ap.name;
                 p.partInfo = ap;
                 try
                 {
