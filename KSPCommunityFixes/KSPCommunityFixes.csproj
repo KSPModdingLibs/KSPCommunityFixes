@@ -218,13 +218,13 @@
     <AVCFilename>KSPCommunityFixes.version</AVCFilename>
   </PropertyGroup>
   <!--MSBuild targets-->
-  <Target Name="UpdateVersion" BeforeTargets="CoreBuild" Condition="'$(Configuration)' == 'Release'">
+  <Target Name="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
     <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
       <Output PropertyName="AVCFullVersion" TaskParameter="FullVersion" />
     </GetAVCVersion>
     <UpdateAssemblyVersion Path="$(MSBuildProjectDirectory)\Properties\AssemblyInfo.cs" Version="$(AVCFullVersion)" />
   </Target>
-  <Target Name="Deploy" AfterTargets="CoreCompile">
+  <Target Name="AfterBuild">
     <Error Condition="'$(ReferencePath)' == '' OR !Exists('$(ReferencePath)')" Text="ReferencePath=$(ReferencePath) os empty or isn't a valid path" />
     <CallTarget Targets="CopyToKSP" />
     <CallTarget Targets="CopyBinariesToRepo" Condition="'$(Configuration)' == 'Release' AND '$(CopyReleaseBinariesToRepo)' == 'true'" />
