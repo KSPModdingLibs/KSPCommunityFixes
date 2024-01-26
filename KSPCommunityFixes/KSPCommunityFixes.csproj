@@ -104,6 +104,7 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\PropellantFlowDescription.cs" />
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
@@ -217,13 +218,13 @@
     <AVCFilename>KSPCommunityFixes.version</AVCFilename>
   </PropertyGroup>
   <!--MSBuild targets-->
-  <Target Name="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
+  <Target Name="UpdateVersion" BeforeTargets="CoreBuild" Condition="'$(Configuration)' == 'Release'">
     <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
       <Output PropertyName="AVCFullVersion" TaskParameter="FullVersion" />
     </GetAVCVersion>
     <UpdateAssemblyVersion Path="$(MSBuildProjectDirectory)\Properties\AssemblyInfo.cs" Version="$(AVCFullVersion)" />
   </Target>
-  <Target Name="AfterBuild">
+  <Target Name="Deploy" AfterTargets="CoreCompile">
     <Error Condition="'$(ReferencePath)' == '' OR !Exists('$(ReferencePath)')" Text="ReferencePath=$(ReferencePath) os empty or isn't a valid path" />
     <CallTarget Targets="CopyToKSP" />
     <CallTarget Targets="CopyBinariesToRepo" Condition="'$(Configuration)' == 'Release' AND '$(CopyReleaseBinariesToRepo)' == 'true'" />

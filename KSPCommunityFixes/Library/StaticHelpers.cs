@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Reflection;
+using HarmonyLib;
 using KSP.UI.TooltipTypes;
 using UnityEngine;
 
@@ -50,6 +52,31 @@ namespace KSPCommunityFixes
             TooltipController_Text tooltip = go.AddComponent<TooltipController_Text>();
             tooltip.prefab = _tooltipTextPrefab ??= AssetBase.GetPrefab<Tooltip_Text>("Tooltip_Text");
             return tooltip;
+        }
+
+        public static bool EditPartModuleKSPFieldAttributes(Type partModuleType, string fieldName, Action<KSPField> editAction)
+        {
+            BaseFieldList<BaseField, KSPField>.ReflectedData reflectedData;
+            try
+            {
+                MethodInfo BaseFieldList_GetReflectedAttributes = AccessTools.Method(typeof(BaseFieldList), "GetReflectedAttributes");
+                reflectedData = (BaseFieldList<BaseField, KSPField>.ReflectedData)BaseFieldList_GetReflectedAttributes.Invoke(null, new object[] { partModuleType, false });
+            }
+            catch
+            {
+                return false;
+            }
+
+            for (int i = 0; i < reflectedData.fields.Count; i++)
+            {
+                if (reflectedData.fields[i].Name == fieldName)
+                {
+                    editAction.Invoke(reflectedData.fieldAttributes[i]);
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
