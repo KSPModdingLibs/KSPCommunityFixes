@@ -104,6 +104,7 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\EVAConstructionMass.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\PropellantFlowDescription.cs" />
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
