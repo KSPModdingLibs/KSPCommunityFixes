@@ -10,7 +10,7 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        private static Dictionary<int, Dictionary<string, bool>> collapseState;
+        private static Dictionary<string, bool> collapseState;
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
@@ -29,14 +29,7 @@ namespace KSPCommunityFixes
                 AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Expand)),
                 this));
 
-            collapseState = new Dictionary<int, Dictionary<string, bool>>();
-
-            GameEvents.onGameSceneSwitchRequested.Add(OnSceneSwitch);
-        }
-
-        private void OnSceneSwitch(GameEvents.FromToAction<GameScenes, GameScenes> data)
-        {
-            collapseState.Clear();
+            collapseState = new Dictionary<string, bool>();
         }
 
         static IEnumerable<CodeInstruction> UIPartActionGroup_Initialize_Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator il)
@@ -168,8 +161,7 @@ namespace KSPCommunityFixes
 
         static bool IsGroupCollapsed(UIPartActionWindow pawWindow, string groupName, out bool collapsed)
         {
-            int id = pawWindow.part?.GetInstanceID() ?? 0;
-            if (id != 0 && collapseState.TryGetValue(id, out Dictionary<string, bool> groups) && groups.TryGetValue(groupName, out collapsed))
+            if (collapseState.TryGetValue(groupName, out collapsed))
                 return true;
 
             collapsed = false;
@@ -181,16 +173,7 @@ namespace KSPCommunityFixes
             if (string.IsNullOrEmpty(___groupName))
                 return;
 
-            int id = __instance.Window?.part?.GetInstanceID() ?? 0;
-            if (id == 0)
-                return;
-
-            if (!collapseState.TryGetValue(id, out Dictionary<string, bool> partGroups))
-            {
-                partGroups = new Dictionary<string, bool>();
-                collapseState[id] = partGroups;
-            }
-            partGroups[___groupName] = true;
+            collapseState[___groupName] = true;
         }
 
         static void UIPartActionGroup_Expand_Postfix(UIPartActionGroup __instance, string ___groupName)
@@ -198,16 +181,7 @@ namespace KSPCommunityFixes
             if (string.IsNullOrEmpty(___groupName))
                 return;
 
-            int id = __instance.Window?.part?.GetInstanceID() ?? 0;
-            if (id == 0)
-                return;
-
-            if (!collapseState.TryGetValue(id, out Dictionary<string, bool> partGroups))
-            {
-                partGroups = new Dictionary<string, bool>();
-                collapseState[id] = partGroups;
-            }
-            partGroups[___groupName] = false;
+            collapseState[___groupName] = false;
         }
     }
 }
