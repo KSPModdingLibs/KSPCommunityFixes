@@ -120,6 +120,7 @@
     <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
     <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
     <Compile Include="BugFixes\StrategyDuration.cs" />
+    <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
