@@ -126,8 +126,8 @@ namespace KSPCommunityFixes.BugFixes
         {
             string moduleTitle = KSPUtil.PrintModuleName(nameof(ModuleCargoPart));
 
-			// find the widget corresponding to ModuleCargoPart
-			foreach (var moduleInfo in __instance.partInfo.moduleInfos)
+            // find the widget corresponding to ModuleCargoPart
+            foreach (var moduleInfo in __instance.partInfo.moduleInfos)
             {
                 if (moduleInfo.moduleName == moduleTitle)
                 {

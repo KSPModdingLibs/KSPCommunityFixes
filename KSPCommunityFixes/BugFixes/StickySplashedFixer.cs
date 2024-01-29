@@ -38,7 +38,7 @@ namespace KSPCommunityFixes.BugFixes
 
         static bool Vessel_updateSituation_Prefix(Vessel __instance)
         {
-			bool evaOnLadderOnOtherVessel;
+            bool evaOnLadderOnOtherVessel;
             if (__instance.EVALadderVessel != __instance)
             {
                 __instance.situation = __instance.evaController.LadderPart.vessel.situation;
@@ -95,7 +95,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 __instance.wasLadder = evaOnLadderOnOtherVessel;
             }
-            
+
             return false;
         }
 
