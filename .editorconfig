@@ -1,4 +1,9 @@
-﻿[*.cs]
+﻿root = true
+
+[*.cs]
+
+indent_style = space
+indent_size = 4
 
 # IDE0051: Remove unused private members
 dotnet_diagnostic.IDE0051.severity = none
