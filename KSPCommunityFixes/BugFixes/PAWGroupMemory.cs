@@ -30,6 +30,19 @@ namespace KSPCommunityFixes
                 this));
 
             collapseState = new Dictionary<string, bool>();
+
+            GameEvents.onPartActionUIShown.Add(OnPartActionUIShown);
+        }
+
+        private void OnPartActionUIShown(UIPartActionWindow paw, Part part)
+        {
+            foreach (var groupPair in paw.parameterGroups.dict)
+            {
+                if (collapseState.TryGetValue(groupPair.Key, out bool state) && state != groupPair.Value.isContentCollapsed)
+                {
+                    groupPair.Value.CollapseGroupToggle();
+                }
+            }
         }
 
         static IEnumerable<CodeInstruction> UIPartActionGroup_Initialize_Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator il)
