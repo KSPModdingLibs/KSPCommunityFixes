@@ -81,6 +81,11 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**PropellantFlowDescription**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/165) [KSP 1.8.0 - KSP 1.12.5]<br/>Fix printing the resource's base flow mode instead of the (potentially overridden) propellant's flow mode when printing propellants in an engine's info panel in the Part Tooltip.
 - [**ModuleAnimateGenericCrewModSpawnIVA**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/169) [KSP 1.8.0 - 1.12.5]<br/>Fix IVA & crew portrait not spawning/despawning when ModuleAnimateGeneric is used to change the part crew capacity. Notably affect the stock inflatable airlock.
 - [**TimeWarpOrbitShift**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/170) [KSP 1.8.0 - 1.12.5]<br/>Fix active vessel orbit moving randomly when engaging timewarp while under heavy CPU load.
+- [**InventoryPartMass**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/182) [KSP 1.12.0 - 1.12.5]<br/>Fixes bugs where parts stored in inventories would not have the correct mass or volume when their resource levels were modified or variants changed.
+- [**EVAConstructionMass**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/185) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where picking up a part in EVA construction would set its mass to the wrong value when mass modifiers are involved (e.g. part variants).
+- [**RespawnDeadKerbals**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/104) [KSP 1.12.3 - 1.12.5]<br/>When respawning is enabled, starts the respawn timer for any dead kerbals (changing their state to "missing") when loading a save.  This addresses stock bugs where kerbals could be set to dead even when respawning is enabled.
+- [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
+- [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) [KSP 1.12.3 - 1.12.5]<br/>Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
 
 #### Quality of Life tweaks 
 
@@ -99,6 +104,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **DisableNewGameIntro** [KSP 1.8.0 - 1.12.5]<br/>Disable the "intro" popups appearing in the space center, VAB/SPH and tracking station upon creating a new career game. Disabled by default.
 - [**ToolbarShowHide**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) [KSP 1.8.0 - 1.12.5]<br/>Add a button for hiding/showing the stock toolbar. Also allow accessing the toolbar while in the space center facilities windows (mission control, admin building, R&D...).
 - **ResourceLockActions** [KSP 1.8.0 - 1.12.5]<br/>Add part actions for locking/unlocking resources flow state.
+- [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) [KSP 1.12.3 - 1.12.5]<br/>Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.
 
 #### Performance tweaks 
 
@@ -121,6 +127,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**DisableHiddenPortraits**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/84) [KSP 1.8.0 - 1.12.5]<br/>Prevent non-visible crew portraits from being rendered after a switch back from the map view (and other cases), causing a significant perf hit when there are many kerbals in the vessel.
 - **IMGUIOptimization** [KSP 1.8.0 - 1.12.5]<br/>Eliminate structural GC allocations and reduce performance overhead of OnGUI() methods. Can provide significant performance gains when having many mods using IMGUI heavily.
 - [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) [KSP 1.11.0 - 1.12.5]<br/>3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.
+- [**LowerMinPhysicsDTPerFrame**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/175) [KSP 1.12.3 - 1.12.5]<br/>Allow a min value of 0.02 instead of 0.03 for the "Max Physics Delta-Time Per Frame" main menu setting.  This allows for higher and smoother framerate at the expense of the game lagging behind real time.
+
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -179,6 +187,17 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.34.0
+- New KSP QoL/performance patch : [**LowerMinPhysicsDTPerFrame**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/175) : Allow a min value of 0.02 instead of 0.03 for the "Max Physics Delta-Time Per Frame" main menu setting. This allows for higher and smoother framerate at the expense of the game lagging behind real time.  This was already possible by manually editing the `settings.cfg` file, but changes would revert when going into the settings screen.
+- New KSP QoL patch : [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) : Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.
+- New KSP bugfix: [**InventoryPartMass**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/182) : Fixes bugs where parts stored in inventories would not have the correct mass or volume when their resource levels were modified or variants changed.
+- New KSP bugfix: [**EVAConstructionMass**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/185) : Fixes a bug where picking up a part in EVA construction would set its mass to the wrong value when mass modifiers are involved (e.g. part variants).
+- New KSP bugfix: [**RespawnDeadKerbals**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/104) : When respawning is enabled, starts the respawn timer for any dead kerbals (changing their state to "missing") when loading a save.  This addresses stock bugs where kerbals could be set to dead even when respawning is enabled.
+- New KSP bugfix: [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) : Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
+- New KSP bugfix: [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) : Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
+- Changed patch behavior: PAWGroupMemory now tracks group state globally instead of per-window.
+- Added zh-cn localization for ManufacturerFixes.cfg (thanks @zhangyuesai)
 
 ##### 1.33.0
 - New KSP performance patch : [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) : 3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.
