@@ -104,7 +104,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **DisableNewGameIntro** [KSP 1.8.0 - 1.12.5]<br/>Disable the "intro" popups appearing in the space center, VAB/SPH and tracking station upon creating a new career game. Disabled by default.
 - [**ToolbarShowHide**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/53) [KSP 1.8.0 - 1.12.5]<br/>Add a button for hiding/showing the stock toolbar. Also allow accessing the toolbar while in the space center facilities windows (mission control, admin building, R&D...).
 - **ResourceLockActions** [KSP 1.8.0 - 1.12.5]<br/>Add part actions for locking/unlocking resources flow state.
-- [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) [KSP 1.12.3 - 1.12.5]<br/>Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.
+- [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) [KSP 1.12.3 - 1.12.5]<br/>Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.  NOTE: this patch is disabled when TweakScale/L is installed.
 
 #### Performance tweaks 
 
@@ -187,6 +187,9 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### 1.34.1
+- Disable BetterEditorUndoRedo when TweakScale/L is installed due to introducing a bug with part attachments in the editor.
 
 ##### 1.34.0
 - New KSP QoL/performance patch : [**LowerMinPhysicsDTPerFrame**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/175) : Allow a min value of 0.02 instead of 0.03 for the "Max Physics Delta-Time Per Frame" main menu setting. This allows for higher and smoother framerate at the expense of the game lagging behind real time.  This was already possible by manually editing the `settings.cfg` file, but changes would revert when going into the settings screen.
