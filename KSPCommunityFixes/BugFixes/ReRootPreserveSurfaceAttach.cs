@@ -23,18 +23,37 @@ namespace KSPCommunityFixes.BugFixes
                 this));
         }
 
-        // skip the portion of that method that alter surface nodes position/orientation on re-rooting, 
-        // by returning after the recursive SetHierarchyRoot() call.
+        // skip the portion of that method that alter surface nodes position/orientation on re-rooting
+        // (ReverseSrfNodeDirection and ChangeSrfNodePosition) but make sure to keep attachedPart updated
         private static IEnumerable<CodeInstruction> Part_SetHierarchyRoot_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            MethodInfo m_Part_SetHierarchyRoot = AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot));
+            MethodInfo m_AttachNode_ReverseSrfNodeDirection = AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ReverseSrfNodeDirection));
+            MethodInfo m_AttachNode_ChangeSrfNodePosition = AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ChangeSrfNodePosition));
+            MethodInfo m_AttachNode_SetAttachedPart = AccessTools.Method(typeof(ReRootPreserveSurfaceAttach), nameof(AttachNode_SetAttachedPart));
 
             foreach (CodeInstruction instruction in instructions)
             {
-                yield return instruction;
-                if (instruction.opcode == OpCodes.Callvirt && ReferenceEquals(instruction.operand, m_Part_SetHierarchyRoot))
-                    yield return new CodeInstruction(OpCodes.Ret);
+                if (instruction.Calls(m_AttachNode_ReverseSrfNodeDirection))
+                {
+                    // replace the call to ReverseSrfNodeDirection with a call to our own method
+                    // which only sets the attachedPart
+                    yield return new CodeInstruction(OpCodes.Call, m_AttachNode_SetAttachedPart);
+                }
+                else if (instruction.Calls(m_AttachNode_ChangeSrfNodePosition))
+                {
+                    // remove the call to ChangeSrfNodePosition (need to pop the `this` pointer from the stack)
+                    yield return new CodeInstruction(OpCodes.Pop);
+                }
+                else
+                {
+                    yield return instruction;
+                }
             }
+        }
+
+        private static void AttachNode_SetAttachedPart(AttachNode thisNode, AttachNode parentNode)
+        {
+            thisNode.attachedPart = parentNode.owner;
         }
     }
 
