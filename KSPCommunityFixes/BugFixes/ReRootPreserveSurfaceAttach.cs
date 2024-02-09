@@ -18,43 +18,31 @@ namespace KSPCommunityFixes.BugFixes
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot)),
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ReverseSrfNodeDirection)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ChangeSrfNodePosition)),
                 this));
         }
 
-        // skip the portion of that method that alter surface nodes position/orientation on re-rooting
-        // (ReverseSrfNodeDirection and ChangeSrfNodePosition) but make sure to keep attachedPart updated
-        private static IEnumerable<CodeInstruction> Part_SetHierarchyRoot_Transpiler(IEnumerable<CodeInstruction> instructions)
+        // this function gets called on the old parent node when a surface attachment is being reversed during re-root
+        // the old parent now needs to become surface-attached to the new parent, but the position of the surface attach node should not change in worldspace
+        // the stock code fixes the position but not the orientation of the node.
+        private static void AttachNode_ReverseSrfNodeDirection_Postfix(AttachNode __instance, AttachNode fromNode)
         {
-            MethodInfo m_AttachNode_ReverseSrfNodeDirection = AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ReverseSrfNodeDirection));
-            MethodInfo m_AttachNode_ChangeSrfNodePosition = AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ChangeSrfNodePosition));
-            MethodInfo m_AttachNode_SetAttachedPart = AccessTools.Method(typeof(ReRootPreserveSurfaceAttach), nameof(AttachNode_SetAttachedPart));
-
-            foreach (CodeInstruction instruction in instructions)
-            {
-                if (instruction.Calls(m_AttachNode_ReverseSrfNodeDirection))
-                {
-                    // replace the call to ReverseSrfNodeDirection with a call to our own method
-                    // which only sets the attachedPart
-                    yield return new CodeInstruction(OpCodes.Call, m_AttachNode_SetAttachedPart);
-                }
-                else if (instruction.Calls(m_AttachNode_ChangeSrfNodePosition))
-                {
-                    // remove the call to ChangeSrfNodePosition (need to pop the `this` pointer from the stack)
-                    yield return new CodeInstruction(OpCodes.Pop);
-                }
-                else
-                {
-                    yield return instruction;
-                }
-            }
+            Vector3 oldAttachNodeWorldOrientation = fromNode.owner.transform.TransformDirection(fromNode.orientation);
+            __instance.orientation = -__instance.owner.transform.InverseTransformDirection(oldAttachNodeWorldOrientation);
         }
 
-        private static void AttachNode_SetAttachedPart(AttachNode thisNode, AttachNode parentNode)
+        private static bool AttachNode_ChangeSrfNodePosition_Prefix()
         {
-            thisNode.attachedPart = parentNode.owner;
+            return false;
         }
+
+        
     }
 
 #if REROOT_DEBUG_MODULE
