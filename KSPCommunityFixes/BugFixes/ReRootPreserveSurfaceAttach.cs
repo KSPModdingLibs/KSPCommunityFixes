@@ -6,6 +6,8 @@ using HarmonyLib;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+using UnityEngine.UIElements;
+using UnityEngine;
 
 #if REROOT_DEBUG_MODULE
 using UnityEngine;
@@ -18,23 +20,47 @@ namespace KSPCommunityFixes.BugFixes
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot)),
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ReverseSrfNodeDirection)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(AttachNode), nameof(AttachNode.ChangeSrfNodePosition)),
                 this));
         }
 
-        // skip the portion of that method that alter surface nodes position/orientation on re-rooting, 
-        // by returning after the recursive SetHierarchyRoot() call.
-        private static IEnumerable<CodeInstruction> Part_SetHierarchyRoot_Transpiler(IEnumerable<CodeInstruction> instructions)
+        // In stock, this function is called after reversing a surface attachment during a re-root operation.
+        // it tries to alter a part's surface attachment so that it mirrors the surface attach node of its parent.
+        // But that's not a great idea, because a lot of things depend on the surface attach node never changing.
+        // For example, if the user then picks the part back up, it won't attach the same way to anything else
+        // To Fix this, instead of using the child's actual srfAttachNode, we create a new surface attach node and
+        // just stick it in the regular AttachNode list.
+        static bool AttachNode_ReverseSrfNodeDirection_Prefix(AttachNode __instance, AttachNode fromNode)
         {
-            MethodInfo m_Part_SetHierarchyRoot = AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot));
+            // note that instead of cloning the child's srfAttachNode and using its properties, we use the fromNode
+            // because we want to mirror the previous state as much as possible - this node WAS the other part's srfAttachNode
+            AttachNode newSrfAttachNode = AttachNode.Clone(fromNode);
+            newSrfAttachNode.owner = __instance.owner;
+            newSrfAttachNode.attachedPart = fromNode.owner;
+            newSrfAttachNode.id = "KSPCF-reroot-srfAttachNode";
+            Vector3 positionWorld = fromNode.owner.transform.TransformPoint(fromNode.position);
+            Vector3 orientationWorld = fromNode.owner.transform.TransformDirection(fromNode.orientation);
+            newSrfAttachNode.position = newSrfAttachNode.originalPosition = newSrfAttachNode.owner.transform.InverseTransformPoint(positionWorld);
+            newSrfAttachNode.orientation = newSrfAttachNode.originalOrientation = -newSrfAttachNode.owner.transform.InverseTransformDirection(orientationWorld);
+            newSrfAttachNode.owner.attachNodes.Add(newSrfAttachNode);
 
-            foreach (CodeInstruction instruction in instructions)
-            {
-                yield return instruction;
-                if (instruction.opcode == OpCodes.Callvirt && ReferenceEquals(instruction.operand, m_Part_SetHierarchyRoot))
-                    yield return new CodeInstruction(OpCodes.Ret);
-            }
+            // now clear the srfAttachNodes from both parts
+            __instance.attachedPart = null;
+            fromNode.attachedPart = null;
+
+            return false;
+        }
+
+        // this function is just horribly broken and no one could call it, ever
+        static bool AttachNode_ChangeSrfNodePosition_Prefix()
+        {
+            return false;
         }
     }
 
