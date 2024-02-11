@@ -112,6 +112,7 @@
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
     <Compile Include="BugFixes\FixGetUnivseralTime.cs" />
     <Compile Include="BugFixes\ModuleAnimateGenericCrewModSpawnIVA.cs" />
+    <Compile Include="BugFixes\ReRootCloneSurfaceAttach.cs" />
     <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
     <Compile Include="BugFixes\RespawnDeadKerbals.cs" />
     <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
