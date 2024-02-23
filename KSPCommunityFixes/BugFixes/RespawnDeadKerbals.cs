@@ -21,9 +21,13 @@ namespace KSPCommunityFixes.BugFixes
 
         static void Game_Constructor_Postfix(Game __instance)
         {
-            if (__instance.Parameters.Difficulty.MissingCrewsRespawn)
+            var difficultySettings = __instance?.Parameters?.Difficulty;
+
+            if (difficultySettings == null) return;
+
+            if (difficultySettings.MissingCrewsRespawn)
             {
-                double respawnUTC = __instance.UniversalTime + __instance.Parameters.Difficulty.RespawnTimer;
+                double respawnUTC = __instance.UniversalTime + difficultySettings.RespawnTimer;
 
                 foreach (var protoCrewMember in __instance.CrewRoster.kerbals.ValuesList)
                 {
