@@ -48,6 +48,8 @@ namespace KSPCommunityFixes.BugFixes
 
         static void OnCrewCapacityChanged(Part part, int newCrewCapacity)
         {
+            if (!HighLogic.LoadedSceneIsFlight) return;
+
             if (newCrewCapacity > 0)
                 part.SpawnIVA();
             else
