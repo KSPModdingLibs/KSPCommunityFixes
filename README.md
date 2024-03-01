@@ -86,6 +86,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**RespawnDeadKerbals**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/104) [KSP 1.12.3 - 1.12.5]<br/>When respawning is enabled, starts the respawn timer for any dead kerbals (changing their state to "missing") when loading a save.  This addresses stock bugs where kerbals could be set to dead even when respawning is enabled.
 - [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
 - [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) [KSP 1.12.3 - 1.12.5]<br/>Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
+- [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5]<br/>Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
 
 #### Quality of Life tweaks 
 
@@ -187,6 +188,10 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### next
+
+- New KSP bugfix : [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) : Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
 
 ##### 1.34.1
 - Disable BetterEditorUndoRedo when TweakScale/L is installed due to introducing a bug with part attachments in the editor.
