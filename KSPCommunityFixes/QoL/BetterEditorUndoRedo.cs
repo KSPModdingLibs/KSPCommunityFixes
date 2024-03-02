@@ -27,6 +27,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
 using EditorGizmos;
+using KSP.UI.Screens;
 
 namespace KSPCommunityFixes.QoL
 {
@@ -66,8 +67,7 @@ namespace KSPCommunityFixes.QoL
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM)),
                 this));
 
-            // Create backup before moving a part with the rotate/offset tools, instead of after :
-
+            // Create backup before moving a part with the rotate/offset tools, instead of after
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart)),
@@ -88,19 +88,39 @@ namespace KSPCommunityFixes.QoL
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
                 this, nameof(RemoveSetBackupTranspiler)));
 
-            // nope, doesn't work, because onVariantChanged is called after the field has been set, meaning the craft
-            // will be saved with the new field value. That one won't be easy to fix...
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Transpiler,
-            //    AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
-            //    this));
+            // Create backup before selecting a variant, instead of after
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
+                this, nameof(RemoveSetBackupTranspiler)));
+
+            // Move backup creation at the begining of the methods :
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
-                this));
+                this, nameof(MoveConditionalSetBackupTranspiler)));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}),
+                this, nameof(MoveConditionalSetBackupTranspiler)));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup)),
+                this, nameof(MoveConditionalSetBackupTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup)),
+                this, nameof(MoveConditionalSetBackupTranspiler)));
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(
@@ -209,26 +229,20 @@ namespace KSPCommunityFixes.QoL
             elInstance.SetBackup();
         }
 
+        static void UIPartActionVariantSelector_SelectVariant_Prefix(UIPartActionVariantSelector __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
 
-        //static IEnumerable<CodeInstruction> ModulePartVariants_onVariantChanged_Transpiler(IEnumerable<CodeInstruction> instructions)
-        //{
-        //    FieldInfo f_EditorLogic_fetch = AccessTools.Field(typeof(EditorLogic), nameof(EditorLogic.fetch));
+            EditorLogic elInstance = EditorLogic.fetch;
 
-        //    yield return new CodeInstruction(OpCodes.Ldsfld, f_EditorLogic_fetch);
-        //    yield return new CodeInstruction(OpCodes.Callvirt, m_EditorLogic_SetBackup);
+            if (!elInstance.ship.Contains(__instance.part))
+                return;
 
-        //    foreach (CodeInstruction instruction in instructions)
-        //    {
-        //        if (instruction.Calls(m_EditorLogic_SetBackup))
-        //            instruction.operand = m_Dummy_SetBackup;
+            elInstance.SetBackup();
+        }
 
-        //        yield return instruction;
-        //    }
-        //}
-
-
-        // same transpiler for EditorActionGroups ResetPart, AddActionToGroup and RemoveActionFromGroup methods
-        static IEnumerable<CodeInstruction> Part_RemoveFromSymmetry_Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
+        static IEnumerable<CodeInstruction> MoveConditionalSetBackupTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
         {
             FieldInfo f_HighLogic_LoadedSceneIsEditor = AccessTools.Field(typeof(HighLogic), nameof(HighLogic.LoadedSceneIsEditor));
 
