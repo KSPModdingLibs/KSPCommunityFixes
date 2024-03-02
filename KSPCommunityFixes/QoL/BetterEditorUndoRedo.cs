@@ -14,7 +14,7 @@
 // messy editor code paths.
 
 // enable additional debug logging
-// #define BEUR_DEBUG
+#define BEUR_DEBUG
 
 // use replacement callbacks with modified stock code instead of stock code transpilers
 // #define BEUR_REPLACE_CALLBACKS
@@ -26,6 +26,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
+using EditorGizmos;
 
 namespace KSPCommunityFixes.QoL
 {
@@ -40,6 +41,7 @@ namespace KSPCommunityFixes.QoL
         private static MethodInfo m_EditorLogic_RefreshCrewAssignment;
         private static MethodInfo m_RefreshCrewAssignmentFromLiveState;
         private static MethodInfo m_ShipConstruct_Contains;
+        private static MethodInfo m_Dummy_SetBackup;
 
         protected override Version VersionMin => new Version(1, 12, 3); // too many changes in previous versions, too lazy to check
 
@@ -52,6 +54,7 @@ namespace KSPCommunityFixes.QoL
             m_EditorLogic_RefreshCrewAssignment = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RefreshCrewAssignment));
             m_RefreshCrewAssignmentFromLiveState = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(RefreshCrewAssignmentFromLiveState));
             m_ShipConstruct_Contains = AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.Contains), new[] { typeof(Part) });
+            m_Dummy_SetBackup = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(Empty));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -62,6 +65,42 @@ namespace KSPCommunityFixes.QoL
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM)),
                 this));
+
+            // Create backup before moving a part with the rotate/offset tools, instead of after :
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated)),
+                this, nameof(RemoveSetBackupTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
+                this, nameof(RemoveSetBackupTranspiler)));
+
+            // nope, doesn't work, because onVariantChanged is called after the field has been set, meaning the craft
+            // will be saved with the new field value. That one won't be easy to fix...
+            //patches.Add(new PatchInfo(
+            //    PatchMethodType.Transpiler,
+            //    AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
+            //    this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
+                this));
+
+
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(
@@ -123,6 +162,103 @@ namespace KSPCommunityFixes.QoL
             KSPCommunityFixes.Harmony.Patch(m_onPartPicked, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartPickedTranspiler))));
             KSPCommunityFixes.Harmony.Patch(m_onPartAttached, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartAttachedTranspiler))));
 #endif
+        }
+
+        static void Empty(EditorLogic elInstance) { }
+
+        static IEnumerable<CodeInstruction> RemoveSetBackupTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (instruction.Calls(m_EditorLogic_SetBackup))
+                    instruction.operand = m_Dummy_SetBackup;
+
+                yield return instruction;
+            }
+        }
+
+        static void GizmoOffset_OnHandleMoveStart_Prefix(GizmoOffset __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
+
+            EditorLogic elInstance = EditorLogic.fetch;
+
+            if (elInstance.gizmoOffset.RefNotEquals(__instance))
+                return;
+
+            if (!elInstance.ship.Contains(elInstance.selectedPart))
+                return;
+
+            elInstance.SetBackup();
+        }
+
+        static void GizmoRotate_OnHandleRotateStart_Prefix(GizmoRotate __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
+
+            EditorLogic elInstance = EditorLogic.fetch;
+
+            if (elInstance.gizmoRotate.RefNotEquals(__instance))
+                return;
+
+            if (!elInstance.ship.Contains(elInstance.selectedPart))
+                return;
+
+            elInstance.SetBackup();
+        }
+
+
+        //static IEnumerable<CodeInstruction> ModulePartVariants_onVariantChanged_Transpiler(IEnumerable<CodeInstruction> instructions)
+        //{
+        //    FieldInfo f_EditorLogic_fetch = AccessTools.Field(typeof(EditorLogic), nameof(EditorLogic.fetch));
+
+        //    yield return new CodeInstruction(OpCodes.Ldsfld, f_EditorLogic_fetch);
+        //    yield return new CodeInstruction(OpCodes.Callvirt, m_EditorLogic_SetBackup);
+
+        //    foreach (CodeInstruction instruction in instructions)
+        //    {
+        //        if (instruction.Calls(m_EditorLogic_SetBackup))
+        //            instruction.operand = m_Dummy_SetBackup;
+
+        //        yield return instruction;
+        //    }
+        //}
+
+
+        // same transpiler for EditorActionGroups ResetPart, AddActionToGroup and RemoveActionFromGroup methods
+        static IEnumerable<CodeInstruction> Part_RemoveFromSymmetry_Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
+        {
+            FieldInfo f_HighLogic_LoadedSceneIsEditor = AccessTools.Field(typeof(HighLogic), nameof(HighLogic.LoadedSceneIsEditor));
+
+            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            List<CodeInstruction> movedCode = new List<CodeInstruction>();
+
+            Label jmp = ilGen.DefineLabel();
+            code[0].labels.Add(jmp);
+
+            for (int i = code.Count; i-- > 0;)
+            {
+                if (code[i].Calls(m_EditorLogic_SetBackup))
+                {
+                    do
+                    {
+                        if (code[i].opcode == OpCodes.Brfalse_S)
+                            code[i].operand = jmp;
+
+                        movedCode.Insert(0, code[i]);
+                        code.RemoveAt(i);
+                        i--;
+                    } 
+                    while (!movedCode[0].LoadsField(f_HighLogic_LoadedSceneIsEditor));
+                    
+                    break;
+                }
+            }
+
+            code.InsertRange(0, movedCode);
+            return code;
         }
 
         /// <summary>
