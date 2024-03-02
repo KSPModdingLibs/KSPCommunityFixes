@@ -92,7 +92,7 @@ namespace KSPCommunityFixes
             {
                 Transform child = parent.GetChild(i);
                 if (child.gameObject.activeSelf)
-                    GetRenderersRecursive(parent.GetChild(i), renderers, excludedGOs);
+                    GetRenderersRecursive(child, renderers, excludedGOs);
             }
         }
 
