@@ -107,6 +107,7 @@
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
+    <Compile Include="BugFixes\PartBoundsIgnoreDisabledTransforms.cs" />
     <Compile Include="BugFixes\PropellantFlowDescription.cs" />
     <Compile Include="BugFixes\LadderToggleableLight.cs" />
     <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
