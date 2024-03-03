@@ -1,4 +1,5 @@
-﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172
+﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172 for initial implementation
+// and https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/210 for following fixes
 
 // In stock, undo state is captured after part events are complete, and undoing will restore that state captured before that.
 // This make the user experience quite poor as undoing will loose all PAW tweaks made in between attach/detach actions.
@@ -26,6 +27,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
+using EditorGizmos;
+using KSP.UI.Screens;
 
 namespace KSPCommunityFixes.QoL
 {
@@ -62,6 +65,61 @@ namespace KSPCommunityFixes.QoL
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM)),
                 this));
+
+            // Create backup before moving a part with the rotate/offset tools, instead of after
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated)),
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+
+            // Create backup before selecting a variant, instead of after
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+
+            // Move backup creation at the begining of the following methods :
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
+                this, nameof(MoveSetBackupAtStartTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}),
+                this, nameof(MoveSetBackupAtStartTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup)),
+                this, nameof(MoveSetBackupAtStartTranspiler)));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Transpiler,
+                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup)),
+                this, nameof(MoveSetBackupAtStartTranspiler)));
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(
@@ -123,6 +181,91 @@ namespace KSPCommunityFixes.QoL
             KSPCommunityFixes.Harmony.Patch(m_onPartPicked, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartPickedTranspiler))));
             KSPCommunityFixes.Harmony.Patch(m_onPartAttached, null, null, new HarmonyMethod(AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(OnPartAttachedTranspiler))));
 #endif
+        }
+
+        static IEnumerable<CodeInstruction> CallModifiedInsteadOfBackupTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (instruction.Calls(m_EditorLogic_SetBackup))
+                    instruction.operand = m_EditorShipModifiedGameEvent;
+
+                yield return instruction;
+            }
+        }
+
+        static void GizmoOffset_OnHandleMoveStart_Prefix(GizmoOffset __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
+
+            EditorLogic elInstance = EditorLogic.fetch;
+
+            if (elInstance.gizmoOffset.RefNotEquals(__instance))
+                return;
+
+            if (!elInstance.ship.Contains(elInstance.selectedPart))
+                return;
+
+            EditorLogicSetBackupNoShipModifiedEvent();
+        }
+
+        static void GizmoRotate_OnHandleRotateStart_Prefix(GizmoRotate __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
+
+            EditorLogic elInstance = EditorLogic.fetch;
+
+            if (elInstance.gizmoRotate.RefNotEquals(__instance))
+                return;
+
+            if (!elInstance.ship.Contains(elInstance.selectedPart))
+                return;
+
+            EditorLogicSetBackupNoShipModifiedEvent();
+        }
+
+        static void UIPartActionVariantSelector_SelectVariant_Prefix(UIPartActionVariantSelector __instance)
+        {
+            if (!HighLogic.LoadedSceneIsEditor)
+                return;
+
+            EditorLogic elInstance = EditorLogic.fetch;
+
+            if (!elInstance.ship.Contains(__instance.part))
+                return;
+
+            EditorLogicSetBackupNoShipModifiedEvent();
+        }
+
+        static IEnumerable<CodeInstruction> MoveSetBackupAtStartTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
+        {
+            FieldInfo f_HighLogic_LoadedSceneIsEditor = AccessTools.Field(typeof(HighLogic), nameof(HighLogic.LoadedSceneIsEditor));
+
+            Label jmp = ilGen.DefineLabel();
+            yield return new CodeInstruction(OpCodes.Ldsfld, f_HighLogic_LoadedSceneIsEditor);
+            yield return new CodeInstruction(OpCodes.Brfalse_S, jmp);
+            yield return new CodeInstruction(OpCodes.Call, m_EditorLogicSetBackupNoShipModifiedEvent);
+
+            bool labelAdded = false;
+
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (labelAdded == false)
+                {
+                    instruction.labels.Add(jmp);
+                    labelAdded = true;
+                }
+
+                if (instruction.Calls(m_EditorLogic_SetBackup))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = m_EditorShipModifiedGameEvent;
+                }
+
+                yield return instruction;
+            }
         }
 
         /// <summary>
