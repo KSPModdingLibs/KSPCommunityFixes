@@ -1,4 +1,5 @@
-﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172
+﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172 for initial implementation
+// and https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/210 for following fixes
 
 // In stock, undo state is captured after part events are complete, and undoing will restore that state captured before that.
 // This make the user experience quite poor as undoing will loose all PAW tweaks made in between attach/detach actions.
@@ -14,7 +15,7 @@
 // messy editor code paths.
 
 // enable additional debug logging
-#define BEUR_DEBUG
+// #define BEUR_DEBUG
 
 // use replacement callbacks with modified stock code instead of stock code transpilers
 // #define BEUR_REPLACE_CALLBACKS
@@ -42,7 +43,6 @@ namespace KSPCommunityFixes.QoL
         private static MethodInfo m_EditorLogic_RefreshCrewAssignment;
         private static MethodInfo m_RefreshCrewAssignmentFromLiveState;
         private static MethodInfo m_ShipConstruct_Contains;
-        private static MethodInfo m_Dummy_SetBackup;
 
         protected override Version VersionMin => new Version(1, 12, 3); // too many changes in previous versions, too lazy to check
 
@@ -55,7 +55,6 @@ namespace KSPCommunityFixes.QoL
             m_EditorLogic_RefreshCrewAssignment = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RefreshCrewAssignment));
             m_RefreshCrewAssignmentFromLiveState = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(RefreshCrewAssignmentFromLiveState));
             m_ShipConstruct_Contains = AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.Contains), new[] { typeof(Part) });
-            m_Dummy_SetBackup = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(Empty));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
@@ -81,12 +80,12 @@ namespace KSPCommunityFixes.QoL
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated)),
-                this, nameof(RemoveSetBackupTranspiler)));
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
-                this, nameof(RemoveSetBackupTranspiler)));
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
 
             // Create backup before selecting a variant, instead of after
 
@@ -98,29 +97,29 @@ namespace KSPCommunityFixes.QoL
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
-                this, nameof(RemoveSetBackupTranspiler)));
+                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
 
-            // Move backup creation at the begining of the methods :
+            // Move backup creation at the begining of the following methods :
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
-                this, nameof(MoveConditionalSetBackupTranspiler)));
+                this, nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}),
-                this, nameof(MoveConditionalSetBackupTranspiler)));
+                this, nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup)),
-                this, nameof(MoveConditionalSetBackupTranspiler)));
+                this, nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup)),
-                this, nameof(MoveConditionalSetBackupTranspiler)));
+                this, nameof(MoveSetBackupAtStartTranspiler)));
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(
@@ -184,14 +183,12 @@ namespace KSPCommunityFixes.QoL
 #endif
         }
 
-        static void Empty(EditorLogic elInstance) { }
-
-        static IEnumerable<CodeInstruction> RemoveSetBackupTranspiler(IEnumerable<CodeInstruction> instructions)
+        static IEnumerable<CodeInstruction> CallModifiedInsteadOfBackupTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             foreach (CodeInstruction instruction in instructions)
             {
                 if (instruction.Calls(m_EditorLogic_SetBackup))
-                    instruction.operand = m_Dummy_SetBackup;
+                    instruction.operand = m_EditorShipModifiedGameEvent;
 
                 yield return instruction;
             }
@@ -210,7 +207,7 @@ namespace KSPCommunityFixes.QoL
             if (!elInstance.ship.Contains(elInstance.selectedPart))
                 return;
 
-            elInstance.SetBackup();
+            EditorLogicSetBackupNoShipModifiedEvent();
         }
 
         static void GizmoRotate_OnHandleRotateStart_Prefix(GizmoRotate __instance)
@@ -226,7 +223,7 @@ namespace KSPCommunityFixes.QoL
             if (!elInstance.ship.Contains(elInstance.selectedPart))
                 return;
 
-            elInstance.SetBackup();
+            EditorLogicSetBackupNoShipModifiedEvent();
         }
 
         static void UIPartActionVariantSelector_SelectVariant_Prefix(UIPartActionVariantSelector __instance)
@@ -239,40 +236,36 @@ namespace KSPCommunityFixes.QoL
             if (!elInstance.ship.Contains(__instance.part))
                 return;
 
-            elInstance.SetBackup();
+            EditorLogicSetBackupNoShipModifiedEvent();
         }
 
-        static IEnumerable<CodeInstruction> MoveConditionalSetBackupTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
+        static IEnumerable<CodeInstruction> MoveSetBackupAtStartTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator ilGen)
         {
             FieldInfo f_HighLogic_LoadedSceneIsEditor = AccessTools.Field(typeof(HighLogic), nameof(HighLogic.LoadedSceneIsEditor));
 
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-            List<CodeInstruction> movedCode = new List<CodeInstruction>();
-
             Label jmp = ilGen.DefineLabel();
-            code[0].labels.Add(jmp);
+            yield return new CodeInstruction(OpCodes.Ldsfld, f_HighLogic_LoadedSceneIsEditor);
+            yield return new CodeInstruction(OpCodes.Brfalse_S, jmp);
+            yield return new CodeInstruction(OpCodes.Call, m_EditorLogicSetBackupNoShipModifiedEvent);
 
-            for (int i = code.Count; i-- > 0;)
+            bool labelAdded = false;
+
+            foreach (CodeInstruction instruction in instructions)
             {
-                if (code[i].Calls(m_EditorLogic_SetBackup))
+                if (labelAdded == false)
                 {
-                    do
-                    {
-                        if (code[i].opcode == OpCodes.Brfalse_S)
-                            code[i].operand = jmp;
-
-                        movedCode.Insert(0, code[i]);
-                        code.RemoveAt(i);
-                        i--;
-                    } 
-                    while (!movedCode[0].LoadsField(f_HighLogic_LoadedSceneIsEditor));
-                    
-                    break;
+                    instruction.labels.Add(jmp);
+                    labelAdded = true;
                 }
-            }
 
-            code.InsertRange(0, movedCode);
-            return code;
+                if (instruction.Calls(m_EditorLogic_SetBackup))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = m_EditorShipModifiedGameEvent;
+                }
+
+                yield return instruction;
+            }
         }
 
         /// <summary>
