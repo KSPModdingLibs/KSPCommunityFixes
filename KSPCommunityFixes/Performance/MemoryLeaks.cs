@@ -228,12 +228,6 @@ namespace KSPCommunityFixes.Performance
             // Implementation is relying on reflection because of generic GameEvents types, as well as the fact that the same
             // EvtDelegate class is reimplemented as a nested class in every GE type, despite each class using the same exact layout...
 
-            // Note : we only remove objects if they are declared by the stock assembly, or a PartModule, or a VesselModule.
-            // Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and
-            // relying on those being called on the dead instance to manipulate static data... 
-            // Questionable at best, but since it is functionally valid and seems relatively common, we can't take the risk to remove them.
-            // Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
-
             foreach (BaseGameEvent gameEvent in BaseGameEvent.eventsByName.Values)
             {
                 // "fast" path for EventVoid
@@ -245,16 +239,14 @@ namespace KSPCommunityFixes.Performance
                         if (eventVoid.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 eventVoid.events.RemoveAt(i);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -273,16 +265,13 @@ namespace KSPCommunityFixes.Performance
                         if (onLevelWasLoaded.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed() && !(unityObject is ScenarioUpgradeableFacilities))
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 onLevelWasLoaded.events.RemoveAt(i);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -305,16 +294,13 @@ namespace KSPCommunityFixes.Performance
                         if (originatorField.GetValue(list[count]) is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 list.RemoveAt(count);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -325,18 +311,17 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
+            // remove destroyed MapView event handlers
+            leakCount += CleanDelegateHandlers("MapView.OnEnterMapView", ref MapView.OnEnterMapView);
+            leakCount += CleanDelegateHandlers("MapView.OnExitMapView", ref MapView.OnExitMapView);
+
             // MapView is instantiated on scene loads and is registering an anonymous delegate in the TimingManager,
             // but never removes it. Since MapView hold indirect references to every vessel, this is a major leak.
-            if (TimingManager.Instance.IsNotNullOrDestroyed() && TimingManager.Instance.timing5.onLateUpdate != null)
+            if (TimingManager.Instance.IsNotNullOrDestroyed())
             {
-                foreach (Delegate del in TimingManager.Instance.timing5.onLateUpdate.GetInvocationList())
-                {
-                    if (del.Target is MapView mapview && mapview.IsDestroyed())
-                    {
-                        TimingManager.Instance.timing5.onLateUpdate -= (TimingManager.UpdateAction)del;
-                        leakCount++;
-                    }
-                }
+                var del = TimingManager.Instance.timing5.onLateUpdate;
+                leakCount += CleanDelegateHandlers("TimingManager.Instance.timing5.onLateUpdate", ref del);
+                TimingManager.Instance.timing5.onLateUpdate = del;
             }
 
             // This is part of the resource flow graph mess, and will keep around tons of references
@@ -377,21 +362,60 @@ namespace KSPCommunityFixes.Performance
             Debug.Log($"[KSPCF:MemoryLeaks] Leaving scene \"{currentScene}\", cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
         }
 
-        static void LogUnityObjectGameEventLeak(string eventName, Type origin, bool removed)
+        // Note : we only remove objects if they are declared by the stock assembly, or a PartModule, or a VesselModule.
+        // Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and
+        // relying on those being called on the dead instance to manipulate static data... 
+        // Questionable at best, but since it is functionally valid and seems relatively common, we can't take the risk to remove them.
+        // Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
+        static bool ShouldCleanType(Type type)
         {
-            if (!logDestroyedUnityObjectGameEventsLeaks)
-                return;
+            return type.Assembly == assemblyCSharp || typeof(PartModule).IsAssignableFrom(type) || typeof(VesselModule).IsAssignableFrom(type);
+        }
 
+        static int CleanDelegateHandlers<T>(string eventName, ref T del) where T : Delegate
+        {
+            int leakCount = 0;
+            if (del == null) return 0;
+            foreach (Delegate handler in del.GetInvocationList())
+            {
+                if (handler.Target is UnityEngine.Object obj && obj.IsDestroyed())
+                {
+                    bool remove = ShouldCleanType(obj.GetType());
+
+                    LogUnityObjectGameEventLeak(eventName, obj.GetType(), remove);
+
+                    if (remove)
+                    {
+                        del = (T)Delegate.Remove(del, handler);
+                        leakCount++;
+                    }
+                }
+            }
+            return leakCount;
+        }
+
+        static string TypeNameForLog(Type origin)
+        {
             string typeName = origin.Assembly.GetName().Name + ":";
             if (origin.IsNested)
                 typeName += origin.DeclaringType.Name + "." + origin.Name;
             else
                 typeName += origin.Name;
 
+            return typeName;
+        }
+
+        static void LogUnityObjectGameEventLeak(string eventName, Type origin, bool removed)
+        {
+            if (!logDestroyedUnityObjectGameEventsLeaks)
+                return;
+
+            string typeName = TypeNameForLog(origin);
+
             if (removed)
-                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {eventName} GameEvents callback owned by a destroyed {typeName} instance");
+                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {eventName} callback owned by a destroyed {typeName} instance");
             else
-                Debug.Log($"[KSPCF:MemoryLeaks] A destroyed {typeName} instance is owning a {eventName} GameEvents callback. No action has been taken, but unless this mod is relying on this pattern, this is likely a memory leak.");
+                Debug.Log($"[KSPCF:MemoryLeaks] A destroyed {typeName} instance is owning a {eventName} callback. No action has been taken, but unless this mod is relying on this pattern, this is likely a memory leak.");
         }
 
         static void LogGameEventsSuscribers()
