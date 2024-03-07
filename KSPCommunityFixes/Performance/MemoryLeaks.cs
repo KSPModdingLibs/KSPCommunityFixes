@@ -121,6 +121,17 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy)),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication)),
+                this,
+                "ApplicationLauncher_RemoveApplication_Postfix"));
+
             // general cleanup on scene switches
 
             assemblyCSharp = Assembly.GetAssembly(typeof(Part));
@@ -652,6 +663,14 @@ namespace KSPCommunityFixes.Performance
         static void FuelFlowOverlay_OnDestroy_Postfix()
         {
             FuelFlowOverlay.instance = null;
+        }
+
+        static void ApplicationLauncher_RemoveApplication_Postfix(ApplicationLauncherButton button)
+        {
+            if (ApplicationLauncher.Instance.IsNotNullRef() && object.ReferenceEquals(ApplicationLauncher.Instance.lastPinnedButton, button.toggleButton))
+            {
+                ApplicationLauncher.Instance.lastPinnedButton = null;
+            }
         }
 
         // patch previously silently failing code that now "properly" throw exceptions when attempting to access dead instances
