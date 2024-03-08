@@ -85,6 +85,13 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(EffectList), nameof(EffectList.OnSave)),
                 this));
 
+            // Pooled Audio onRelease delegate leak
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset)),
+                this));
+
             // various static fields keeping deep reference stacks around...
 
             patches.Add(new PatchInfo(
@@ -624,6 +631,12 @@ namespace KSPCommunityFixes.Performance
         static void EffectList_OnSave_Postfix()
         {
             EffectList.fxEnumerator = default;
+        }
+
+        // PooledAudioSource leaks references to parts through its onRelease delegate
+        static void PooledAudioSource_Reset_Postfix(AudioMultiPooledFX.PooledAudioSource pooledAudioSource)
+        {
+            pooledAudioSource.onRelease = null;
         }
 
         // CraftSearch is keeping around an indirect reference to the last EditorLogic instance.
