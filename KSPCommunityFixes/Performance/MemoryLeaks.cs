@@ -1,5 +1,6 @@
 ﻿using CommNet;
 using HarmonyLib;
+using KSP.UI;
 using KSP.UI.Screens;
 using RUI.Algorithms;
 using System;
@@ -138,6 +139,12 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication)),
                 this,
                 "ApplicationLauncher_RemoveApplication_Postfix"));
+
+            // KSC Vessel Markers inherit from this class. they don't get cleaned up properly
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate)),
+                this));
 
             // general cleanup on scene switches
 
@@ -684,6 +691,12 @@ namespace KSPCommunityFixes.Performance
             {
                 ApplicationLauncher.Instance.lastPinnedButton = null;
             }
+        }
+
+        // KSC Vessel Marker - it seems like the logic in this has an `else` where it shouldn't.
+        static void AnchoredDialog_Terminate_Postfix(AnchoredDialog __instance)
+        {
+            __instance.gameObject.DestroyGameObject();
         }
 
         // patch previously silently failing code that now "properly" throw exceptions when attempting to access dead instances
