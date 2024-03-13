@@ -211,6 +211,10 @@ namespace KSPCommunityFixes.Performance
             int leakCount = 0;
             int gameEventsCallbacksCount = 0;
 
+            // these are big static dictionaries that track a lot of parts and gameobjects.  Reset them here since all of them must have been destroyed
+            FlightGlobals.ResetObjectPartPointerUpwardsCache();
+            FlightGlobals.ResetObjectPartUpwardsCache();
+
             // PartSet doesn't derive from UnityEngine.Object and suscribes to the onPartResourceFlowStateChange and
             // onPartResourceFlowModeChange GameEvents. Instances can be owned by a bunch of classes, including Vessel,
             // Part, ShipConstruct... Whoever implemented this though that he could avoid having to manage the GameEvents
