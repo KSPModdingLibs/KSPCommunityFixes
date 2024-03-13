@@ -717,7 +717,7 @@ namespace KSPCommunityFixes.Performance
             GameEvents.onPartResourceFlowModeChange.Remove(partSet.OnFlowModeChange);
             
             // these aren't *necessary* but help to reduce noise in reports
-            partSet.targetParts.Clear();
+            partSet.targetParts?.Clear();
             partSet.ship = null;
             partSet.vessel = null;
         }
