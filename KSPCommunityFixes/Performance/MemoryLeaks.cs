@@ -89,6 +89,10 @@ namespace KSPCommunityFixes.Performance
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
                 this));
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
+                this));
 
             // EffectList dictionary enumerator leaks
 
@@ -701,6 +705,45 @@ namespace KSPCommunityFixes.Performance
                 Debug.LogError($"Destroying part {__instance.GetInstanceID()} while it's still in the objectToPartUpwardsCache");
             }
 #endif
+        }
+
+        // PartSets are awful as noted in OnSceneUnloaded.  But vessel unloading is also a good time to clean these up instead of waiting for scene switch
+
+        static void CleanUpPartSet(PartSet partSet)
+        {
+            GameEvents.onPartResourceFlowStateChange.Remove(partSet.OnFlowStateChange);
+            GameEvents.onPartResourceFlowModeChange.Remove(partSet.OnFlowModeChange);
+            
+            // these aren't *necessary* but help to reduce noise in reports
+            partSet.targetParts.Clear();
+            partSet.ship = null;
+            partSet.vessel = null;
+        }
+
+        // general unhooking of stuff when unloading a vessel.  Note that vessel gameobjects are not usually destroyed until the vessel itself is
+        static void Vessel_Unload_Postfix(Vessel __instance)
+        {
+            __instance.rootPart = null;
+            FlightGlobals.ResetObjectPartUpwardsCache();
+            FlightGlobals.ResetObjectPartPointerUpwardsCache();
+
+            CleanUpPartSet(__instance.resourcePartSet);
+            CleanUpPartSet(__instance.simulationResourcePartSet);
+
+            foreach (var partSet in __instance.crossfeedSets)
+            {
+                CleanUpPartSet(partSet);
+            }
+
+            foreach (var partSet in __instance.simulationCrossfeedSets)
+            {
+                CleanUpPartSet(partSet);
+            }
+
+            __instance.resourcePartSet = null;
+            __instance.simulationResourcePartSet = null;
+            __instance.crossfeedSets.Clear();
+            __instance.simulationCrossfeedSets.Clear();
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
