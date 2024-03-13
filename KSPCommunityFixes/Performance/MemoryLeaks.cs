@@ -711,6 +711,8 @@ namespace KSPCommunityFixes.Performance
 
         static void CleanUpPartSet(PartSet partSet)
         {
+            if (partSet == null) return;
+
             GameEvents.onPartResourceFlowStateChange.Remove(partSet.OnFlowStateChange);
             GameEvents.onPartResourceFlowModeChange.Remove(partSet.OnFlowModeChange);
             
