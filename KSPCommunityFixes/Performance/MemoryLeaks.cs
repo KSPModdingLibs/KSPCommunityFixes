@@ -74,6 +74,15 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake)),
                 this));
 
+            // protopartsnapshot leaks a reference to a copy of the root part because of how it's created
+
+            patches.Add(new PatchInfo(PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load)),
+                this));
+            patches.Add(new PatchInfo(PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart)),
+                this));
+
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
@@ -627,6 +636,28 @@ namespace KSPCommunityFixes.Performance
         static bool ModuleScienceExperiment_OnAwake_Prefix()
         {
             return HighLogic.LoadedSceneIsFlight;
+        }
+
+        // Because root parts are added directly to the Vessel gameobject, they're not just a clone of a part prefab
+        // instead, ProtoPartSnapshot.Load will clone the prefab, then copy the components and properties over to the Vessel GameObject
+        // Then it deletes the clone it made.
+        // This leaves a few references pointing to the now-deleted clone, because unlike regular serialization copying the properties won't fix the references to point to the real live part
+
+        static void ProtoPartSnapshot_Load_Postfix(Part __result, bool loadAsRootPart)
+        {
+            if (loadAsRootPart)
+            {
+                foreach (var attachNode in __result.attachNodes)
+                {
+                    attachNode.owner = __result;
+                }
+            }
+        }
+
+        static void ProtoPartSnapshot_ConfigurePart_Postfix(ProtoPartSnapshot __instance)
+        {
+            // ConfigurePart destroys this gameobject but doesn't clear the reference
+            __instance.rootPartPrefab = null;
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
