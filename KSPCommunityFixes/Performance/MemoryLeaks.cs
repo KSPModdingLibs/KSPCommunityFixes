@@ -83,6 +83,13 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart)),
                 this));
 
+            // Parts and vessels don't unhook themselves from things when they're destroyed or unloaded
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
+                this));
+
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
@@ -662,6 +669,38 @@ namespace KSPCommunityFixes.Performance
         {
             // ConfigurePart destroys this gameobject but doesn't clear the reference
             __instance.rootPartPrefab = null;
+        }
+
+        // When a part is destroyed, we need to clean up all the references that are pointing back to this part, mostly from the ProtoPartSnapshot because that will live longer than this part
+        static void Part_OnDestroy_Postfix(Part __instance)
+        {
+            // if our protopartsnapshot is still pointing at this part, we need to clear all of its references
+            if (__instance.protoPartSnapshot != null && ReferenceEquals(__instance.protoPartSnapshot.partRef, __instance))
+            {
+                foreach (var moduleSnapshot in __instance.protoPartSnapshot.modules)
+                {
+                    moduleSnapshot.moduleRef = null;
+                }
+
+                foreach (var partResourceSnapshot in __instance.protoPartSnapshot.resources)
+                {
+                    partResourceSnapshot.resourceRef = null;
+                }
+
+                __instance.protoPartSnapshot.partRef = null;
+            }
+
+            // clear some additional containers to limit the impact of leaks and make reports less noisy
+            __instance.modules?.modules?.Clear();
+            __instance.children?.Clear();
+            __instance.parent = __instance.potentialParent = null;
+
+#if DEBUG
+            if (FlightGlobals.objectToPartUpwardsCache.Values.Contains(__instance))
+            {
+                Debug.LogError($"Destroying part {__instance.GetInstanceID()} while it's still in the objectToPartUpwardsCache");
+            }
+#endif
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
