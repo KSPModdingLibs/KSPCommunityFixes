@@ -98,6 +98,18 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
                 this));
 
+            // Kerbals
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Kerbal), nameof(Kerbal.OnDestroy)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(InternalSeat), nameof(InternalSeat.DespawnCrew)),
+                this));
+
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
@@ -703,6 +715,7 @@ namespace KSPCommunityFixes.Performance
             __instance.modules?.modules?.Clear();
             __instance.children?.Clear();
             __instance.parent = __instance.potentialParent = null;
+            __instance.internalModel = null;
 
 #if DEBUG
             if (FlightGlobals.objectToPartUpwardsCache.Values.Contains(__instance))
@@ -757,6 +770,24 @@ namespace KSPCommunityFixes.Performance
             __instance.simulationResourcePartSet = null;
             __instance.crossfeedSets.Clear();
             __instance.simulationCrossfeedSets.Clear();
+        }
+
+        static void Kerbal_OnDestroy_Postfix(Kerbal __instance)
+        {
+            if (ReferenceEquals(__instance.protoCrewMember.KerbalRef, __instance))
+            {
+                __instance.protoCrewMember.KerbalRef = null;
+            }
+        }
+
+        static void InternalSeat_DespawnCrew_Prefix(InternalSeat __instance)
+        {
+            // DespawnCrew merely destroys the kerbal, but it doesn't unhook the protocrewmember from this seat
+            // ProtoCrewMembers will live until the next save game is loaded, so this can leak parts and vessels
+            if (__instance.kerbalRef.IsNotNullRef() && __instance.kerbalRef.protoCrewMember.seat.RefEquals(__instance))
+            {
+                __instance.kerbalRef.protoCrewMember.seat = null;
+            }
         }
 
         // EffectList is leaking Part references by keeping around this static enumerator
