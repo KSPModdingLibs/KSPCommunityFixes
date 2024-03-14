@@ -229,6 +229,7 @@ namespace KSPCommunityFixes.Performance
             // these are big static dictionaries that track a lot of parts and gameobjects.  Reset them here since all of them must have been destroyed
             FlightGlobals.ResetObjectPartPointerUpwardsCache();
             FlightGlobals.ResetObjectPartUpwardsCache();
+            Part.allParts.Clear();
 
             // PartSet doesn't derive from UnityEngine.Object and suscribes to the onPartResourceFlowStateChange and
             // onPartResourceFlowModeChange GameEvents. Instances can be owned by a bunch of classes, including Vessel,
