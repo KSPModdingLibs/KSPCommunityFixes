@@ -757,37 +757,66 @@ namespace KSPCommunityFixes.Performance
 
         // PartSets are awful as noted in OnSceneUnloaded.  But vessel unloading is also a good time to clean these up instead of waiting for scene switch
 
-        static void CleanUpPartSet(PartSet partSet)
-        {
-            if (partSet == null) return;
-
-            GameEvents.onPartResourceFlowStateChange.Remove(partSet.OnFlowStateChange);
-            GameEvents.onPartResourceFlowModeChange.Remove(partSet.OnFlowModeChange);
-            
-            // these aren't *necessary* but help to reduce noise in reports
-            partSet.targetParts?.Clear();
-            partSet.ship = null;
-            partSet.vessel = null;
-        }
-
         // general unhooking of stuff when unloading a vessel.  Note that vessel gameobjects are not usually destroyed until the vessel itself is
         static void Vessel_Unload_Postfix(Vessel __instance)
         {
             __instance.rootPart = null;
+            __instance.referenceTransformPart = null;
+            __instance.referenceTransformPartRecall = null;
+            __instance.GroundContacts?.Clear();
+            __instance._suspensionLoadBalancer?.suspensionModules?.Clear();
+            __instance.dockingPorts?.Clear();
+
+            // the flight integrator holds onto a lot of references, which will be repopulated when the vessel is loaded again
+            // clear them all now
+
+            if (__instance._fi != null)
+            {
+                __instance._fi.partRef = null;
+                __instance._fi.partThermalDataList?.Clear();
+                __instance._fi.partThermalDataListSkin?.Clear();
+                __instance._fi.partThermalDataCount = 0;
+                __instance._fi.partCount = 0;
+                __instance._fi.compoundParts?.Clear();
+                __instance._fi.occlusionConv?.Clear();
+                __instance._fi.occlusionSun?.Clear();
+                __instance._fi.occlusionBody?.Clear();
+                __instance._fi.overheatModules?.Clear();
+                __instance._fi.previewModules?.Clear();
+                __instance._fi.occludersConvection = null;
+                __instance._fi.occludersSun = null;
+                __instance._fi.occludersBody = null;
+                __instance._fi.occludersBodyCount = 0;
+                __instance._fi.occludersConvectionCount = 0;
+                __instance._fi.occludersSunCount = 0;
+            }
+
+            // not sure about
+            // objectUnderVessel
+
             FlightGlobals.ResetObjectPartUpwardsCache();
             FlightGlobals.ResetObjectPartPointerUpwardsCache();
 
-            CleanUpPartSet(__instance.resourcePartSet);
-            CleanUpPartSet(__instance.simulationResourcePartSet);
-
-            foreach (var partSet in __instance.crossfeedSets)
+            for (int i = GameEvents.onPartResourceFlowStateChange.events.Count; i-- > 0;)
             {
-                CleanUpPartSet(partSet);
+                if (GameEvents.onPartResourceFlowStateChange.events[i].originator is PartSet partSet)
+                {
+                    if (partSet.vessel == __instance)
+                    {
+                        GameEvents.onPartResourceFlowStateChange.events.RemoveAt(i);
+                    }
+                }
             }
 
-            foreach (var partSet in __instance.simulationCrossfeedSets)
+            for (int i = GameEvents.onPartResourceFlowModeChange.events.Count; i-- > 0;)
             {
-                CleanUpPartSet(partSet);
+                if (GameEvents.onPartResourceFlowModeChange.events[i].originator is PartSet partSet)
+                {
+                    if (partSet.vessel == __instance)
+                    {
+                        GameEvents.onPartResourceFlowModeChange.events.RemoveAt(i);
+                    }
+                }
             }
 
             __instance.resourcePartSet = null;
