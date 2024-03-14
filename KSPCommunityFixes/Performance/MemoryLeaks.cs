@@ -91,6 +91,10 @@ namespace KSPCommunityFixes.Performance
                 this));
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), nameof(Part.ReleaseAutoStruts)),
+                this));
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
                 AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
                 this));
 
@@ -705,6 +709,12 @@ namespace KSPCommunityFixes.Performance
                 Debug.LogError($"Destroying part {__instance.GetInstanceID()} while it's still in the objectToPartUpwardsCache");
             }
 #endif
+        }
+
+        static void Part_ReleaseAutoStruts_Postfix(Part __instance)
+        {
+            __instance.autoStrutCacheVessel = null;
+            __instance.autoStrutVessel = null;
         }
 
         // PartSets are awful as noted in OnSceneUnloaded.  But vessel unloading is also a good time to clean these up instead of waiting for scene switch
