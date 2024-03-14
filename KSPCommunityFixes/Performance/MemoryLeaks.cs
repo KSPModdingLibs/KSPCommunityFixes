@@ -385,9 +385,16 @@ namespace KSPCommunityFixes.Performance
             // but never removes it. Since MapView hold indirect references to every vessel, this is a major leak.
             if (TimingManager.Instance.IsNotNullOrDestroyed())
             {
-                var del = TimingManager.Instance.timing5.onLateUpdate;
-                leakCount += CleanDelegateHandlers("TimingManager.Instance.timing5.onLateUpdate", ref del);
-                TimingManager.Instance.timing5.onLateUpdate = del;
+                // since the timing manager's delegates are properties, we can't directly modify them except through the set method...
+                leakCount += TimingManagerCleanObject("TimingManager.Instance", TimingManager.Instance);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing0", TimingManager.Instance.timing0);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing1", TimingManager.Instance.timing1);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing2", TimingManager.Instance.timing2);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing3", TimingManager.Instance.timing3);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing4", TimingManager.Instance.timing4);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing5", TimingManager.Instance.timing5);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timingPre", TimingManager.Instance.timingPre);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timingFI", TimingManager.Instance.timingFI);
             }
 
             // This is part of the resource flow graph mess, and will keep around tons of references
@@ -436,6 +443,23 @@ namespace KSPCommunityFixes.Performance
         static bool ShouldCleanType(Type type)
         {
             return type.Assembly == assemblyCSharp || typeof(PartModule).IsAssignableFrom(type) || typeof(VesselModule).IsAssignableFrom(type);
+        }
+
+        static int TimingManagerCleanObject(string name, object obj)
+        {
+            int leakCount = 0;
+            var delegateProperties = obj.GetType().GetProperties();
+            foreach (var property in delegateProperties)
+            {
+                if (property.PropertyType == typeof(TimingManager.UpdateAction))
+                {
+                    var del = (TimingManager.UpdateAction)property.GetValue(obj);
+                    leakCount += CleanDelegateHandlers(name + "." + property.Name, ref del);
+                    property.SetValue(obj, del);
+                }
+            }
+
+            return leakCount;
         }
 
         static int CleanDelegateHandlers<T>(string eventName, ref T del) where T : Delegate
