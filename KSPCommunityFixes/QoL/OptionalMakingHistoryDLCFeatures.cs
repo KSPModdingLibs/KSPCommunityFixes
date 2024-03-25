@@ -12,7 +12,7 @@ namespace KSPCommunityFixes.QoL
         private const string MH_EXPANSION_FILE = "makinghistory.kspexpansion";
         private const string SETTINGS_TOGGLE_VALUE_NAME = "OptionalMakingHistoryDLCFeaturesAlwaysDisable";
         internal static string LOC_MHDLC = "Making History features";
-        internal static string LOC_SettingsTooltip = "Disable the Making History DLC mission editor and additional launch sites\nThe Making History parts will still be available\nWill reduce memory usage and increase loading speed\nChanges will take affect after restarting KSP";
+        internal static string LOC_SettingsTooltip = "Disable the Making History DLC mission editor and additional launch sites\nThe Making History parts will still be available\nWill reduce memory usage and increase loading speed\nChanges will take effect after restarting KSP";
         internal static bool isMHEnabled = true;
         internal static bool isMHDisabledFromConfig = false;
 
