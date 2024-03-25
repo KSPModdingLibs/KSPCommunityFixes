@@ -18,6 +18,7 @@ namespace KSPCommunityFixes
         private static int entryCount = 0;
         private static AltimeterHorizontalPosition altimeterPatch;
         private static DisableManeuverTool maneuverToolPatch;
+        private static OptionalMakingHistoryDLCFeatures disableMHPatch;
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
@@ -37,6 +38,10 @@ namespace KSPCommunityFixes
 
             maneuverToolPatch = KSPCommunityFixes.GetPatchInstance<DisableManeuverTool>();
             if (maneuverToolPatch != null)
+                entryCount++;
+
+            disableMHPatch = KSPCommunityFixes.GetPatchInstance<OptionalMakingHistoryDLCFeatures>();
+            if (disableMHPatch != null)
                 entryCount++;
 
             if (KSPCFFastLoader.IsPatchEnabled)
@@ -60,6 +65,22 @@ namespace KSPCommunityFixes
 
             modifiedResult[count] = new DialogGUIBox(KSPCommunityFixes.LOC_KSPCF_Title, -1f, 18f, null);
             count++;
+
+            if (disableMHPatch != null)
+            {
+                DialogGUIToggle toggle = new DialogGUIToggle(OptionalMakingHistoryDLCFeatures.isMHEnabled,
+                    () => (!OptionalMakingHistoryDLCFeatures.isMHEnabled)
+                        ? Localizer.Format("#autoLOC_6001071") //"Disabled"
+                        : Localizer.Format("#autoLOC_6001072"), //"Enabled"
+                    b => OptionalMakingHistoryDLCFeatures.isMHEnabled = b, 150f);
+                toggle.tooltipText = OptionalMakingHistoryDLCFeatures.LOC_SettingsTooltip;
+                toggle.OptionInteractableCondition = () => !OptionalMakingHistoryDLCFeatures.isMHDisabledFromConfig;
+
+                modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
+                    new DialogGUILabel(() => Localizer.Format(OptionalMakingHistoryDLCFeatures.LOC_MHDLC), 150f), //"Maneuver Tool"
+                    toggle, new DialogGUIFlexibleSpace());
+                count++;
+            }
 
             if (maneuverToolPatch != null)
             {
@@ -120,6 +141,13 @@ namespace KSPCommunityFixes
 
         static void GameplaySettingsScreen_ApplySettings_Postfix()
         {
+            if (disableMHPatch != null)
+            {
+                ConfigNode node = new ConfigNode();
+                node.AddValue(nameof(OptionalMakingHistoryDLCFeatures.isMHEnabled), OptionalMakingHistoryDLCFeatures.isMHEnabled);
+                SaveData<OptionalMakingHistoryDLCFeatures>(node);
+            }
+
             if (maneuverToolPatch != null)
             {
                 ConfigNode node = new ConfigNode();
