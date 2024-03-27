@@ -169,6 +169,7 @@
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\ConfigNodePerf.cs" />
+    <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
