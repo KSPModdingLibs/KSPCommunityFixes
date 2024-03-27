@@ -104,10 +104,7 @@ namespace KSPCommunityFixes.Performance
             __result = !RaycastNoSync(localPanelPos, trackingDirection, out RaycastHit localhit, float.MaxValue, __instance.defaultLayerMask);
             __instance.hit = localhit; // just to ensure this is populated
 
-            if (!__result 
-                && UIPartActionController.Instance.IsNotNullOrDestroyed()
-                && UIPartActionController.Instance.ItemListContains(__instance.part, false)
-                && localhit.transform.gameObject.IsNotNullOrDestroyed())
+            if (!__result && __instance.part.IsPAWOpen() && localhit.transform.gameObject.IsNotNullOrDestroyed())
             {
                 GameObject hitObject = localhit.transform.gameObject;
                 if (!ReferenceEquals(hitObject.GetComponent<PQ>(), null))
