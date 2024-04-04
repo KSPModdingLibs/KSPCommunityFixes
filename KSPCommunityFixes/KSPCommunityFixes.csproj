@@ -170,11 +170,13 @@
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\ConfigNodePerf.cs" />
+    <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
     <Compile Include="QoL\BetterEditorUndoRedo.cs" />
+    <Compile Include="QoL\OptionalMakingHistoryDLCFeatures.cs" />
     <Compile Include="QoL\ToolbarShowHide.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
