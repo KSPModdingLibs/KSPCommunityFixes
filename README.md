@@ -86,6 +86,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**RespawnDeadKerbals**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/104) [KSP 1.12.3 - 1.12.5]<br/>When respawning is enabled, starts the respawn timer for any dead kerbals (changing their state to "missing") when loading a save.  This addresses stock bugs where kerbals could be set to dead even when respawning is enabled.
 - [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
 - [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) [KSP 1.12.3 - 1.12.5]<br/>Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
+- [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5]<br/>Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
 
 #### Quality of Life tweaks 
 
@@ -192,6 +193,8 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 ##### 1.35.0
 - New KSP performance patch : [**OptimizedModuleRaycasts**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/216) [KSP 1.12.3 - 1.12.5] : Improve engine exhaust damage and solar panel line of sight raycasts performance by avoiding extra physics state synchronization and caching solar panels scaled space raycasts results.
 - New KSP QoL/performance patch : [**OptionalMakingHistoryDLCFeatures**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/218) [KSP 1.12.3 - 1.12.5] : Allow to disable the Making History DLC mission editor and additional launch sites features to decrease memory usage and increase loading speed. The Making History parts will still be available. Can be toggled from the KSPCF in-game settings (requires a restart), or from a MM patch (see `Settings.cfg`)
+- New KSP bugfix : [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5] : Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
+- **BetterUndoRedo** : Fixed "too much undoing" when undoing offset/rotate editor actions, and other incoherent behavior (see [related issue](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/206))
 - **FastLoader** : Improved DDS loading performance by avoiding an extra copy of the DDS data
 
 ##### 1.34.1
