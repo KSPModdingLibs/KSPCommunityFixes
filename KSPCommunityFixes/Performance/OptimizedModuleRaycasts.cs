@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+﻿using System;
+using HarmonyLib;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -10,6 +11,8 @@ namespace KSPCommunityFixes.Performance
     {
         private static readonly WaitForFixedUpdate waitForFixedUpdate = new WaitForFixedUpdate();
         private static bool partModulesSyncedOnceInFixedUpdate = false;
+
+        protected override Version VersionMin => new Version(1, 12, 3);
 
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
