@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Threading;
 using TMPro;
 using Unity.Collections;
@@ -1312,7 +1313,18 @@ namespace KSPCommunityFixes.Performance
                         }
                         else
                         {
-                            texture2D.LoadRawTextureData(binaryReader.ReadBytes((int)(binaryReader.BaseStream.Length - binaryReader.BaseStream.Position)));
+                            int position = (int)binaryReader.BaseStream.Position;
+                            GCHandle pinnedHandle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+                            try
+                            {
+                                IntPtr ptr = Marshal.UnsafeAddrOfPinnedArrayElement(buffer, position);
+                                texture2D.LoadRawTextureData(ptr, dataLength - position);
+                            }
+                            finally
+                            {
+                                pinnedHandle.Free();
+                            }
+
                             texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
                         }
                     }

@@ -188,6 +188,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.35.0
+- **FastLoader** : Improved DDS loading performance by avoiding an extra copy of the DDS data
+
 ##### 1.34.1
 - Disable BetterEditorUndoRedo when TweakScale/L is installed due to introducing a bug with part attachments in the editor.
 
