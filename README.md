@@ -190,6 +190,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### 1.35.0
 - New KSP performance patch : [**OptimizedModuleRaycasts**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/216) : Improve engine exhaust damage and solar panel line of sight raycasts performance by avoiding extra physics state synchronization and caching solar panels scaled space raycasts results.
+- **FastLoader** : Improved DDS loading performance by avoiding an extra copy of the DDS data
 
 ##### 1.34.1
 - Disable BetterEditorUndoRedo when TweakScale/L is installed due to introducing a bug with part attachments in the editor.
