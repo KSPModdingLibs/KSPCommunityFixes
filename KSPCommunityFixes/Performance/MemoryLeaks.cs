@@ -1,5 +1,6 @@
 ﻿using CommNet;
 using HarmonyLib;
+using KSP.UI;
 using KSP.UI.Screens;
 using RUI.Algorithms;
 using System;
@@ -73,6 +74,42 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake)),
                 this));
 
+            // protopartsnapshot leaks a reference to a copy of the root part because of how it's created
+
+            patches.Add(new PatchInfo(PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load)),
+                this));
+            patches.Add(new PatchInfo(PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart)),
+                this));
+
+            // Parts and vessels don't unhook themselves from things when they're destroyed or unloaded
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
+                this));
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), nameof(Part.ReleaseAutoStruts)),
+                this));
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
+                this));
+
+            // Kerbals
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Kerbal), nameof(Kerbal.OnDestroy)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(InternalSeat), nameof(InternalSeat.DespawnCrew)),
+                this));
+
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
@@ -83,6 +120,13 @@ namespace KSPCommunityFixes.Performance
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(EffectList), nameof(EffectList.OnSave)),
+                this));
+
+            // Pooled Audio onRelease delegate leak
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset)),
                 this));
 
             // various static fields keeping deep reference stacks around...
@@ -119,6 +163,23 @@ namespace KSPCommunityFixes.Performance
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication)),
+                this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication)),
+                this,
+                "ApplicationLauncher_RemoveApplication_Postfix"));
+
+            // KSC Vessel Markers inherit from this class. they don't get cleaned up properly
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate)),
                 this));
 
             // general cleanup on scene switches
@@ -177,6 +238,11 @@ namespace KSPCommunityFixes.Performance
             int leakCount = 0;
             int gameEventsCallbacksCount = 0;
 
+            // these are big static dictionaries that track a lot of parts and gameobjects.  Reset them here since all of them must have been destroyed
+            FlightGlobals.ResetObjectPartPointerUpwardsCache();
+            FlightGlobals.ResetObjectPartUpwardsCache();
+            Part.allParts.Clear();
+
             // PartSet doesn't derive from UnityEngine.Object and suscribes to the onPartResourceFlowStateChange and
             // onPartResourceFlowModeChange GameEvents. Instances can be owned by a bunch of classes, including Vessel,
             // Part, ShipConstruct... Whoever implemented this though that he could avoid having to manage the GameEvents
@@ -228,12 +294,6 @@ namespace KSPCommunityFixes.Performance
             // Implementation is relying on reflection because of generic GameEvents types, as well as the fact that the same
             // EvtDelegate class is reimplemented as a nested class in every GE type, despite each class using the same exact layout...
 
-            // Note : we only remove objects if they are declared by the stock assembly, or a PartModule, or a VesselModule.
-            // Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and
-            // relying on those being called on the dead instance to manipulate static data... 
-            // Questionable at best, but since it is functionally valid and seems relatively common, we can't take the risk to remove them.
-            // Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
-
             foreach (BaseGameEvent gameEvent in BaseGameEvent.eventsByName.Values)
             {
                 // "fast" path for EventVoid
@@ -245,16 +305,14 @@ namespace KSPCommunityFixes.Performance
                         if (eventVoid.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 eventVoid.events.RemoveAt(i);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -273,16 +331,13 @@ namespace KSPCommunityFixes.Performance
                         if (onLevelWasLoaded.events[i].originator is UnityEngine.Object unityObject && unityObject.IsDestroyed() && !(unityObject is ScenarioUpgradeableFacilities))
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 onLevelWasLoaded.events.RemoveAt(i);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -305,16 +360,13 @@ namespace KSPCommunityFixes.Performance
                         if (originatorField.GetValue(list[count]) is UnityEngine.Object unityObject && unityObject.IsDestroyed())
                         {
                             Type originType = unityObject.GetType();
-                            if (originType.Assembly == assemblyCSharp || unityObject is PartModule || unityObject is VesselModule)
+                            bool remove = ShouldCleanType(originType);
+                            LogUnityObjectGameEventLeak(gameEvent.EventName, originType, remove);
+                            if (remove)
                             {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, true);
                                 list.RemoveAt(count);
                                 leakCount++;
                                 gameEventsCallbacksCount--;
-                            }
-                            else
-                            {
-                                LogUnityObjectGameEventLeak(gameEvent.EventName, originType, false);
                             }
                         }
                     }
@@ -325,18 +377,24 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
+            // remove destroyed MapView event handlers
+            leakCount += CleanDelegateHandlers("MapView.OnEnterMapView", ref MapView.OnEnterMapView);
+            leakCount += CleanDelegateHandlers("MapView.OnExitMapView", ref MapView.OnExitMapView);
+
             // MapView is instantiated on scene loads and is registering an anonymous delegate in the TimingManager,
             // but never removes it. Since MapView hold indirect references to every vessel, this is a major leak.
-            if (TimingManager.Instance.IsNotNullOrDestroyed() && TimingManager.Instance.timing5.onLateUpdate != null)
+            if (TimingManager.Instance.IsNotNullOrDestroyed())
             {
-                foreach (Delegate del in TimingManager.Instance.timing5.onLateUpdate.GetInvocationList())
-                {
-                    if (del.Target is MapView mapview && mapview.IsDestroyed())
-                    {
-                        TimingManager.Instance.timing5.onLateUpdate -= (TimingManager.UpdateAction)del;
-                        leakCount++;
-                    }
-                }
+                // since the timing manager's delegates are properties, we can't directly modify them except through the set method...
+                leakCount += TimingManagerCleanObject("TimingManager.Instance", TimingManager.Instance);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing0", TimingManager.Instance.timing0);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing1", TimingManager.Instance.timing1);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing2", TimingManager.Instance.timing2);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing3", TimingManager.Instance.timing3);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing4", TimingManager.Instance.timing4);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timing5", TimingManager.Instance.timing5);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timingPre", TimingManager.Instance.timingPre);
+                leakCount += TimingManagerCleanObject("TimingManager.Instance.timingFI", TimingManager.Instance.timingFI);
             }
 
             // This is part of the resource flow graph mess, and will keep around tons of references
@@ -377,21 +435,77 @@ namespace KSPCommunityFixes.Performance
             Debug.Log($"[KSPCF:MemoryLeaks] Leaving scene \"{currentScene}\", cleaned {leakCount} memory leaks in {watch.Elapsed.TotalSeconds:F3}s. GameEvents callbacks : {gameEventsCallbacksCount}. Allocated memory : {heapAlloc} (managed heap), {unityAlloc} (unmanaged)");
         }
 
-        static void LogUnityObjectGameEventLeak(string eventName, Type origin, bool removed)
+        // Note : we only remove objects if they are declared by the stock assembly, or a PartModule, or a VesselModule.
+        // Some mods are relying on a singleton pattern by instantiating a KSPAddon once, registering GameEvents there and
+        // relying on those being called on the dead instance to manipulate static data... 
+        // Questionable at best, but since it is functionally valid and seems relatively common, we can't take the risk to remove them.
+        // Those cases will still be logged when the LogDestroyedUnityObjectGameEventsLeaks flag is set in settings.
+        static bool ShouldCleanType(Type type)
         {
-            if (!logDestroyedUnityObjectGameEventsLeaks)
-                return;
+            return type.Assembly == assemblyCSharp || typeof(PartModule).IsAssignableFrom(type) || typeof(VesselModule).IsAssignableFrom(type);
+        }
 
+        static int TimingManagerCleanObject(string name, object obj)
+        {
+            int leakCount = 0;
+            var delegateProperties = obj.GetType().GetProperties();
+            foreach (var property in delegateProperties)
+            {
+                if (property.PropertyType == typeof(TimingManager.UpdateAction))
+                {
+                    var del = (TimingManager.UpdateAction)property.GetValue(obj);
+                    leakCount += CleanDelegateHandlers(name + "." + property.Name, ref del);
+                    property.SetValue(obj, del);
+                }
+            }
+
+            return leakCount;
+        }
+
+        static int CleanDelegateHandlers<T>(string eventName, ref T del) where T : Delegate
+        {
+            int leakCount = 0;
+            if (del == null) return 0;
+            foreach (Delegate handler in del.GetInvocationList())
+            {
+                if (handler.Target is UnityEngine.Object obj && obj.IsDestroyed())
+                {
+                    bool remove = ShouldCleanType(obj.GetType());
+
+                    LogUnityObjectGameEventLeak(eventName, obj.GetType(), remove);
+
+                    if (remove)
+                    {
+                        del = (T)Delegate.Remove(del, handler);
+                        leakCount++;
+                    }
+                }
+            }
+            return leakCount;
+        }
+
+        static string TypeNameForLog(Type origin)
+        {
             string typeName = origin.Assembly.GetName().Name + ":";
             if (origin.IsNested)
                 typeName += origin.DeclaringType.Name + "." + origin.Name;
             else
                 typeName += origin.Name;
 
+            return typeName;
+        }
+
+        static void LogUnityObjectGameEventLeak(string eventName, Type origin, bool removed)
+        {
+            if (!logDestroyedUnityObjectGameEventsLeaks)
+                return;
+
+            string typeName = TypeNameForLog(origin);
+
             if (removed)
-                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {eventName} GameEvents callback owned by a destroyed {typeName} instance");
+                Debug.Log($"[KSPCF:MemoryLeaks] Removed a {eventName} callback owned by a destroyed {typeName} instance");
             else
-                Debug.Log($"[KSPCF:MemoryLeaks] A destroyed {typeName} instance is owning a {eventName} GameEvents callback. No action has been taken, but unless this mod is relying on this pattern, this is likely a memory leak.");
+                Debug.Log($"[KSPCF:MemoryLeaks] A destroyed {typeName} instance is owning a {eventName} callback. No action has been taken, but unless this mod is relying on this pattern, this is likely a memory leak.");
         }
 
         static void LogGameEventsSuscribers()
@@ -580,6 +694,155 @@ namespace KSPCommunityFixes.Performance
             return HighLogic.LoadedSceneIsFlight;
         }
 
+        // Because root parts are added directly to the Vessel gameobject, they're not just a clone of a part prefab
+        // instead, ProtoPartSnapshot.Load will clone the prefab, then copy the components and properties over to the Vessel GameObject
+        // Then it deletes the clone it made.
+        // This leaves a few references pointing to the now-deleted clone, because unlike regular serialization copying the properties won't fix the references to point to the real live part
+
+        static void ProtoPartSnapshot_Load_Postfix(Part __result, bool loadAsRootPart)
+        {
+            if (loadAsRootPart)
+            {
+                foreach (var attachNode in __result.attachNodes)
+                {
+                    attachNode.owner = __result;
+                }
+            }
+        }
+
+        static void ProtoPartSnapshot_ConfigurePart_Postfix(ProtoPartSnapshot __instance)
+        {
+            // ConfigurePart destroys this gameobject but doesn't clear the reference
+            __instance.rootPartPrefab = null;
+        }
+
+        // When a part is destroyed, we need to clean up all the references that are pointing back to this part, mostly from the ProtoPartSnapshot because that will live longer than this part
+        static void Part_OnDestroy_Postfix(Part __instance)
+        {
+            // if our protopartsnapshot is still pointing at this part, we need to clear all of its references
+            if (__instance.protoPartSnapshot != null && ReferenceEquals(__instance.protoPartSnapshot.partRef, __instance))
+            {
+                foreach (var moduleSnapshot in __instance.protoPartSnapshot.modules)
+                {
+                    moduleSnapshot.moduleRef = null;
+                }
+
+                foreach (var partResourceSnapshot in __instance.protoPartSnapshot.resources)
+                {
+                    partResourceSnapshot.resourceRef = null;
+                }
+
+                __instance.protoPartSnapshot.partRef = null;
+            }
+
+            // clear some additional containers to limit the impact of leaks and make reports less noisy
+            __instance.modules?.modules?.Clear();
+            __instance.children?.Clear();
+            __instance.parent = __instance.potentialParent = null;
+            __instance.internalModel = null;
+
+#if DEBUG
+            if (FlightGlobals.objectToPartUpwardsCache.Values.Contains(__instance))
+            {
+                Debug.LogError($"Destroying part {__instance.GetInstanceID()} while it's still in the objectToPartUpwardsCache");
+            }
+#endif
+        }
+
+        static void Part_ReleaseAutoStruts_Postfix(Part __instance)
+        {
+            __instance.autoStrutCacheVessel = null;
+            __instance.autoStrutVessel = null;
+        }
+
+        // PartSets are awful as noted in OnSceneUnloaded.  But vessel unloading is also a good time to clean these up instead of waiting for scene switch
+
+        // general unhooking of stuff when unloading a vessel.  Note that vessel gameobjects are not usually destroyed until the vessel itself is
+        static void Vessel_Unload_Postfix(Vessel __instance)
+        {
+            __instance.rootPart = null;
+            __instance.referenceTransformPart = null;
+            __instance.referenceTransformPartRecall = null;
+            __instance.GroundContacts?.Clear();
+            __instance._suspensionLoadBalancer?.suspensionModules?.Clear();
+            __instance.dockingPorts?.Clear();
+
+            // the flight integrator holds onto a lot of references, which will be repopulated when the vessel is loaded again
+            // clear them all now
+
+            if (__instance._fi != null)
+            {
+                __instance._fi.partRef = null;
+                __instance._fi.partThermalDataList?.Clear();
+                __instance._fi.partThermalDataListSkin?.Clear();
+                __instance._fi.partThermalDataCount = 0;
+                __instance._fi.partCount = 0;
+                __instance._fi.compoundParts?.Clear();
+                __instance._fi.occlusionConv?.Clear();
+                __instance._fi.occlusionSun?.Clear();
+                __instance._fi.occlusionBody?.Clear();
+                __instance._fi.overheatModules?.Clear();
+                __instance._fi.previewModules?.Clear();
+                __instance._fi.occludersConvection = null;
+                __instance._fi.occludersSun = null;
+                __instance._fi.occludersBody = null;
+                __instance._fi.occludersBodyCount = 0;
+                __instance._fi.occludersConvectionCount = 0;
+                __instance._fi.occludersSunCount = 0;
+            }
+
+            // not sure about
+            // objectUnderVessel
+
+            FlightGlobals.ResetObjectPartUpwardsCache();
+            FlightGlobals.ResetObjectPartPointerUpwardsCache();
+
+            for (int i = GameEvents.onPartResourceFlowStateChange.events.Count; i-- > 0;)
+            {
+                if (GameEvents.onPartResourceFlowStateChange.events[i].originator is PartSet partSet)
+                {
+                    if (partSet.vessel == __instance)
+                    {
+                        GameEvents.onPartResourceFlowStateChange.events.RemoveAt(i);
+                    }
+                }
+            }
+
+            for (int i = GameEvents.onPartResourceFlowModeChange.events.Count; i-- > 0;)
+            {
+                if (GameEvents.onPartResourceFlowModeChange.events[i].originator is PartSet partSet)
+                {
+                    if (partSet.vessel == __instance)
+                    {
+                        GameEvents.onPartResourceFlowModeChange.events.RemoveAt(i);
+                    }
+                }
+            }
+
+            __instance.resourcePartSet = null;
+            __instance.simulationResourcePartSet = null;
+            __instance.crossfeedSets.Clear();
+            __instance.simulationCrossfeedSets.Clear();
+        }
+
+        static void Kerbal_OnDestroy_Postfix(Kerbal __instance)
+        {
+            if (ReferenceEquals(__instance.protoCrewMember.KerbalRef, __instance))
+            {
+                __instance.protoCrewMember.KerbalRef = null;
+            }
+        }
+
+        static void InternalSeat_DespawnCrew_Prefix(InternalSeat __instance)
+        {
+            // DespawnCrew merely destroys the kerbal, but it doesn't unhook the protocrewmember from this seat
+            // ProtoCrewMembers will live until the next save game is loaded, so this can leak parts and vessels
+            if (__instance.kerbalRef.IsNotNullRef() && __instance.kerbalRef.protoCrewMember.seat.RefEquals(__instance))
+            {
+                __instance.kerbalRef.protoCrewMember.seat = null;
+            }
+        }
+
         // EffectList is leaking Part references by keeping around this static enumerator
         static void EffectList_Initialize_Postfix()
         {
@@ -589,6 +852,12 @@ namespace KSPCommunityFixes.Performance
         static void EffectList_OnSave_Postfix()
         {
             EffectList.fxEnumerator = default;
+        }
+
+        // PooledAudioSource leaks references to parts through its onRelease delegate
+        static void PooledAudioSource_Reset_Postfix(AudioMultiPooledFX.PooledAudioSource pooledAudioSource)
+        {
+            pooledAudioSource.onRelease = null;
         }
 
         // CraftSearch is keeping around an indirect reference to the last EditorLogic instance.
@@ -628,6 +897,20 @@ namespace KSPCommunityFixes.Performance
         static void FuelFlowOverlay_OnDestroy_Postfix()
         {
             FuelFlowOverlay.instance = null;
+        }
+
+        static void ApplicationLauncher_RemoveApplication_Postfix(ApplicationLauncherButton button)
+        {
+            if (ApplicationLauncher.Instance.IsNotNullRef() && object.ReferenceEquals(ApplicationLauncher.Instance.lastPinnedButton, button.toggleButton))
+            {
+                ApplicationLauncher.Instance.lastPinnedButton = null;
+            }
+        }
+
+        // KSC Vessel Marker - it seems like the logic in this has an `else` where it shouldn't.
+        static void AnchoredDialog_Terminate_Postfix(AnchoredDialog __instance)
+        {
+            __instance.gameObject.DestroyGameObject();
         }
 
         // patch previously silently failing code that now "properly" throw exceptions when attempting to access dead instances
