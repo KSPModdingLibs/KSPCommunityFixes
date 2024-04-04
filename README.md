@@ -196,6 +196,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - New KSP bugfix : [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5] : Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
 - **BetterUndoRedo** : Fixed "too much undoing" when undoing offset/rotate editor actions, and other incoherent behavior (see [related issue](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/206))
 - **FastLoader** : Improved DDS loading performance by avoiding an extra copy of the DDS data
+- **MemoryLeaks** : More stock memory leaks fixed, and additional reporting of leaked handlers
 
 ##### 1.34.1
 - Disable BetterEditorUndoRedo when TweakScale/L is installed due to introducing a bug with part attachments in the editor.
