@@ -1,4 +1,6 @@
-﻿using CommNet;
+﻿//#define LOG_PART_UPWARD_CACHE_LEAKS
+
+using CommNet;
 using HarmonyLib;
 using KSP.UI;
 using KSP.UI.Screens;
@@ -741,7 +743,7 @@ namespace KSPCommunityFixes.Performance
             __instance.parent = __instance.potentialParent = null;
             __instance.internalModel = null;
 
-#if DEBUG
+#if LOG_PART_UPWARD_CACHE_LEAKS
             if (FlightGlobals.objectToPartUpwardsCache.Values.Contains(__instance))
             {
                 Debug.LogError($"Destroying part {__instance.GetInstanceID()} while it's still in the objectToPartUpwardsCache");
