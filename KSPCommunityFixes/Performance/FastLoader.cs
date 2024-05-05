@@ -71,6 +71,7 @@ namespace KSPCommunityFixes.Performance
         private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
 
         private bool userOptInChoiceDone;
+        private const string textureCacheVersion = "V2";
         private string configPath;
         private string textureCachePath;
         private string textureCacheDataPath;
@@ -1364,12 +1365,7 @@ namespace KSPCommunityFixes.Performance
                 return new TextureInfo(file, texture2D, isNormalMap, false, true);
             }
 
-            private static string[] noMipMapsPNGTexturePaths = 
-            {
-                Path.DirectorySeparatorChar + "Icons" + Path.DirectorySeparatorChar,
-                Path.DirectorySeparatorChar + "Tutorials" + Path.DirectorySeparatorChar,
-                Path.DirectorySeparatorChar + "SimpleIcons" + Path.DirectorySeparatorChar
-            };
+            private static string mipMapsPNGTexturePath = Path.DirectorySeparatorChar + "Flags" + Path.DirectorySeparatorChar;
 
             private TextureInfo LoadPNG()
             {
@@ -1378,38 +1374,11 @@ namespace KSPCommunityFixes.Performance
                     SetError("Invalid PNG file");
                     return null;
                 }
-                 
-                bool canCompress = width % 4 == 0 && height % 4 == 0;
-                bool isNormalMap = file.name.EndsWith("NRM");
-                bool nonReadable = false;
-                bool hasMipMaps = true;
                 
-
-                if (isNormalMap)
-                {
-                    hasMipMaps = false;
-                }
-                else
-                {
-                    // KSPCF optimization : don't keep cargo icons in memory, don't generate mipmaps for them
-                    if (file.fullPath.Contains("@thumbs"))
-                    {
-                        nonReadable = true;
-                        hasMipMaps = false;
-                    }
-                    else
-                    {
-                        // stock behavior : don't generate mipmaps for a few special folders
-                        for (int i = 0; i < noMipMapsPNGTexturePaths.Length; i++)
-                        {
-                            if (file.fullPath.Contains(noMipMapsPNGTexturePaths[i]))
-                            {
-                                hasMipMaps = false;
-                                break;
-                            }
-                        }
-                    }
-                }
+                bool isNormalMap = file.name.EndsWith("NRM");
+                bool nonReadable = file.fullPath.Contains("@thumbs"); // KSPCF optimization : don't keep cargo icons in memory
+                bool hasMipMaps = file.fullPath.Contains(mipMapsPNGTexturePath); // only generate mipmaps for flags (stock behavior)
+                bool canCompress = hasMipMaps ? StaticHelpers.IsPowerOfTwo(width) && StaticHelpers.IsPowerOfTwo(height) : width % 4 == 0 && height % 4 == 0;
 
                 // don't initially compress normal textures, as we need to swizzle the raw data first
                 TextureFormat textureFormat;
@@ -1460,7 +1429,7 @@ namespace KSPCommunityFixes.Performance
 
             private TextureInfo LoadPNGCached()
             {
-                if (cachedTextureInfo.TryCreateTexture(out Texture2D texture))
+                if (cachedTextureInfo.TryCreateTexture(buffer, out Texture2D texture))
                     return new TextureInfo(file, texture, cachedTextureInfo.normal, cachedTextureInfo.readable, true);
 
                 buffer = System.IO.File.ReadAllBytes(file.fullPath);
@@ -1687,9 +1656,9 @@ namespace KSPCommunityFixes.Performance
                     normalMap.SetPixels32(pixels);
                 }
 
-                if (normalMap.width % 4 == 0 && normalMap.height % 4 == 0)
+                // Unity can't convert NPOT textures to DXT5 with mipmaps
+                if (StaticHelpers.IsPowerOfTwo(normalMap.width) && StaticHelpers.IsPowerOfTwo(normalMap.height))
                 {
-                    normalMap.Apply(true, false);
                     normalMap.Compress(false);
                     normalMap.Apply(true, makeNoLongerReadable);
                 }
@@ -2014,11 +1983,21 @@ namespace KSPCommunityFixes.Performance
                 else if (File.Exists(textureCacheDataPath))
                 {
                     string[] textureCacheDataContent = File.ReadAllLines(textureCacheDataPath);
-                    foreach (string json in textureCacheDataContent)
+
+                    if (textureCacheDataContent.Length > 0 && textureCacheDataContent[0].StartsWith(textureCacheVersion))
                     {
-                        CachedTextureInfo cachedTextureInfo = JsonUtility.FromJson<CachedTextureInfo>(json);
-                        textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
-                        textureDataIds.Add(cachedTextureInfo.id);
+                        for (int i = 1; i < textureCacheDataContent.Length; i++)
+                        {
+                            string json = textureCacheDataContent[i];
+                            CachedTextureInfo cachedTextureInfo = JsonUtility.FromJson<CachedTextureInfo>(json);
+                            textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
+                            textureDataIds.Add(cachedTextureInfo.id);
+                        }
+                    }
+                    else
+                    {
+                        Directory.Delete(textureCachePath, true);
+                        Directory.CreateDirectory(textureCachePath);
                     }
                 }
             }
@@ -2052,7 +2031,8 @@ namespace KSPCommunityFixes.Performance
                 {
                     File.Delete(textureCacheDataPath);
 
-                    List<string> textureCacheDataContent = new List<string>(textureCacheData.Count);
+                    List<string> textureCacheDataContent = new List<string>(textureCacheData.Count + 1);
+                    textureCacheDataContent.Add(textureCacheVersion);
 
                     foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
                         if (cachedTextureInfo.loaded)
@@ -2113,13 +2093,12 @@ namespace KSPCommunityFixes.Performance
                 File.WriteAllBytes(Path.Combine(loader.textureCachePath, id.ToString()), rawData);
             }
 
-            public bool TryCreateTexture(out Texture2D texture)
+            public bool TryCreateTexture(byte[] buffer, out Texture2D texture)
             {
                 try
                 {
                     texture = new Texture2D(width, height, GraphicsFormat.RGBA_DXT5_UNorm, mipCount, mipCount == 1 ? TextureCreationFlags.None : TextureCreationFlags.MipChain);
-                    byte[] rawData = File.ReadAllBytes(Path.Combine(loader.textureCachePath, id.ToString()));
-                    texture.LoadRawTextureData(rawData);
+                    texture.LoadRawTextureData(buffer);
                     texture.Apply(false, !readable);
                     loaded = true;
                     return true;

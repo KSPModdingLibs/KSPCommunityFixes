@@ -190,6 +190,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.35.1
+- **FastLoader** : fixed the PNG loader behavior not being similiar as in stock. It was wrongly generating mipmaps, notably resulting in NPOT textures not showing when texture quality wasn't set to full resolution ([see issue #224](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/224)).
+- **FastLoader** : fixed cached PNG textures loading not using the data loaded by the threaded reader, but instead reading the file again synchronously (!). Unsurprisingly, fixing that is massively improving texture loading time.
+
 ##### 1.35.0
 - New KSP performance patch : [**OptimizedModuleRaycasts**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/216) [KSP 1.12.3 - 1.12.5] : Improve engine exhaust damage and solar panel line of sight raycasts performance by avoiding extra physics state synchronization and caching solar panels scaled space raycasts results.
 - New KSP QoL/performance patch : [**OptionalMakingHistoryDLCFeatures**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/218) [KSP 1.12.3 - 1.12.5] : Allow to disable the Making History DLC mission editor and additional launch sites features to decrease memory usage and increase loading speed. The Making History parts will still be available. Can be toggled from the KSPCF in-game settings (requires a restart), or from a MM patch (see `Settings.cfg`)
