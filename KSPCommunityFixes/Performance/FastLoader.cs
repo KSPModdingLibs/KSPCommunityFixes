@@ -1659,6 +1659,7 @@ namespace KSPCommunityFixes.Performance
                 // Unity can't convert NPOT textures to DXT5 with mipmaps
                 if (StaticHelpers.IsPowerOfTwo(normalMap.width) && StaticHelpers.IsPowerOfTwo(normalMap.height))
                 {
+                    normalMap.Apply(true); // needed to generate mipmaps, must be done before compression
                     normalMap.Compress(false);
                     normalMap.Apply(true, makeNoLongerReadable);
                 }

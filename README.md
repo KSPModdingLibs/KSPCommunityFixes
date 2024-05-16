@@ -190,6 +190,9 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.35.2
+- **FastLoader** : Fixed a regression introduced in 1.35.1, causing PNG normal maps to be generated with empty mipmaps.
+
 ##### 1.35.1
 - **FastLoader** : fixed the PNG loader behavior not being similiar as in stock. It was wrongly generating mipmaps, notably resulting in NPOT textures not showing when texture quality wasn't set to full resolution ([see issue #224](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/224)).
 - **FastLoader** : fixed cached PNG textures loading not using the data loaded by the threaded reader, but instead reading the file again synchronously (!). Unsurprisingly, fixing that is massively improving texture loading time.
