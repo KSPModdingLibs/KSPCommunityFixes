@@ -1,18 +1,14 @@
-﻿using System;
+﻿using DDSHeaders;
+using HarmonyLib;
+using KSPCommunityFixes.QoL;
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using HarmonyLib;
-using KSP.UI.Screens;
-using KSPCommunityFixes.QoL;
 using UnityEngine;
-using static KSP.UI.Screens.Settings.SettingsSetup;
+using UnityEngine.Experimental.Rendering;
 using static KSPCommunityFixes.Performance.KSPCFFastLoader;
-using static KSPCommunityFixes.QoL.NoIVA;
-using static ProceduralSpaceObject;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -44,20 +40,39 @@ namespace KSPCommunityFixes.Performance
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(PartLoader), nameof(PartLoader.ParsePart)),
                 this));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(Part), nameof(Part.Awake)),
+                this));
+        }
+
+        static void Part_Awake_Postfix(Part __instance)
+        {
+            if (__instance.partInfo == null)
+                return;
+
+            if (!prefabsData.TryGetValue(__instance.partInfo, out PrefabData prefabData))
+                return;
+
+            if (prefabData.areTexturesLoaded)
+                return;
+
+            prefabData.LoadTextures();
         }
 
         static void Instantiate_Prefix(UnityEngine.Object original)
         {
-            if (original is Part part 
-                && part.partInfo != null 
-                && part.partInfo.partPrefab.IsNotNullRef() // skip instantiation of the special prefabs (kerbals, flag) during loading
-                && prefabsData.TryGetValue(part.partInfo, out PrefabData prefabData)
-                && !prefabData.areTexturesLoaded)
-            {
-                // load textures
-                // set them on the prefab
-                prefabData.areTexturesLoaded = true;
-            }
+            //if (original is Part part 
+            //    && part.partInfo != null 
+            //    && part.partInfo.partPrefab.IsNotNullRef() // skip instantiation of the special prefabs (kerbals, flag) during loading
+            //    && prefabsData.TryGetValue(part.partInfo, out PrefabData prefabData)
+            //    && !prefabData.areTexturesLoaded)
+            //{
+            //    // load textures
+            //    // set them on the prefab
+            //    prefabData.areTexturesLoaded = true;
+            //}
         }
 
         static void PartLoader_ParsePart_Postfix(AvailablePart __result)
@@ -69,6 +84,8 @@ namespace KSPCommunityFixes.Performance
             if (modelTransform == null)
                 return;
 
+
+            HashSet<string> modelTextures = new HashSet<string>();
             PrefabData prefabData = null;
 
             foreach (Renderer renderer in modelTransform.GetComponentsInChildren<Renderer>(true))
@@ -95,6 +112,7 @@ namespace KSPCommunityFixes.Performance
 
                             prefabData.materials.Add(materialTextures);
                             materialTextures.mainTex = textureInfo;
+                            modelTextures.Add(currentTexName);
                         }
 
                     }
@@ -116,6 +134,7 @@ namespace KSPCommunityFixes.Performance
 
                             prefabData.materials.Add(materialTextures);
                             materialTextures.bumpMap = textureInfo;
+                            modelTextures.Add(currentTexName);
                         }
 
                     }
@@ -137,6 +156,7 @@ namespace KSPCommunityFixes.Performance
 
                             prefabData.materials.Add(materialTextures);
                             materialTextures.emissive = textureInfo;
+                            modelTextures.Add(currentTexName);
                         }
 
                     }
@@ -158,6 +178,7 @@ namespace KSPCommunityFixes.Performance
 
                             prefabData.materials.Add(materialTextures);
                             materialTextures.specMap = textureInfo;
+                            modelTextures.Add(currentTexName);
                         }
 
                     }
@@ -165,7 +186,23 @@ namespace KSPCommunityFixes.Performance
             }
 
             if (prefabData != null)
+            {
                 prefabsData[__result] = prefabData;
+
+                if (partsTextures.TryGetValue(__result.name, out List<string> partTextures))
+                {
+                    foreach (string partTexture in partTextures)
+                    {
+                        if (modelTextures.Contains(partTexture))
+                            continue;
+
+                        if (OnDemandTextureInfo.texturesByUrl.TryGetValue(partTexture, out OnDemandTextureInfo textureInfo))
+                        {
+                            prefabData.additonalTextures.Add(textureInfo);
+                        }
+                    }
+                }
+            }
         }
 
         private static readonly char[] textureSplitChars = { ':', ',', ';' };
@@ -345,36 +382,16 @@ namespace KSPCommunityFixes.Performance
     }
 
 
-    //[KSPAddon(KSPAddon.Startup.Instantly, true)]
-    public class OnDemandPartTexturesLoader// : MonoBehaviour
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    public class OnDemandPartTexturesLoader : MonoBehaviour
     {
+        public static OnDemandPartTexturesLoader instance;
 
-
-
-
-        // 1
-        // build a <PartPrefab, List<Texture2D>> dictionary
-        // 1.a.
-        // - Parse part configs
-        //   - find MODEL > model reference
-        //   - find MODEL > texture refernces
-        //   - find ModulePartVariants > TEXTURE references
-        // - In all found model references :
-        //   - find all texture references
-        // Patch Part.Awake(), after RelinkPrefab()
-        //   - swap the model textures
-
-        // overview of where textures can come from :
-        // - defined in the model(s) materials
-        //   - PART > "mesh" : depreciated/unused
-        //   - If no PART > MODEL node : the first found (as ordered in GameDatabase.databaseModel) *.mu model placed in the same directory as the part config (cfg.parent.parent.url)
-        //   - If PART > MODEL node(s) : the model defined in the "model" value
-        //   - not sure if it is possible to set a path to the texture in the model ? I don't think so, but...
-        // - defined as a texture replacement in the PART > MODEL node
-        //   - the replacement is done on the prefab renderers sharedMaterial
-        //   - as far as I can tell, this require (a potentially dummy) texture with the same name as what is backed in the model to be sitting next to the model in the same directory
-
-
+        void Start()
+        {
+            DontDestroyOnLoad(this);
+            instance = this;
+        }
     }
 
     internal class TextureReplacement
@@ -392,11 +409,25 @@ namespace KSPCommunityFixes.Performance
     internal class PrefabData
     {
         public bool areTexturesLoaded;
-        public List<MaterialTextures> materials;
+        public List<MaterialTextures> materials = new List<MaterialTextures>();
+        public HashSet<OnDemandTextureInfo> additonalTextures = new HashSet<OnDemandTextureInfo>();
 
         public void LoadTextures()
         {
+            foreach (MaterialTextures materialTextures in materials)
+            {
+                materialTextures.LoadTextures();
+            }
 
+            foreach (OnDemandTextureInfo textureInfo in additonalTextures)
+            {
+                if (!textureInfo.isLoaded)
+                {
+                    textureInfo.Load();
+                }
+            }
+
+            areTexturesLoaded = true;
         }
     }
 
@@ -417,27 +448,75 @@ namespace KSPCommunityFixes.Performance
         {
             if (mainTex != null)
             {
-                mainTex.Load();
-                material.SetTexture("_MainTex", mainTex.texture);
+                if (mainTex.isLoaded)
+                    material.SetTexture("_MainTex", mainTex.texture);
+                else
+                    OnDemandPartTexturesLoader.instance.StartCoroutine(LoadMainTex());
             }
 
             if (bumpMap != null)
             {
-                bumpMap.Load();
-                material.SetTexture("_BumpMap", bumpMap.texture);
+                if (bumpMap.isLoaded)
+                    material.SetTexture("_BumpMap", bumpMap.texture);
+                else
+                    OnDemandPartTexturesLoader.instance.StartCoroutine(LoadBumpMap());
             }
 
             if (emissive != null)
             {
-                emissive.Load();
-                material.SetTexture("_Emissive", emissive.texture);
+                if (emissive.isLoaded)
+                    material.SetTexture("_Emissive", emissive.texture);
+                else
+                    OnDemandPartTexturesLoader.instance.StartCoroutine(LoadEmissive());
             }
 
             if (specMap != null)
             {
-                specMap.Load();
-                material.SetTexture("_SpecMap", specMap.texture);
+                if (specMap.isLoaded)
+                    material.SetTexture("_SpecMap", specMap.texture);
+                else
+                    OnDemandPartTexturesLoader.instance.StartCoroutine(LoadSpecMap());
             }
+        }
+
+        private IEnumerator LoadMainTex()
+        {
+            mainTex.Load();
+
+            while (!mainTex.isLoaded)
+                yield return null;
+
+            material.SetTexture("_MainTex", mainTex.texture);
+        }
+
+        private IEnumerator LoadBumpMap()
+        {
+            bumpMap.Load();
+
+            while (!bumpMap.isLoaded)
+                yield return null;
+
+            material.SetTexture("_BumpMap", bumpMap.texture);
+        }
+
+        private IEnumerator LoadEmissive()
+        {
+            emissive.Load();
+
+            while (!emissive.isLoaded)
+                yield return null;
+
+            material.SetTexture("_Emissive", emissive.texture);
+        }
+
+        private IEnumerator LoadSpecMap()
+        {
+            specMap.Load();
+
+            while (!specMap.isLoaded)
+                yield return null;
+
+            material.SetTexture("_SpecMap", specMap.texture);
         }
     }
 
@@ -447,7 +526,7 @@ namespace KSPCommunityFixes.Performance
 
         private Texture2D dummyTexture;
 
-        private bool isLoaded;
+        public bool isLoaded;
         private RawAsset.AssetType textureType;
 
         public OnDemandTextureInfo(UrlDir.UrlFile file, RawAsset.AssetType textureType, bool isNormalMap = false, bool isReadable = false, bool isCompressed = false, Texture2D texture = null) 
@@ -464,7 +543,207 @@ namespace KSPCommunityFixes.Performance
 
         public void Load()
         {
+            switch (textureType)
+            {
+                case RawAsset.AssetType.TextureDDS:
+                    LoadDDS();
+                    break;
+                case RawAsset.AssetType.TextureJPG:
+                    break;
+                case RawAsset.AssetType.TextureMBM:
+                    break;
+                case RawAsset.AssetType.TexturePNG:
+                    break;
+                case RawAsset.AssetType.TexturePNGCached:
+                    break;
+                case RawAsset.AssetType.TextureTGA:
+                    break;
+                case RawAsset.AssetType.TextureTRUECOLOR:
+                    break;
+            }
+        }
 
+        private void LoadDDS()
+        {
+            FileStream fileStream = new FileStream(file.fullPath, FileMode.Open);
+            BinaryReader binaryReader = new BinaryReader(fileStream);
+
+            if (binaryReader.ReadUInt32() != DDSValues.uintMagic)
+            {
+                binaryReader.Dispose();
+                fileStream.Dispose();
+                return;
+            }
+            DDSHeader dDSHeader = new DDSHeader(binaryReader);
+            bool mipChain = (dDSHeader.dwCaps & DDSPixelFormatCaps.MIPMAP) != 0;
+            bool isNormalMap = (dDSHeader.ddspf.dwFlags & 0x80000u) != 0 || (dDSHeader.ddspf.dwFlags & 0x80000000u) != 0;
+
+            DDSFourCC ddsFourCC = (DDSFourCC)dDSHeader.ddspf.dwFourCC;
+            GraphicsFormat graphicsFormat = GraphicsFormat.None;
+
+            switch (ddsFourCC)
+            {
+                case DDSFourCC.DXT1:
+                    graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
+                    break;
+                case DDSFourCC.DXT5:
+                    graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
+                    break;
+                case DDSFourCC.BC4U_ATI:
+                case DDSFourCC.BC4U:
+                    graphicsFormat = GraphicsFormat.R_BC4_UNorm;
+                    break;
+                case DDSFourCC.BC4S:
+                    graphicsFormat = GraphicsFormat.R_BC4_SNorm;
+                    break;
+                case DDSFourCC.BC5U_ATI:
+                case DDSFourCC.BC5U:
+                    graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
+                    break;
+                case DDSFourCC.BC5S:
+                    graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
+                    break;
+                case DDSFourCC.R16G16B16A16_UNORM:
+                    graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
+                    break;
+                case DDSFourCC.R16G16B16A16_SNORM:
+                    graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
+                    break;
+                case DDSFourCC.R16_FLOAT:
+                    graphicsFormat = GraphicsFormat.R16_SFloat;
+                    break;
+                case DDSFourCC.R16G16_FLOAT:
+                    graphicsFormat = GraphicsFormat.R16G16_SFloat;
+                    break;
+                case DDSFourCC.R16G16B16A16_FLOAT:
+                    graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+                    break;
+                case DDSFourCC.R32_FLOAT:
+                    graphicsFormat = GraphicsFormat.R32_SFloat;
+                    break;
+                case DDSFourCC.R32G32_FLOAT:
+                    graphicsFormat = GraphicsFormat.R32G32_SFloat;
+                    break;
+                case DDSFourCC.R32G32B32A32_FLOAT:
+                    graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
+                    break;
+                case DDSFourCC.DX10:
+                    DDSHeaderDX10 dx10Header = new DDSHeaderDX10(binaryReader);
+                    switch (dx10Header.dxgiFormat)
+                    {
+                        case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM:
+                            graphicsFormat = GraphicsFormat.RGBA_DXT1_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB:
+                            graphicsFormat = GraphicsFormat.RGBA_DXT1_SRGB;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM:
+                            graphicsFormat = GraphicsFormat.RGBA_DXT5_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB:
+                            graphicsFormat = GraphicsFormat.RGBA_DXT5_SRGB;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM:
+                            graphicsFormat = GraphicsFormat.R_BC4_SNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM:
+                            graphicsFormat = GraphicsFormat.R_BC4_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM:
+                            graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM:
+                            graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM:
+                            graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB:
+                            graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16:
+                            graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16:
+                            graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM:
+                            graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_SNORM:
+                            graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16_FLOAT:
+                            graphicsFormat = GraphicsFormat.R16_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16_FLOAT:
+                            graphicsFormat = GraphicsFormat.R16G16_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT:
+                            graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32_FLOAT:
+                            graphicsFormat = GraphicsFormat.R32_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32G32_FLOAT:
+                            graphicsFormat = GraphicsFormat.R32G32_SFloat;
+                            break;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT:
+                            graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
+                            break;
+                        default:
+                            //SetError($"DDS: The '{dx10Header.dxgiFormat}' DXT10 format isn't supported");
+                            break;
+                    }
+                    break;
+                case DDSFourCC.DXT2:
+                case DDSFourCC.DXT3:
+                case DDSFourCC.DXT4:
+                case DDSFourCC.RGBG:
+                case DDSFourCC.GRGB:
+                case DDSFourCC.UYVY:
+                case DDSFourCC.YUY2:
+                case DDSFourCC.CxV8U8:
+                    //SetError($"DDS: The '{ddsFourCC}' format isn't supported, use DXT1 for RGB textures or DXT5 for RGBA textures");
+                    break;
+                default:
+                    //SetError($"DDS: Unknown dwFourCC format '0x{ddsFourCC:X}'");
+                    break;
+            }
+
+            if (graphicsFormat != GraphicsFormat.None)
+            {
+                if (!SystemInfo.IsFormatSupported(graphicsFormat, FormatUsage.Sample))
+                {
+                    if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX &&
+                        (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm
+                         || graphicsFormat == GraphicsFormat.RGBA_BC7_SRGB
+                         || graphicsFormat == GraphicsFormat.RGB_BC6H_SFloat
+                         || graphicsFormat == GraphicsFormat.RGB_BC6H_UFloat))
+                    {
+                        //SetError($"DDS: The '{graphicsFormat}' format is not supported on MacOS");
+                    }
+                    else
+                    {
+                        //SetError($"DDS: The '{graphicsFormat}' format is not supported by your GPU or OS");
+                    }
+                }
+                else
+                {
+                    texture = new Texture2D((int)dDSHeader.dwWidth, (int)dDSHeader.dwHeight, graphicsFormat, mipChain ? TextureCreationFlags.MipChain : TextureCreationFlags.None);
+                    if (texture.IsNullOrDestroyed())
+                    {
+                        //SetError($"DDS: Failed to load texture, unknown error");
+                    }
+                    else
+                    {
+                        byte[] ddsData = binaryReader.ReadBytes((int)(binaryReader.BaseStream.Length - binaryReader.BaseStream.Position));
+                        texture.LoadRawTextureData(ddsData);
+                        texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+                        isLoaded = true;
+                    }
+                }
+            }
         }
     }
 }
