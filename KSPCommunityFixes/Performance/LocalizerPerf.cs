@@ -19,6 +19,7 @@ namespace KSPCommunityFixes.Performance
     {
         private static Thread mainThread;
 
+        private static readonly Dictionary<(string, string),string> Cache = new Dictionary<(string, string), string>();
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             mainThread = Thread.CurrentThread;
@@ -51,7 +52,6 @@ namespace KSPCommunityFixes.Performance
                 __result = template;
                 return false;
             }
-
             Localizer localizer = Localizer.Instance;
             if (localizer == null || string.IsNullOrEmpty(template))
             {
@@ -85,6 +85,13 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
+            (string, string) cacheKey = (template, string.Join(".",list));
+            
+            if(Cache.TryGetValue(cacheKey, out __result))
+            {
+                return false;
+            }
+
             if (localizer.tagValues.TryGetValue(template, out string localizedTemplate))
                 template = localizedTemplate;
 
@@ -109,6 +116,7 @@ namespace KSPCommunityFixes.Performance
             if (Localizer.debugWriteMissingKeysToLog)
                 DebugWriteMissingKeysToLog(__result);
 
+            Cache.Add(cacheKey, __result);
             return false;
         }
 
