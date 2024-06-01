@@ -98,6 +98,10 @@
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
     <Publicize Include="mscorlib:System.String.m_firstChar" />
+    <Publicize Include="mscorlib:System.Number" />
+    <Publicize Include="mscorlib:System.Number.ParseNumber" />
+    <Publicize Include="mscorlib:System.Number.NumberBufferToDouble" />
+    <Publicize Include="mscorlib:System.Number+NumberBuffer" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
@@ -126,7 +130,9 @@
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
+    <Compile Include="Library\MuParser.cs" />
     <Compile Include="Library\ObjectPool.cs" />
+    <Compile Include="Library\ShaderHelpers.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
@@ -138,6 +144,8 @@
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FastLoader.cs" />
+    <Compile Include="Performance\FlightIntegratorPerf.cs" />
+    <Compile Include="Performance\GeneralPerfFixes.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />

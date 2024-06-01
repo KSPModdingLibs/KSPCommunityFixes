@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using KSP.UI.TooltipTypes;
+using PartToolsLib;
 using UnityEngine;
 
 namespace KSPCommunityFixes
@@ -91,5 +93,8 @@ namespace KSPCommunityFixes
         /// </summary>
         /// <param name="value">The value.</param>
         public static bool IsPowerOfTwo(uint value) => (value & (value - 1)) == 0 && value != 0;
+
+
+
     }
 }
