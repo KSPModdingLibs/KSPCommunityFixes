@@ -16,6 +16,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Threading;
+using KSPCommunityFixes.Library;
 using TMPro;
 using Unity.Collections;
 using UnityEngine;
@@ -1378,7 +1379,7 @@ namespace KSPCommunityFixes.Performance
                 bool isNormalMap = file.name.EndsWith("NRM");
                 bool nonReadable = file.fullPath.Contains("@thumbs"); // KSPCF optimization : don't keep cargo icons in memory
                 bool hasMipMaps = file.fullPath.Contains(mipMapsPNGTexturePath); // only generate mipmaps for flags (stock behavior)
-                bool canCompress = hasMipMaps ? StaticHelpers.IsPowerOfTwo(width) && StaticHelpers.IsPowerOfTwo(height) : width % 4 == 0 && height % 4 == 0;
+                bool canCompress = hasMipMaps ? Numerics.IsPowerOfTwo(width) && Numerics.IsPowerOfTwo(height) : width % 4 == 0 && height % 4 == 0;
 
                 // don't initially compress normal textures, as we need to swizzle the raw data first
                 TextureFormat textureFormat;
@@ -1657,7 +1658,7 @@ namespace KSPCommunityFixes.Performance
                 }
 
                 // Unity can't convert NPOT textures to DXT5 with mipmaps
-                if (StaticHelpers.IsPowerOfTwo(normalMap.width) && StaticHelpers.IsPowerOfTwo(normalMap.height))
+                if (Numerics.IsPowerOfTwo(normalMap.width) && Numerics.IsPowerOfTwo(normalMap.height))
                 {
                     normalMap.Apply(true); // needed to generate mipmaps, must be done before compression
                     normalMap.Compress(false);

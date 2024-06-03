@@ -126,6 +126,7 @@
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
+    <Compile Include="Library\Numerics.cs" />
     <Compile Include="Library\ObjectPool.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
@@ -138,6 +139,7 @@
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FastLoader.cs" />
+    <Compile Include="Performance\FlightPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
