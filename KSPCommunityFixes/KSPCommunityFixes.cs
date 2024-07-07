@@ -63,7 +63,7 @@ namespace KSPCommunityFixes
                 Destroy(Instance);
                 Instance = null;
             }
-            
+
             if (Instance.IsNullOrDestroyed())
             {
                 Instance = this;
@@ -77,9 +77,17 @@ namespace KSPCommunityFixes
 #endif
             LocalizationUtils.GenerateLocTemplateIfRequested();
             LocalizationUtils.ParseLocalization();
+
+            // Insert KSPCF as the first entry in the explicit callback list.
+            // This guarantees that KSPCF will run before all other post load callbacks.
+            // Note that this is cumbersome to access via publicizer because it references
+            // assemblies via file name, and ModuleManager's dll is versioned.
+            AccessTools
+                .StaticFieldRefAccess<List<ModuleManager.ModuleManagerPostPatchCallback>>(typeof(ModuleManager.PostPatchLoader), "postPatchCallbacks")
+                .Insert(0, MMPostLoadCallback);
         }
 
-        public void ModuleManagerPostLoad()
+        public void MMPostLoadCallback()
         {
             if (Instance.IsNullOrDestroyed() || !Instance.RefEquals(this))
                 return;
@@ -106,7 +114,7 @@ namespace KSPCommunityFixes
                 if (!type.IsAbstract && type.IsSubclassOf(basePatchType))
                 {
                     patchesTypes.Add(type);
-                    
+
                 }
             }
 
