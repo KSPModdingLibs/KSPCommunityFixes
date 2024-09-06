@@ -32,6 +32,11 @@ namespace KSPCommunityFixes
                 AccessTools.Method(typeof(GamePersistence), "LoadGame", new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) }),
                 this));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(SceneTransitionMatrix), "GetTransitionValue", new Type[] { typeof(GameScenes), typeof(GameScenes) }),
+                this));
+
             //patches.Add(new PatchInfo(
             //    PatchMethodType.Prefix,
             //    AccessTools.Method(typeof(GamePersistence), "SaveGame", new Type[] {typeof(Game), typeof(string), typeof(string), typeof(SaveMode)}),
@@ -104,6 +109,12 @@ namespace KSPCommunityFixes
             }
 
             return code;
+        }
+
+        static bool SceneTransitionMatrix_GetTransitionValue_Prefix(out bool __result)
+        {
+            __result = false;
+            return false;
         }
 
         private static void CachePersistentSFS(string saveFileName, string saveFolder, ConfigNode configNode)
