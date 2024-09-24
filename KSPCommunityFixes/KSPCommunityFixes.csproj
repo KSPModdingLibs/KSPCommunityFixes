@@ -93,6 +93,7 @@
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
     <Publicize Include="UnityEngine.IMGUIModule" />
+    <Publicize Include="UnityEngine.CoreModule:Unity.Collections.NativeArray`1.m_Buffer" />
     <Publicize Include="mscorlib:System.IO.MonoIO" />
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
@@ -124,6 +125,7 @@
     <Compile Include="BugFixes\StrategyDuration.cs" />
     <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
+    <Compile Include="Library\Collections\FastStack.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
     <Compile Include="Library\Numerics.cs" />
