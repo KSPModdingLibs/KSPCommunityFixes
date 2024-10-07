@@ -117,7 +117,7 @@ namespace KSPCommunityFixes.Performance
                     vessel.rb_velocityD = velocity * vesselMassRecip;
                     vessel.velocityD = vessel.rb_velocityD + Krakensbane.GetFrameVelocity();
                     vessel.CoM = vessel.CoMD;
-                    vessel.localCoM = vesselInverseMatrix.MultiplyPoint3x4(vessel.CoMD);
+                    vessel.localCoM = vessel.vesselTransform.InverseTransformPoint(vessel.CoM);
                     vessel.rb_velocity = vessel.rb_velocityD;
                     vessel.angularVelocityD = angularVelocity * vesselMassRecip;
                     vessel.angularVelocity = vessel.angularVelocityD;
