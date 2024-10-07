@@ -303,6 +303,8 @@ namespace KSPCommunityFixes.Performance
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
 
+            OnDemandPartTextures.GetTextures(out HashSet<string> allPartTextures);
+
             double nextFrameTime = ElapsedTime + minFrameTimeD;
 
             // Files loaded by our custom loaders
@@ -350,26 +352,29 @@ namespace KSPCommunityFixes.Performance
                             }
                             break;
                         case FileType.Texture:
+
+                            bool isOnDemand = allPartTextures.Contains(file.url);
+
                             switch (file.fileExtension)
                             {
                                 case "dds":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureDDS));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureDDS, isOnDemand));
                                     break;
                                 case "jpg":
                                 case "jpeg":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureJPG));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureJPG, isOnDemand));
                                     break;
                                 case "mbm":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureMBM));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureMBM, isOnDemand));
                                     break;
                                 case "png":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TexturePNG));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TexturePNG, isOnDemand));
                                     break;
                                 case "tga":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTGA));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTGA, isOnDemand));
                                     break;
                                 case "truecolor":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTRUECOLOR));
+                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTRUECOLOR, isOnDemand));
                                     break;
                                 default:
                                     unsupportedTextureFiles.Add(file);
@@ -802,6 +807,12 @@ namespace KSPCommunityFixes.Performance
         {
             foreach (RawAsset rawAsset in files)
             {
+                if (rawAsset.IsOnDemand)
+                {
+                    buffer.AddToFront(rawAsset);
+                    continue;
+                }
+
                 rawAsset.ReadFromDiskWorkerThread();
 
                 SpinWait spin = new SpinWait();
@@ -836,7 +847,7 @@ namespace KSPCommunityFixes.Performance
         /// <summary>
         /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
         /// </summary>
-        private class RawAsset
+        internal class RawAsset
         {
             public enum AssetType
             {
@@ -881,18 +892,21 @@ namespace KSPCommunityFixes.Performance
             private BinaryReader binaryReader;
             private Result result;
             private string resultMessage;
+            private bool isOnDemand;
 
             public UrlFile File => file;
             public Result State => result;
             public string Message => resultMessage;
             public int DataLength => dataLength;
             public string TypeName => assetTypeNames[(int)assetType];
+            public bool IsOnDemand => isOnDemand;
 
-            public RawAsset(UrlFile file, AssetType assetType)
+            public RawAsset(UrlFile file, AssetType assetType, bool isOnDemand = false)
             {
                 this.result = Result.Valid;
                 this.file = file;
                 this.assetType = assetType;
+                this.isOnDemand = isOnDemand;
             }
 
             private void SetError(string message)
@@ -1002,35 +1016,49 @@ namespace KSPCommunityFixes.Performance
                     if (file.fileType == FileType.Texture)
                     {
                         TextureInfo textureInfo;
-                        switch (assetType)
+
+                        if (isOnDemand)
                         {
-                            case AssetType.TextureDDS:
-                                textureInfo = LoadDDS();
-                                break;
-                            case AssetType.TextureJPG:
-                                textureInfo = LoadJPG();
-                                break;
-                            case AssetType.TextureMBM:
-                                textureInfo = LoadMBM();
-                                break;
-                            case AssetType.TexturePNG:
-                                textureInfo = LoadPNG();
-                                break;
-                            case AssetType.TexturePNGCached:
-                                textureInfo = LoadPNGCached();
-                                break;
-                            case AssetType.TextureTGA:
-                                textureInfo = LoadTGA();
-                                break;
-                            case AssetType.TextureTRUECOLOR:
-                                textureInfo = LoadTRUECOLOR();
-                                break;
-                            default:
-                                SetError("Unknown texture format");
-                                return;
+                            textureInfo = new OnDemandTextureInfo(file, assetType);
+                        }
+                        else
+                        {
+                            switch (assetType)
+                            {
+                                case AssetType.TextureDDS:
+                                    textureInfo = LoadDDS();
+                                    break;
+                                case AssetType.TextureJPG:
+                                    textureInfo = LoadJPG();
+                                    break;
+                                case AssetType.TextureMBM:
+                                    textureInfo = LoadMBM();
+                                    break;
+                                case AssetType.TexturePNG:
+                                    textureInfo = LoadPNG();
+                                    break;
+                                case AssetType.TexturePNGCached:
+                                    textureInfo = LoadPNGCached();
+                                    break;
+                                case AssetType.TextureTGA:
+                                    textureInfo = LoadTGA();
+                                    break;
+                                case AssetType.TextureTRUECOLOR:
+                                    textureInfo = LoadTRUECOLOR();
+                                    break;
+                                default:
+                                    SetError("Unknown texture format");
+                                    return;
+                            }
+
+                            if (textureInfo.texture.IsNullOrDestroyed())
+                                result = Result.Failed;
+
+                            textureInfo.texture.name = file.url;
+                            textureInfo.name = file.url;
                         }
 
-                        if (result == Result.Failed || textureInfo == null || textureInfo.texture.IsNullOrDestroyed())
+                        if (result == Result.Failed || textureInfo == null)
                         {
                             result = Result.Failed;
                             if (string.IsNullOrEmpty(resultMessage))
@@ -1038,8 +1066,6 @@ namespace KSPCommunityFixes.Performance
                         }
                         else
                         {
-                            textureInfo.name = file.url;
-                            textureInfo.texture.name = file.url;
                             Instance.databaseTexture.Add(textureInfo);
                         }
                     }
@@ -1108,36 +1134,6 @@ namespace KSPCommunityFixes.Performance
 
                 assetType = AssetType.TexturePNGCached;
                 this.cachedTextureInfo = cachedTextureInfo;
-            }
-
-            // see https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
-            private enum DDSFourCC : uint
-            {
-                DXT1 = 0x31545844, // "DXT1"
-                DXT2 = 0x32545844, // "DXT2"
-                DXT3 = 0x33545844, // "DXT3"
-                DXT4 = 0x34545844, // "DXT4"
-                DXT5 = 0x35545844, // "DXT5"
-                BC4U_ATI = 0x31495441, // "ATI1" (actually BC4U)
-                BC4U = 0x55344342, // "BC4U"
-                BC4S = 0x53344342, // "BC4S"
-                BC5U_ATI = 0x32495441, // "ATI2" (actually BC5U)
-                BC5U = 0x55354342, // "BC5U"
-                BC5S = 0x53354342, // "BC5S"
-                RGBG = 0x47424752, // "RGBG"
-                GRGB = 0x42475247, // "GRGB"
-                UYVY = 0x59565955, // "UYVY"
-                YUY2 = 0x32595559, // "YUY2"
-                DX10 = 0x30315844, // "DX10", actual DXGI format specified in DX10 header
-                R16G16B16A16_UNORM = 36,
-                R16G16B16A16_SNORM = 110,
-                R16_FLOAT = 111,
-                R16G16_FLOAT = 112,
-                R16G16B16A16_FLOAT = 113,
-                R32_FLOAT = 114,
-                R32G32_FLOAT = 115,
-                R32G32B32A32_FLOAT = 116,
-                CxV8U8 = 117,
             }
 
             private TextureInfo LoadDDS()
