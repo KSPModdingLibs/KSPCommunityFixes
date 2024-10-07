@@ -135,6 +135,7 @@
     <Compile Include="Library\ObjectPool.cs" />
     <Compile Include="Modding\KSPFieldEnumDesc.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
+    <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
