@@ -70,8 +70,8 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
-            int trackingTransformId = __instance.trackingTransformLocal.GetInstanceID();
-            int vesselId = __instance.vessel.GetInstanceID();
+            int trackingTransformId = __instance.trackingTransformLocal.GetInstanceIDFast();
+            int vesselId = __instance.vessel.GetInstanceIDFast();
             if (lastTrackingTransformId == trackingTransformId && lastVesselId == vesselId)
             {
                 if (!lastHasLoS)

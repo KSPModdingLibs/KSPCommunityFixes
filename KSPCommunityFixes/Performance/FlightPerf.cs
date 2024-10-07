@@ -136,7 +136,7 @@ namespace KSPCommunityFixes.Performance
 
             __instance.SetOffsetThisFrame = true;
             __instance.offset = refPos;
-            __instance.reverseoffset = new Vector3d(0.0 - refPos.x, 0.0 - refPos.y, 0.0 - refPos.z);
+            __instance.reverseoffset = new Vector3d(-refPos.x, 0.0 - refPos.y, 0.0 - refPos.z);
             __instance.offsetNonKrakensbane = __instance.offset + nonFrame;
 
             Vector3 offsetF = __instance.offset;
@@ -196,7 +196,7 @@ namespace KSPCommunityFixes.Performance
                             if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                                 continue;
 
-                            activePS.Add(particleSystem.GetInstanceID());
+                            activePS.Add(particleSystem.GetInstanceIDFast());
 
                             if (!partDataComputed)
                             {
@@ -247,7 +247,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                     continue;
 
-                activePS.Add(particleSystem.GetInstanceID());
+                activePS.Add(particleSystem.GetInstanceIDFast());
 
                 bool hasRigidbody = false;
                 Rigidbody rb = particleSystem.GetComponentInParent<Rigidbody>();
@@ -289,7 +289,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleCount == 0 || !particleSystemKSP.useWorldSpace)
                     continue;
 
-                activePS.Add(particleSystemKSP.ps.GetInstanceID());
+                activePS.Add(particleSystemKSP.ps.GetInstanceIDFast());
 
                 bool hasRigidbody = false;
                 Rigidbody rb = particleSystemKSP.GetComponentInParent<Rigidbody>();
@@ -320,7 +320,7 @@ namespace KSPCommunityFixes.Performance
             for (int i = __instance.particleSystems.Count; i-- > 0;)
             {
                 ParticleSystem particleSystem = __instance.particleSystems[i];
-                if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceID()))
+                if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
                     __instance.particleSystems.RemoveAt(i);
                     continue;
@@ -333,7 +333,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                     continue;
 
-                if (activePS.Contains(particleSystem.GetInstanceID()))
+                if (activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
                     __instance.particleSystems.RemoveAt(i);
                     continue;
@@ -1717,6 +1717,11 @@ namespace KSPCommunityFixes.Performance
             ptd.convectionTempMultiplier = 1.0;
 
             occlusionData.convCone.Setup(occlusionData, sqrtMach, sqrtMachAng, detachAngle);
+
+            // We do a maybe risky trick here. OcclusionCone.Setup computes shockAngle in radians, but only the tangent of that angle
+            // is ever used, a bit latter in the inner loop. So we do the conversion here to avoid having to do it O(n²) times latter.
+            occlusionData.convCone.shockAngle = Math.Tan(occlusionData.convCone.shockAngle);
+
             fi.occludersConvection[0] = occlusionData.convCone;
             fi.occludersConvectionCount = 1;
             //FXCamera.Instance.ApplyObliqueness((float)occlusionData.convCone.shockAngle); // empty method
@@ -1776,7 +1781,7 @@ namespace KSPCommunityFixes.Performance
                     if (rectRect < 0.99)
                     {
                         double angleDiff = occluder.shockNoseDot - occlusionData.centroidDot;
-                        double existingConeRadius = occluder.radius + angleDiff * FastApproximateTan(occluder.shockAngle);
+                        double existingConeRadius = occluder.radius + angleDiff * occluder.shockAngle; // This used to be Math.Tan(occluder.shockAngle)
 
                         double x = projectedCenterX - occluder.center.x;
                         double y = projectedCenterY - occluder.center.y;
@@ -1807,22 +1812,13 @@ namespace KSPCommunityFixes.Performance
                 if (ptd.convectionAreaMultiplier > 0.0)
                 {
                     occlusionData.convCone.Setup(occlusionData, sqrtMach, sqrtMachAng, detachAngle);
+                    occlusionData.convCone.shockAngle = Math.Tan(occlusionData.convCone.shockAngle);
                     fi.occludersConvection[fi.occludersConvectionCount] = occlusionData.convCone;
                     fi.occludersConvectionCount++;
                 }
             }
 
             return false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double FastApproximateTan(double angle)
-        {
-            const double pisqby4 = 2.4674011002723397;
-            const double adjpisqby4 = 2.471688400562703;
-            const double adj1minus8bypisq = 0.189759681063053;
-            double angleSqr = angle * angle;
-            return angle * (adjpisqby4 - adj1minus8bypisq * angleSqr) / (pisqby4 - angleSqr);
         }
 
         static bool FlightIntegrator_UpdateOcclusionSolar_Prefix(FlightIntegrator __instance)
