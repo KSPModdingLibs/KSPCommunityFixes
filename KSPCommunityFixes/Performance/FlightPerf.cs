@@ -1215,9 +1215,11 @@ namespace KSPCommunityFixes.Performance
             if (vessel.loaded)
             {
                 int partCount = vessel.Parts.Count;
-                Transform vesselTransform = vessel.ReferenceTransform;
-                TransformMatrix vesselInverseMatrix = TransformMatrix.WorldToLocal(vesselTransform);
-                QuaternionD vesselInverseRotation = QuaternionD.Inverse(vesselTransform.rotation);
+                // This function is weird: positions are generally in world space, but angular calculations (velocity, MoI) are done relative to the reference transform (control point) orientation
+                // Be mindful of which transform you're using!
+                Transform vesselReferenceTransform = vessel.ReferenceTransform;
+                TransformMatrix vesselInverseReferenceMatrix = TransformMatrix.WorldToLocal(vesselReferenceTransform);
+                QuaternionD vesselInverseReferenceRotation = QuaternionD.Inverse(vesselReferenceTransform.rotation);
                 Vector3d com = Vector3d.zero;
                 Vector3d velocity = Vector3d.zero;
                 Vector3d angularVelocity = Vector3d.zero;
@@ -1251,7 +1253,7 @@ namespace KSPCommunityFixes.Performance
                         // this also has the side effect of fixing those inconsistencies.
                         com.Add((partPosition + partRotation * part.CoMOffset) * physicsMass);
                         velocity.Add((Vector3d)part.rb.velocity * physicsMass);
-                        angularVelocity.Add(vesselInverseRotation * part.rb.angularVelocity * physicsMass);
+                        angularVelocity.Add(vesselInverseReferenceRotation * part.rb.angularVelocity * physicsMass);
                         vesselMass += physicsMass;
                     }
                 }
@@ -1265,7 +1267,7 @@ namespace KSPCommunityFixes.Performance
                     vessel.rb_velocityD = velocity * vesselMassRecip;
                     vessel.velocityD = vessel.rb_velocityD + Krakensbane.GetFrameVelocity();
                     vessel.CoM = vessel.CoMD;
-                    vessel.localCoM = vesselInverseMatrix.MultiplyPoint3x4(vessel.CoMD);
+                    vessel.localCoM = vessel.vesselTransform.InverseTransformPoint(vessel.CoM);
                     vessel.rb_velocity = vessel.rb_velocityD;
                     vessel.angularVelocityD = angularVelocity * vesselMassRecip;
                     vessel.angularVelocity = vessel.angularVelocityD;
@@ -1285,7 +1287,7 @@ namespace KSPCommunityFixes.Performance
 
                             // add part inertia tensor to vessel inertia tensor
                             Vector3d principalMoments = part.rb.inertiaTensor;
-                            QuaternionD princAxesRot = vesselInverseRotation * partPreData.rotation * (QuaternionD)part.rb.inertiaTensorRotation;
+                            QuaternionD princAxesRot = vesselInverseReferenceRotation * partPreData.rotation * (QuaternionD)part.rb.inertiaTensorRotation;
                             inertiaTensor.AddPartInertiaTensor(principalMoments, princAxesRot);
 
                             // add part mass and position contribution to vessel inertia tensor
@@ -1299,8 +1301,8 @@ namespace KSPCommunityFixes.Performance
                             //     rbMass *= 0.5;
                             // Note 2 : another side effect of using Part.physicsMass instead of rb.mass is that mass will be correct on scene
                             // loads, before FI.UpdateMassStats() has run (when it hasn't run yet, rb.mass is set to 1 for all parts)
-                            Vector3d partPosition = vesselInverseMatrix.MultiplyVector(partPreData.position - vessel.CoMD);
-                            inertiaTensor.AddPartMass(rbMass, partPosition);
+                            Vector3d CoMToPart = vesselInverseReferenceMatrix.MultiplyVector(partPreData.position - vessel.CoMD); // Note this uses the reference orientation, but doesn't use the translation
+                            inertiaTensor.AddPartMass(rbMass, CoMToPart);
                         }
 
                         vessel.MOI = inertiaTensor.MoI;
