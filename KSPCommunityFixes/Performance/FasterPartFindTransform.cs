@@ -18,6 +18,8 @@ namespace KSPCommunityFixes.Performance
 {
     internal class FasterPartFindTransform : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 12, 3);
+
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
 #if !FPFT_DEBUG_PROFILE
