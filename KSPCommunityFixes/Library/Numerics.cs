@@ -147,10 +147,10 @@ namespace KSPCommunityFixes.Library
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static double Lerp(double a, double b, double t)
         {
-            if (t <= 0f)
+            if (t <= 0.0)
                 return a;
 
-            if (t >= 1f)
+            if (t >= 1.0)
                 return a + (b - a);
 
             return a + (b - a) * t;

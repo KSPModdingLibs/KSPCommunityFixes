@@ -196,7 +196,7 @@ namespace KSPCommunityFixes.Performance
                             if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                                 continue;
 
-                            activePS.Add(particleSystem.GetInstanceID());
+                            activePS.Add(particleSystem.GetInstanceIDFast());
 
                             if (!partDataComputed)
                             {
@@ -247,7 +247,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                     continue;
 
-                activePS.Add(particleSystem.GetInstanceID());
+                activePS.Add(particleSystem.GetInstanceIDFast());
 
                 bool hasRigidbody = false;
                 Rigidbody rb = particleSystem.GetComponentInParent<Rigidbody>();
@@ -289,7 +289,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleCount == 0 || !particleSystemKSP.useWorldSpace)
                     continue;
 
-                activePS.Add(particleSystemKSP.ps.GetInstanceID());
+                activePS.Add(particleSystemKSP.ps.GetInstanceIDFast());
 
                 bool hasRigidbody = false;
                 Rigidbody rb = particleSystemKSP.GetComponentInParent<Rigidbody>();
@@ -320,7 +320,7 @@ namespace KSPCommunityFixes.Performance
             for (int i = __instance.particleSystems.Count; i-- > 0;)
             {
                 ParticleSystem particleSystem = __instance.particleSystems[i];
-                if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceID()))
+                if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
                     __instance.particleSystems.RemoveAt(i);
                     continue;
@@ -333,7 +333,7 @@ namespace KSPCommunityFixes.Performance
                 if (particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                     continue;
 
-                if (activePS.Contains(particleSystem.GetInstanceID()))
+                if (activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
                     __instance.particleSystems.RemoveAt(i);
                     continue;
@@ -1215,9 +1215,11 @@ namespace KSPCommunityFixes.Performance
             if (vessel.loaded)
             {
                 int partCount = vessel.Parts.Count;
-                Transform vesselTransform = vessel.ReferenceTransform;
-                TransformMatrix vesselInverseMatrix = TransformMatrix.WorldToLocal(vesselTransform);
-                QuaternionD vesselInverseRotation = QuaternionD.Inverse(vesselTransform.rotation);
+                // This function is weird: positions are generally in world space, but angular calculations (velocity, MoI) are done relative to the reference transform (control point) orientation
+                // Be mindful of which transform you're using!
+                Transform vesselReferenceTransform = vessel.ReferenceTransform;
+                TransformMatrix vesselInverseReferenceMatrix = TransformMatrix.WorldToLocal(vesselReferenceTransform);
+                QuaternionD vesselInverseReferenceRotation = QuaternionD.Inverse(vesselReferenceTransform.rotation);
                 Vector3d com = Vector3d.zero;
                 Vector3d velocity = Vector3d.zero;
                 Vector3d angularVelocity = Vector3d.zero;
@@ -1251,7 +1253,7 @@ namespace KSPCommunityFixes.Performance
                         // this also has the side effect of fixing those inconsistencies.
                         com.Add((partPosition + partRotation * part.CoMOffset) * physicsMass);
                         velocity.Add((Vector3d)part.rb.velocity * physicsMass);
-                        angularVelocity.Add(vesselInverseRotation * part.rb.angularVelocity * physicsMass);
+                        angularVelocity.Add(vesselInverseReferenceRotation * part.rb.angularVelocity * physicsMass);
                         vesselMass += physicsMass;
                     }
                 }
@@ -1285,7 +1287,7 @@ namespace KSPCommunityFixes.Performance
 
                             // add part inertia tensor to vessel inertia tensor
                             Vector3d principalMoments = part.rb.inertiaTensor;
-                            QuaternionD princAxesRot = vesselInverseRotation * partPreData.rotation * (QuaternionD)part.rb.inertiaTensorRotation;
+                            QuaternionD princAxesRot = vesselInverseReferenceRotation * partPreData.rotation * (QuaternionD)part.rb.inertiaTensorRotation;
                             inertiaTensor.AddPartInertiaTensor(principalMoments, princAxesRot);
 
                             // add part mass and position contribution to vessel inertia tensor
@@ -1299,8 +1301,8 @@ namespace KSPCommunityFixes.Performance
                             //     rbMass *= 0.5;
                             // Note 2 : another side effect of using Part.physicsMass instead of rb.mass is that mass will be correct on scene
                             // loads, before FI.UpdateMassStats() has run (when it hasn't run yet, rb.mass is set to 1 for all parts)
-                            Vector3d partPosition = vesselInverseMatrix.MultiplyVector(partPreData.position - vessel.CoMD);
-                            inertiaTensor.AddPartMass(rbMass, partPosition);
+                            Vector3d CoMToPart = vesselInverseReferenceMatrix.MultiplyVector(partPreData.position - vessel.CoMD); // Note this uses the reference orientation, but doesn't use the translation
+                            inertiaTensor.AddPartMass(rbMass, CoMToPart);
                         }
 
                         vessel.MOI = inertiaTensor.MoI;
@@ -1715,6 +1717,11 @@ namespace KSPCommunityFixes.Performance
             ptd.convectionTempMultiplier = 1.0;
 
             occlusionData.convCone.Setup(occlusionData, sqrtMach, sqrtMachAng, detachAngle);
+
+            // We do a maybe risky trick here. OcclusionCone.Setup computes shockAngle in radians, but only the tangent of that angle
+            // is ever used, a bit latter in the inner loop. So we do the conversion here to avoid having to do it O(n²) times latter.
+            occlusionData.convCone.shockAngle = Math.Tan(occlusionData.convCone.shockAngle);
+
             fi.occludersConvection[0] = occlusionData.convCone;
             fi.occludersConvectionCount = 1;
             //FXCamera.Instance.ApplyObliqueness((float)occlusionData.convCone.shockAngle); // empty method
@@ -1774,7 +1781,7 @@ namespace KSPCommunityFixes.Performance
                     if (rectRect < 0.99)
                     {
                         double angleDiff = occluder.shockNoseDot - occlusionData.centroidDot;
-                        double existingConeRadius = occluder.radius + angleDiff * FastApproximateTan(occluder.shockAngle);
+                        double existingConeRadius = occluder.radius + angleDiff * occluder.shockAngle; // This used to be Math.Tan(occluder.shockAngle)
 
                         double x = projectedCenterX - occluder.center.x;
                         double y = projectedCenterY - occluder.center.y;
@@ -1805,22 +1812,13 @@ namespace KSPCommunityFixes.Performance
                 if (ptd.convectionAreaMultiplier > 0.0)
                 {
                     occlusionData.convCone.Setup(occlusionData, sqrtMach, sqrtMachAng, detachAngle);
+                    occlusionData.convCone.shockAngle = Math.Tan(occlusionData.convCone.shockAngle);
                     fi.occludersConvection[fi.occludersConvectionCount] = occlusionData.convCone;
                     fi.occludersConvectionCount++;
                 }
             }
 
             return false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double FastApproximateTan(double angle)
-        {
-            const double pisqby4 = 2.4674011002723397;
-            const double adjpisqby4 = 2.471688400562703;
-            const double adj1minus8bypisq = 0.189759681063053;
-            double angleSqr = angle * angle;
-            return angle * (adjpisqby4 - adj1minus8bypisq * angleSqr) / (pisqby4 - angleSqr);
         }
 
         static bool FlightIntegrator_UpdateOcclusionSolar_Prefix(FlightIntegrator __instance)
