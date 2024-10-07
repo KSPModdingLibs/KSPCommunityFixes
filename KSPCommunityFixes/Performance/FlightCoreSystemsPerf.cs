@@ -16,16 +16,11 @@
 | Big launcher (1000 parts) - Orbit       | 56,3  | 90,4     | 61%  | 27,9     | 39,9         | 43%  |
 */
 
-using CompoundParts;
 using HarmonyLib;
-using Highlighting;
-using KSP.Localization;
-using KSP.UI.Screens.Flight;
 using KSPCommunityFixes.Library;
 using KSPCommunityFixes.Library.Collections;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using UnityEngine;
@@ -34,10 +29,17 @@ using Debug = UnityEngine.Debug;
 
 namespace KSPCommunityFixes.Performance
 {
-    internal class FlightPerf : BasePatch
+    internal class FlightCoreSystemsPerf : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 12, 3);
+
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
+            patches.Add(new PatchInfo(
+                PatchMethodType.Prefix,
+                AccessTools.Method(typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats)),
+                this));
+
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar)),
@@ -60,32 +62,7 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
                 AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.isKerbalEVA)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.FindNodeApproaches)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor)),
                 this));
 
             patches.Add(new PatchInfo(
@@ -93,31 +70,8 @@ namespace KSPCommunityFixes.Performance
                 AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation)),
                 this));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Highlighter), nameof(Highlighter.UpdateRenderers)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update)),
-                this));
-
+            // Mainly an optimization of particle repositioning, but can have a 
+            // huge impact in high engine count situation.
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset)),
@@ -370,199 +324,6 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static bool TemperatureGaugeSystem_Update_Prefix(TemperatureGaugeSystem __instance)
-        {
-            if (!FlightGlobals.ready || !HighLogic.LoadedSceneIsFlight)
-                return false;
-
-            if (GameSettings.TEMPERATURE_GAUGES_MODE < 1 || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
-            {
-                if (__instance.gaugeCount > 0)
-                    __instance.DestroyGauges();
-
-                return false;
-            }
-
-            if (__instance.TestRecreate())
-                __instance.CreateGauges();
-
-            if (__instance.TestRebuild())
-                __instance.RebuildGaugeList();
-
-            if (__instance.gaugeCount == 0)
-                return false;
-
-            __instance.visibleGauges.Clear();
-            for (int i = __instance.gaugeCount; i-- > 0;)
-            {
-                TemperatureGauge gauge = __instance.gauges[i];
-                gauge.GaugeUpdate();
-                if (gauge.gaugeActive)
-                    __instance.visibleGauges.Add(gauge);
-            }
-
-            __instance.visibleGaugeCount = __instance.visibleGauges.Count;
-
-            if (__instance.visibleGaugeCount > 0)
-            {
-                __instance.visibleGauges.Sort();
-
-                for (int i = 0; i < __instance.visibleGaugeCount; i++)
-                    __instance.visibleGauges[i].rTrf.SetSiblingIndex(i);
-            }
-            return false;
-        }
-
-        private static bool VolumeNormalizer_Update_Prefix(VolumeNormalizer __instance)
-        {
-            float newVolume;
-            if (GameSettings.SOUND_NORMALIZER_ENABLED)
-            {
-                __instance.threshold = GameSettings.SOUND_NORMALIZER_THRESHOLD;
-                __instance.sharpness = GameSettings.SOUND_NORMALIZER_RESPONSIVENESS;
-                AudioListener.GetOutputData(__instance.samples, 0);
-                __instance.level = 0f;
-
-                for (int i = 0; i < __instance.sampleCount; i += 1 + GameSettings.SOUND_NORMALIZER_SKIPSAMPLES)
-                    __instance.level = Mathf.Max(__instance.level, Mathf.Abs(__instance.samples[i]));
-
-                if (__instance.level > __instance.threshold)
-                    newVolume = __instance.threshold / __instance.level;
-                else
-                    newVolume = 1f;
-
-                newVolume = Mathf.Lerp(AudioListener.volume, newVolume * GameSettings.MASTER_VOLUME, __instance.sharpness * Time.deltaTime);
-            }
-            else
-            {
-                newVolume = Mathf.Lerp(AudioListener.volume, GameSettings.MASTER_VOLUME, __instance.sharpness * Time.deltaTime);
-            }
-
-            if (newVolume != __instance.volume)
-                AudioListener.volume = newVolume;
-
-            __instance.volume = newVolume;
-
-            return false;
-
-        }
-
-        private static bool CollisionEnhancer_FixedUpdate_Prefix(CollisionEnhancer __instance)
-        {
-            Part part = __instance.part;
-            Vector3 position = part.partTransform.position;
-
-            if (part.packed)
-            {
-                __instance.lastPos = position;
-                __instance.wasPacked = true;
-                return false;
-            }
-
-            if (__instance.framesToSkip > 0)
-            {
-                __instance.lastPos = position;
-                __instance.framesToSkip--;
-                return false;
-            }
-
-            if (part.vessel.heightFromTerrain > 1000f)
-            {
-                __instance.lastPos = position;
-                return false;
-            }
-
-            if (!__instance.wasPacked)
-                __instance.lastPos -= FloatingOrigin.Offset;
-            else
-                __instance.wasPacked = false;
-
-            CollisionEnhancerBehaviour mode = __instance.OnTerrainPunchThrough;
-
-            if (mode < CollisionEnhancerBehaviour.COLLIDE // only handle EXPLODE, TRANSLATE and TRANSLATE_BACK_SPLAT
-                && !CollisionEnhancer.bypass 
-                && part.State != PartStates.DEAD 
-                && (__instance.lastPos - position).sqrMagnitude > CollisionEnhancer.minDistSqr
-                && Physics.Linecast(__instance.lastPos, position, out RaycastHit hit, 32768, QueryTriggerInteraction.Ignore)) // linecast against the "LocalScenery" layer
-            {
-                Vector3 rbVelocity = __instance.rb.velocity;
-                Debug.Log("[F: " + Time.frameCount + "]: [" + __instance.name + "] Collision Enhancer Punch Through - vel: " + rbVelocity.magnitude, __instance.gameObject);
-
-                if (mode == CollisionEnhancerBehaviour.EXPLODE 
-                    && !CheatOptions.NoCrashDamage 
-                    && rbVelocity.sqrMagnitude > part.crashTolerance * part.crashTolerance)
-                {
-                    GameEvents.onCollision.Fire(new EventReport(FlightEvents.COLLISION, part, part.partInfo.title, Localizer.Format("#autoLOC_204427")));
-                    part.explode();
-                }
-                else
-                {
-                    Vector3 upAxis = FlightGlobals.getUpAxis(FlightGlobals.currentMainBody, hit.point);
-
-                    if (!hit.point.IsInvalid())
-                        __instance.transform.position = hit.point + upAxis * CollisionEnhancer.upFactor;
-
-                    if (mode == CollisionEnhancerBehaviour.TRANSLATE_BACK_SPLAT)
-                    {
-                        __instance.rb.velocity = Vector3.zero;
-                    }
-                    else
-                    {
-                        Vector3 frameVelocity = Krakensbane.GetFrameVelocityV3f();
-                        Vector3 totalVelocity = rbVelocity + frameVelocity;
-                        float totalVelMagnitude = totalVelocity.magnitude;
-                        Vector3 totalVelNormalized = totalVelMagnitude > 1E-05f ? totalVelocity / totalVelMagnitude : Vector3.zero;
-                        Vector3 newVel = Vector3.Reflect(totalVelNormalized, hit.normal * Mathf.Sign(Vector3.Dot(hit.normal, upAxis))).normalized * totalVelMagnitude * __instance.translateBackVelocityFactor - frameVelocity;
-                        __instance.rb.velocity = newVel.IsInvalid() ? Vector3.zero : newVel;
-                    }
-                }
-                GameEvents.OnCollisionEnhancerHit.Fire(part, hit);
-                GameEvents.onPartExplodeGroundCollision.Fire(part);
-            }
-
-            __instance.lastPos = position;
-
-            return false;
-        }
-
-        private static void Part_OnDestroy_Postfix(Part __instance)
-        {
-            if (__instance.hl.IsNullOrDestroyed())
-                return;
-
-            Highlighter hl = __instance.hl;
-            if (hl.highlightableRenderers != null)
-            {
-                for (int i = hl.highlightableRenderers.Count; i-- > 0;)
-                    hl.highlightableRenderers[i].CleanUp();
-
-                hl.highlightableRenderers.Clear();
-            }
-
-            hl.renderersDirty = true;
-        }
-
-        private static bool Highlighter_UpdateRenderers_Prefix(Highlighter __instance, out bool __result)
-        {
-            __result = __instance.renderersDirty;
-            if (__result)
-            {
-                List<Renderer> renderers = new List<Renderer>();
-                __instance.GrabRenderers(__instance.tr, ref renderers);
-                __instance.highlightableRenderers = new List<Highlighter.RendererCache>();
-                int count = renderers.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    Highlighter.RendererCache item = new Highlighter.RendererCache(renderers[i], __instance.opaqueMaterial, __instance.zTestFloat, __instance.stencilRefFloat);
-                    __instance.highlightableRenderers.Add(item);
-                }
-                __instance.highlighted = false;
-                __instance.renderersDirty = false;
-                __instance.currentColor = Color.clear;
-            }
-            return false;
-        }
-
         private static bool FlightIntegrator_PrecalcRadiation_Prefix(FlightIntegrator __instance, PartThermalData ptd)
         {
             Part part = ptd.part;
@@ -665,170 +426,6 @@ namespace KSPCommunityFixes.Performance
                     {
                         ptd.expFlux += ptd.bodyFlux * bodyArea;
                     }
-                }
-            }
-
-            return false;
-        }
-
-        private static bool CModuleLinkedMesh_TrackAnchor_Prefix(CModuleLinkedMesh __instance, bool setTgtAnchor, Vector3 rDir, Vector3 rPos, Quaternion rRot)
-        {
-            CModuleLinkedMesh st = __instance;
-
-            if (st.targetAnchor.IsNotNullOrDestroyed())
-            {
-                if (!st.tweakingTarget && !st.part.PartTweakerSelected)
-                {
-                    if (setTgtAnchor && st.compoundPart.IsNotNullOrDestroyed() && st.compoundPart.transform.IsNotNullOrDestroyed())
-                    {
-                        st.targetAnchor.position = st.compoundPart.transform.TransformPoint(rPos);
-                        st.targetAnchor.rotation = st.compoundPart.transform.rotation * rRot;
-                    }
-                }
-                else
-                {
-                    st.compoundPart.targetPosition = st.transform.InverseTransformPoint(st.targetAnchor.position);
-                    st.compoundPart.targetRotation = st.targetAnchor.localRotation;
-                    st.compoundPart.UpdateWorldValues();
-                }
-            }
-
-            bool lineRotationComputed = false;
-            Quaternion lineRotation = default;
-            if (st.endCap.IsNotNullOrDestroyed())
-            {
-                Vector3 vector = st.line.position - st.endCap.position;
-                float magnitude = vector.magnitude;
-                if (magnitude != 0f)
-                {
-                    if (magnitude < st.lineMinimumLength)
-                    {
-                        st.line.gameObject.SetActive(false);
-                    }
-                    else
-                    {
-                        st.line.gameObject.SetActive(true);
-                        lineRotation = Quaternion.LookRotation(vector / magnitude, st.transform.forward);
-                        lineRotationComputed = true;
-                        st.line.rotation = lineRotation;
-                        Vector3 localScale = st.line.localScale;
-                        st.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * st.part.scaleFactor);
-                        st.endCap.rotation = lineRotation;
-                    }
-                }
-            }
-            else if (st.transform.IsNotNullOrDestroyed() && st.targetAnchor.IsNotNullOrDestroyed())
-            {
-                Vector3 vector = st.transform.position - st.targetAnchor.position;
-                float magnitude = vector.magnitude;
-                if (magnitude != 0f)
-                {
-                    if (magnitude < st.lineMinimumLength)
-                    {
-                        st.line.gameObject.SetActive(false);
-                    }
-                    else
-                    {
-                        st.line.gameObject.SetActive(true);
-                        if (float.IsNaN(magnitude) || float.IsInfinity(magnitude))
-                        {
-                            Debug.LogError(string.Concat("[CModuleLinkedMesh]: Object ", st.name, ": Look vector magnitude invalid. Vector is (", vector.x, ", ", vector.y, ", ", vector.z, "). Transform ", st.transform.position.IsInvalid() ? "invalid" : "valid", " ", st.transform.position, ", target ", st.targetAnchor.position.IsInvalid() ? "invalid" : "valid", ", ", st.targetAnchor.position));
-                            return false;
-                        }
-                        lineRotation = Quaternion.LookRotation(vector / magnitude, st.transform.forward);
-                        lineRotationComputed = true;
-                        st.line.rotation = lineRotation;
-                        Vector3 localScale = st.line.localScale;
-                        st.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * st.part.scaleFactor);
-                    }
-                }
-            }
-            if (st.startCap.IsNotNullOrDestroyed())
-            {
-                if (!lineRotationComputed)
-                    st.startCap.rotation = st.line.rotation;
-                else
-                    st.startCap.rotation = lineRotation;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Very unlikely to be necessary, but in theory nodeType could differ from the string stored in the nodeTypes hashset
-        /// </summary>
-        private static void ModuleDockingNode_OnLoad_Postfix(ModuleDockingNode __instance)
-        {
-            if (__instance.nodeTypes.Count == 1)
-                __instance.nodeType = __instance.nodeTypes.First();
-        }
-
-        /// <summary>
-        /// This is called n² times where n is the amount of loaded docking port modules in the scene.
-        /// We optimize the method, mainly by avoiding going through the hashset of modules types if there is only one type defined
-        /// which is seemingly always the case (I didn't found any stock or modded part having multiple ones).
-        /// Test case with 20 docking ports : 1.6% of the frame time in stock, 0.8% with the patch
-        /// </summary>
-        private static bool ModuleDockingNode_FindNodeApproaches_Prefix(ModuleDockingNode __instance, out ModuleDockingNode __result)
-        {
-            __result = null;
-            if (__instance.part.packed)
-                return false;
-
-            for (int i = FlightGlobals.VesselsLoaded.Count; i-- > 0;)
-            {
-                Vessel vessel = FlightGlobals.VesselsLoaded[i];
-
-                if (vessel.packed)
-                    continue;
-
-                for (int j = vessel.dockingPorts.Count; j-- > 0;)
-                {
-                    if (!(vessel.dockingPorts[j] is ModuleDockingNode other))
-                        continue;
-
-                    if (other.part.IsNullOrDestroyed()
-                        || other.part.RefEquals(__instance.part)
-                        || other.part.State == PartStates.DEAD
-                        || other.state != __instance.st_ready.name
-                        || other.gendered != __instance.gendered
-                        || (__instance.gendered && other.genderFemale == __instance.genderFemale)
-                        || other.snapRotation != __instance.snapRotation
-                        || (__instance.snapRotation && other.snapOffset != __instance.snapOffset))
-                    {
-                        continue;
-                    }
-
-                    bool checkRequired = false;
-                    // fast path when only one node type
-                    if (__instance.nodeTypes.Count == 1)
-                    {
-                        if (other.nodeTypes.Count == 1)
-                            checkRequired = __instance.nodeType == other.nodeType;
-                        else
-                            checkRequired = other.nodeTypes.Contains(__instance.nodeType);
-                    }
-                    // slow path checking the hashSet
-                    else
-                    {
-                        foreach (string nodeType in __instance.nodeTypes)
-                        {
-                            if (other.nodeTypes.Count == 1)
-                                checkRequired = nodeType == other.nodeType;
-                            else
-                                checkRequired = other.nodeTypes.Contains(nodeType);
-
-                            if (checkRequired)
-                                break;
-                        }
-                    }
-
-                    if (checkRequired && __instance.CheckDockContact(__instance, other, __instance.acquireRange, __instance.acquireMinFwdDot, __instance.acquireMinRollDot))
-                    {
-                        __result = other;
-                        return false;
-                    }
-
                 }
             }
 
@@ -1170,34 +767,6 @@ namespace KSPCommunityFixes.Performance
                 dragCoeff = (float)dragCoeff,
                 taperDot = (float)taperDot
             };
-        }
-
-        private static bool Part_isKerbalEVA_Prefix(Part __instance, out bool __result)
-        {
-            if (__instance.modules == null)
-            {
-                __result = false;
-                return false;
-            }
-
-            __instance.cachedModules ??= new Dictionary<Type, PartModule>();
-
-            if (!__instance.cachedModules.TryGetValue(typeof(KerbalEVA), out PartModule module))
-            {
-                List<PartModule> modules = __instance.modules.modules;
-                for (int i = modules.Count; i-- > 0;)
-                {
-                    if (modules[i] is KerbalEVA)
-                    {
-                        module = modules[i];
-                        break;
-                    }
-                }
-                __instance.cachedModules[typeof(KerbalEVA)] = module;
-            }
-
-            __result = module.IsNotNullRef();
-            return false;
         }
 
         #region VesselPrecalculate.CalculatePhysicsStats optimizations

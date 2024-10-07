@@ -808,25 +808,25 @@ namespace KSPCommunityFixes.Library.Collections
         }
 #pragma warning restore CA1812
 
-        private static IReadOnlyCollection<T> ReifyCollection<T>(IEnumerable<T> source)
+        private static IReadOnlyCollection<IT> ReifyCollection<IT>(IEnumerable<IT> source)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
 
-            var result = source as IReadOnlyCollection<T>;
+            var result = source as IReadOnlyCollection<IT>;
             if (result != null)
                 return result;
-            var collection = source as ICollection<T>;
+            var collection = source as ICollection<IT>;
             if (collection != null)
-                return new CollectionWrapper<T>(collection);
+                return new CollectionWrapper<IT>(collection);
             var nongenericCollection = source as ICollection;
             if (nongenericCollection != null)
-                return new NongenericCollectionWrapper<T>(nongenericCollection);
+                return new NongenericCollectionWrapper<IT>(nongenericCollection);
 
-            return new List<T>(source);
+            return new List<IT>(source);
         }
 
-        private sealed class NongenericCollectionWrapper<T> : IReadOnlyCollection<T>
+        private sealed class NongenericCollectionWrapper<IT> : IReadOnlyCollection<IT>
         {
             private readonly ICollection _collection;
 
@@ -845,9 +845,9 @@ namespace KSPCommunityFixes.Library.Collections
                 }
             }
 
-            public IEnumerator<T> GetEnumerator()
+            public IEnumerator<IT> GetEnumerator()
             {
-                foreach (T item in _collection)
+                foreach (IT item in _collection)
                     yield return item;
             }
 
@@ -857,11 +857,11 @@ namespace KSPCommunityFixes.Library.Collections
             }
         }
 
-        private sealed class CollectionWrapper<T> : IReadOnlyCollection<T>
+        private sealed class CollectionWrapper<IT> : IReadOnlyCollection<IT>
         {
-            private readonly ICollection<T> _collection;
+            private readonly ICollection<IT> _collection;
 
-            public CollectionWrapper(ICollection<T> collection)
+            public CollectionWrapper(ICollection<IT> collection)
             {
                 if (collection == null)
                     throw new ArgumentNullException(nameof(collection));
@@ -876,7 +876,7 @@ namespace KSPCommunityFixes.Library.Collections
                 }
             }
 
-            public IEnumerator<T> GetEnumerator()
+            public IEnumerator<IT> GetEnumerator()
             {
                 return _collection.GetEnumerator();
             }

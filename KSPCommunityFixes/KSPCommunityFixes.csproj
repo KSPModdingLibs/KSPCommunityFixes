@@ -128,6 +128,7 @@
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Collections\FastStack.cs" />
     <Compile Include="Library\Extensions.cs" />
+    <Compile Include="Library\KSPObjectsExtensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
     <Compile Include="Library\Numerics.cs" />
     <Compile Include="Library\ObjectPool.cs" />
@@ -135,6 +136,8 @@
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
+    <Compile Include="Performance\AuxiliarySystemsFastUpdate.cs" />
+    <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
@@ -142,7 +145,7 @@
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FastLoader.cs" />
-    <Compile Include="Performance\FlightPerf.cs" />
+    <Compile Include="Performance\FlightCoreSystemsPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
@@ -175,6 +178,8 @@
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\ConfigNodePerf.cs" />
+    <Compile Include="Performance\MinorPerfTweaks.cs" />
+    <Compile Include="Performance\ModuleDockingNodeFindOtherNodesFaster.cs" />
     <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />

@@ -634,7 +634,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => boundsSize.y,
                 DragCube.DragFace.YN => boundsSize.y,
                 DragCube.DragFace.ZP => boundsSize.z,
-                DragCube.DragFace.ZN => boundsSize.z
+                DragCube.DragFace.ZN => boundsSize.z,
+                _ => throw new NotImplementedException()
             } + cameraDoubleOffset;
         }
 
@@ -654,7 +655,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => partTransform.rotation * lookDown,
                 DragCube.DragFace.YN => partTransform.rotation * lookUp,
                 DragCube.DragFace.ZP => partTransform.rotation * lookBack,
-                DragCube.DragFace.ZN => partTransform.rotation * lookForward
+                DragCube.DragFace.ZN => partTransform.rotation * lookForward,
+                _ => throw new NotImplementedException()
             };
         }
 
@@ -667,7 +669,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => new Vector3(partBounds.center.x, partBounds.max.y + cameraOffset, partBounds.center.z),
                 DragCube.DragFace.YN => new Vector3(partBounds.center.x, partBounds.min.y - cameraOffset, partBounds.center.z),
                 DragCube.DragFace.ZP => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.max.z + cameraOffset),
-                DragCube.DragFace.ZN => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.min.z - cameraOffset)
+                DragCube.DragFace.ZN => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.min.z - cameraOffset),
+                _ => throw new NotImplementedException()
             };
 
             return part.transform.rotation * pos + part.transform.position;
@@ -942,6 +945,7 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YN => instance.yn,
                 DragCube.DragFace.ZP => instance.zp,
                 DragCube.DragFace.ZN => instance.zn,
+                _ => throw new NotImplementedException()
             };
 
             if (currentTexture.IsNullOrDestroyed())
