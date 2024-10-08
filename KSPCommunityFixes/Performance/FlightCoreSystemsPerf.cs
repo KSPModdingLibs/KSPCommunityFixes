@@ -332,7 +332,7 @@ namespace KSPCommunityFixes.Performance
             ptd.absorbScalar = part.absorptiveConstant * num;
             ptd.sunFlux = 0.0;
             ptd.bodyFlux = __instance.bodyEmissiveFlux + __instance.bodyAlbedoFlux;
-            double num2 = part.radiativeArea * (1.0 - part.skinExposedAreaFrac);
+            
             ptd.expFlux = 0.0;
             ptd.unexpFlux = 0.0;
             ptd.brtUnexposed = __instance.backgroundRadiationTemp;
@@ -347,10 +347,12 @@ namespace KSPCommunityFixes.Performance
             if (!computeSunFlux && !computeBodyFlux)
                 return false;
 
+            double unexposedRadiativeArea = part.radiativeArea * (1.0 - part.skinExposedAreaFrac);
             float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
 
             if (computeSunFlux)
             {
+                // FlightIntegrator.GetSunArea() manual inline start
                 Vector3 sunLocalDir = part.partTransform.InverseTransformDirection(__instance.sunVector);
 
                 double sunArea = 0.0;
@@ -370,17 +372,18 @@ namespace KSPCommunityFixes.Performance
                     sunArea += dragCubeAreaOccluded[5] * -sunLocalDir.z; // back
 
                 sunArea *= ptd.sunAreaMultiplier;
+                // FlightIntegrator.GetSunArea() manual inline end
 
                 if (sunArea > 0.0)
                 {
                     ptd.sunFlux = ptd.absorbScalar * __instance.solarFlux;
                     if (ptd.exposed)
                     {
-                        double num3 = ((double)Vector3.Dot(__instance.sunVector, __instance.nVel) + 1.0) * 0.5;
-                        double num4 = Math.Min(sunArea, part.skinExposedArea * num3);
-                        double num5 = Math.Min(sunArea - num4, num2 * (1.0 - num3));
-                        ptd.expFlux += ptd.sunFlux * num4;
-                        ptd.unexpFlux += ptd.sunFlux * num5;
+                        double sunDot = (Vector3.Dot(__instance.sunVector, __instance.nVel) + 1.0) * 0.5;
+                        double sunExpArea = Math.Min(sunArea, part.skinExposedArea * sunDot);
+                        double sunUnexpArea = Math.Min(sunArea - sunExpArea, unexposedRadiativeArea * (1.0 - sunDot));
+                        ptd.expFlux += ptd.sunFlux * sunExpArea;
+                        ptd.unexpFlux += ptd.sunFlux * sunUnexpArea;
                     }
                     else
                     {
@@ -391,6 +394,7 @@ namespace KSPCommunityFixes.Performance
 
             if (computeBodyFlux)
             {
+                // FlightIntegrator.GetBodyArea() manual inline start
                 Vector3 bodyLocalDir = part.partTransform.InverseTransformDirection(-__instance.vessel.upAxis);
 
                 double bodyArea = 0.0;
@@ -410,17 +414,18 @@ namespace KSPCommunityFixes.Performance
                     bodyArea += dragCubeAreaOccluded[5] * -bodyLocalDir.z; // back
 
                 bodyArea *= ptd.bodyAreaMultiplier;
+                // FlightIntegrator.GetBodyArea() manual inline end
 
                 if (bodyArea > 0.0)
                 {
-                    ptd.bodyFlux = UtilMath.Lerp(0.0, ptd.bodyFlux, __instance.densityThermalLerp) * ptd.absorbScalar;
+                    ptd.bodyFlux = Numerics.Lerp(0.0, ptd.bodyFlux, __instance.densityThermalLerp) * ptd.absorbScalar;
                     if (ptd.exposed)
                     {
-                        double num6 = (Vector3.Dot(-__instance.vessel.upAxis, __instance.nVel) + 1f) * 0.5f;
-                        double num7 = Math.Min(bodyArea, part.skinExposedArea * num6);
-                        double num8 = Math.Min(bodyArea - num7, num2 * (1.0 - num6));
-                        ptd.expFlux += ptd.bodyFlux * num7;
-                        ptd.unexpFlux += ptd.bodyFlux * num8;
+                        double bodyDot = (Vector3.Dot(-__instance.vessel.upAxis, __instance.nVel) + 1.0) * 0.5;
+                        double bodyExpArea = Math.Min(bodyArea, part.skinExposedArea * bodyDot);
+                        double bodyUnexpArea = Math.Min(bodyArea - bodyExpArea, unexposedRadiativeArea * (1.0 - bodyDot));
+                        ptd.expFlux += ptd.bodyFlux * bodyExpArea;
+                        ptd.unexpFlux += ptd.bodyFlux * bodyUnexpArea;
                     }
                     else
                     {
@@ -543,6 +548,7 @@ namespace KSPCommunityFixes.Performance
                 if (part.angularDragByFI)
                 {
                     if (hasRb)
+
                         part.rb.angularDrag = 0f;
 
                     if (hasServoRb)
