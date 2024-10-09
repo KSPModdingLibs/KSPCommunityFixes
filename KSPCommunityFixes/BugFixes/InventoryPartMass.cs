@@ -13,12 +13,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateCapacityValues)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateCapacityValues));
 
             var EditorPartIcon_Create_ArgTypes = new Type[]
             {
@@ -36,15 +33,9 @@ namespace KSPCommunityFixes.BugFixes
                 typeof(bool)
             };
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(KSP.UI.Screens.EditorPartIcon), nameof(KSP.UI.Screens.EditorPartIcon.Create), EditorPartIcon_Create_ArgTypes),
-                this));
+            AddPatch(PatchType.Postfix, typeof(KSP.UI.Screens.EditorPartIcon), nameof(KSP.UI.Screens.EditorPartIcon.Create), EditorPartIcon_Create_ArgTypes);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(InventoryPartListTooltip), nameof(InventoryPartListTooltip.CreateInfoWidgets)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(InventoryPartListTooltip), nameof(InventoryPartListTooltip.CreateInfoWidgets));
 
             // Making packedVolume persistent helps track what cargo modules *should* be if they were changed from the prefab before being added to the inventory
             StaticHelpers.EditPartModuleKSPFieldAttributes(typeof(ModuleCargoPart), nameof(ModuleCargoPart.packedVolume), field => field.isPersistant = true);
@@ -94,7 +85,7 @@ namespace KSPCommunityFixes.BugFixes
             }
 
             // otherwise we have to fall back to the prefab volume (this is stock behavior)
-            ModuleCargoPart moduleCargoPart = partSnapshot.partPrefab.FindModuleImplementing<ModuleCargoPart>();
+            ModuleCargoPart moduleCargoPart = partSnapshot.partPrefab.FindModuleImplementingFast<ModuleCargoPart>();
             if (moduleCargoPart != null)
             {
                 return moduleCargoPart.packedVolume;

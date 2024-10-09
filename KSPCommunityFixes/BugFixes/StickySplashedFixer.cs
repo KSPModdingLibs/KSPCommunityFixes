@@ -8,32 +8,17 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.updateSituation)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Vessel), nameof(Vessel.updateSituation));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.Die)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.Die));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Die)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.Die));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.decouple)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.decouple));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.decouple)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.decouple));
         }
 
         static bool Vessel_updateSituation_Prefix(Vessel __instance)

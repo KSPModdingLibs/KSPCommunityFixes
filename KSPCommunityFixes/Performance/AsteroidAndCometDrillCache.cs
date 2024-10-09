@@ -21,27 +21,15 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato));
         }
 
         static bool ModuleAsteroidDrill_IsSituationValid_Prefix(ModuleAsteroidDrill __instance, ref bool __result)
@@ -54,7 +42,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 __result = !resourceHarvester.cachedWasNotAsteroid;
@@ -75,7 +63,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 // if the cache says there's no asteroid on board, we're done
@@ -100,7 +88,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 __result = !resourceHarvester.cachedWasNotComet;
@@ -121,7 +109,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 // if the cache says there's no Comet on board, we're done

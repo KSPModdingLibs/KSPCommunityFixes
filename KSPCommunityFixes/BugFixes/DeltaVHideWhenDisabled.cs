@@ -10,42 +10,21 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageGroup), "Awake"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(StageGroup), "Awake");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageManager), "Awake"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(StageManager), "Awake");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(StageGroup), "ToggleInfoPanel", new Type[] { typeof(bool) }),
-                this));
+            AddPatch(PatchType.Prefix, typeof(StageGroup), "ToggleInfoPanel", new Type[] { typeof(bool) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(NavBallBurnVector), "onGameSettingsApplied");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(NavBallBurnVector), "onGameSettingsApplied");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(NavBallBurnVector), "LateUpdate");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(NavBallBurnVector), "LateUpdate");
         }
 
         static void StageGroup_Awake_Postfix(StageGroup __instance)

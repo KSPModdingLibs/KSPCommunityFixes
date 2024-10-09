@@ -9,19 +9,11 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 10, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MapSO), nameof(MapSO.ConstructBilinearCoords), new Type[] { typeof(float), typeof(float) }),
-                this,
-                "MapSO_ConstructBilinearCoords_Float"));
+            AddPatch(PatchType.Prefix, typeof(MapSO), nameof(MapSO.ConstructBilinearCoords), new Type[] { typeof(float), typeof(float) }, "MapSO_ConstructBilinearCoords_Float");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MapSO), nameof(MapSO.ConstructBilinearCoords), new Type[] { typeof(double), typeof(double) }),
-                this,
-                "MapSO_ConstructBilinearCoords_Double"));
+            AddPatch(PatchType.Prefix, typeof(MapSO), nameof(MapSO.ConstructBilinearCoords), new Type[] { typeof(double), typeof(double) }, "MapSO_ConstructBilinearCoords_Double");
 
             // see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/121
             // The patched ConstructBilinearCoords() methods will have the side effect of removing the Mohole because Squad
@@ -39,10 +31,7 @@ namespace KSPCommunityFixes
             bool ignoreMoho = false;
             if (KSPCommunityFixes.SettingsNode.TryGetValue("MapSOCorrectWrappingIgnoreMoho", ref ignoreMoho) && ignoreMoho)
             {
-                patches.Add(new PatchInfo(
-                    PatchMethodType.Postfix,
-                    AccessTools.Method(typeof(PSystemSetup), nameof(PSystemSetup.Awake)),
-                    this));
+                AddPatch(PatchType.Postfix, typeof(PSystemSetup), nameof(PSystemSetup.Awake));
             }
         }
 

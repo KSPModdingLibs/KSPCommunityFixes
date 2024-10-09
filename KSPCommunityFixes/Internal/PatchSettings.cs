@@ -20,17 +20,11 @@ namespace KSPCommunityFixes
         private static DisableManeuverTool maneuverToolPatch;
         private static OptionalMakingHistoryDLCFeatures disableMHPatch;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "DrawMiniSettings"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(GameplaySettingsScreen), "DrawMiniSettings");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "ApplySettings"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(GameplaySettingsScreen), "ApplySettings");
 
             altimeterPatch = KSPCommunityFixes.GetPatchInstance<AltimeterHorizontalPosition>();
             if (altimeterPatch != null)

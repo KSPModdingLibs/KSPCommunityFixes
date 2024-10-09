@@ -19,29 +19,17 @@ namespace KSPCommunityFixes.Performance
     {
         private static Thread mainThread;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             mainThread = Thread.CurrentThread;
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string) }),
-                this, nameof(Localizer_FormatNoParams_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string) }, nameof(Localizer_FormatNoParams_Prefix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(string[]) }),
-                this, nameof(Localizer_FormatStringParams_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(string[]) }, nameof(Localizer_FormatStringParams_Prefix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(object[]) }),
-                this, nameof(Localizer_FormatObjectParams_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(object[]) }, nameof(Localizer_FormatObjectParams_Prefix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Localizer), nameof(Localizer.TranslateBranch)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Localizer), nameof(Localizer.TranslateBranch));
         }
 
         private static bool Localizer_FormatNoParams_Prefix(string template, out string __result)

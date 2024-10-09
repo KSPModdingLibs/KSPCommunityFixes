@@ -14,7 +14,7 @@ namespace KSPCommunityFixes
         protected override Version VersionMin => new Version(1, 12, 0);
         protected override Version VersionMax => new Version(1, 12, 3); // bug fixed in KSP 1.12.4
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             foreach (MethodInfo methodInfo in AccessTools.GetDeclaredMethods(typeof(AppUIMember)))
             {
@@ -35,15 +35,9 @@ namespace KSPCommunityFixes
             if (AppUIMember_SetValue == null)
                 throw new Exception("AppUIMember.SetValue() : method not found");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AppUIMemberDateTime), "OnRefreshUI"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(AppUIMemberDateTime), "OnRefreshUI");
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AppUIMemberDateTime), "InputEdited"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(AppUIMemberDateTime), "InputEdited");
         }
 
         static bool AppUIMemberDateTime_OnRefreshUI_Prefix(

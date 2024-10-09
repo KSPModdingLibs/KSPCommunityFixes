@@ -9,17 +9,11 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 10, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnStart)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(ModuleParachute), nameof(ModuleParachute.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnDestroy)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(ModuleParachute), nameof(ModuleParachute.OnDestroy));
         }
 
         private static void ModuleParachute_OnStart_Postfix(ModuleParachute __instance, StartState state)

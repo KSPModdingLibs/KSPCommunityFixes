@@ -11,12 +11,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 11, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDecouplerBase), nameof(ModuleDecouplerBase.SetAirstream)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleDecouplerBase), nameof(ModuleDecouplerBase.SetAirstream));
         }
 
         static bool ModuleDecouplerBase_SetAirstream_Prefix(ModuleDecouplerBase __instance, bool enclosed)

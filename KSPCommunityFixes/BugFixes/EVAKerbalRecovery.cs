@@ -10,12 +10,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 11, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsIncludingCargo)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsIncludingCargo));
         }
 
         private static bool ProtoVessel_GetAllProtoPartsIncludingCargo_Prefix(ProtoVessel __instance, out List<ProtoPartSnapshot> __result)

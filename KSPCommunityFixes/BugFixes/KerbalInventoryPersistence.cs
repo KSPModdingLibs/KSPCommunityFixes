@@ -27,12 +27,11 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 12, 2);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
+            AddPatch(PatchType.Transpiler,
                 AccessTools.PropertyGetter(typeof(ProtoCrewMember), "kerbalModule"),
-                this, nameof(ProtoCrewMember_kerbalModule_Transpiler)));
+                nameof(ProtoCrewMember_kerbalModule_Transpiler));
         }
 
         private static IEnumerable<CodeInstruction> ProtoCrewMember_kerbalModule_Transpiler(IEnumerable<CodeInstruction> instructions)

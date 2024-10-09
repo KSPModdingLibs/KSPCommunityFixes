@@ -16,12 +16,9 @@ namespace KSPCommunityFixes
         private static float lastFixedTime;
         
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartBuoyancy), "FixedUpdate"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(PartBuoyancy), nameof(PartBuoyancy.FixedUpdate));
 
             GameEvents.onLevelWasLoaded.Add(OnLevelLoaded);
         }

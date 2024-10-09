@@ -16,12 +16,9 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Awake)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.Awake));
 
             kspActionResourcesEnableFlow = new KSPAction(Localizer.Format("#autoLOC_444646") + ": " + Localizer.Format("#autoLOC_6001423"), KSPActionGroup.None, true); // Resources: Flow
             kspActionResourcesDisableFlow = new KSPAction(Localizer.Format("#autoLOC_444646") + ": " + Localizer.Format("#autoLOC_215362"), KSPActionGroup.None, true); // Resources: Locked

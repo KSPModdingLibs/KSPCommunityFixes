@@ -52,7 +52,7 @@ namespace KSPCommunityFixes.Performance
 {
     public class DragCubeGeneration : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             dragMaterial = new Material(DragCubeSystem.Instance.dragShader);
             defaultCubeNameArray = new[] { defaultCubeName };
@@ -70,25 +70,13 @@ namespace KSPCommunityFixes.Performance
             FieldInfo f_Canvas_willRenderCanvases = AccessTools.Field(typeof(Canvas), "willRenderCanvases");
             fieldRef_Canvas_WillRenderCanvases = AccessTools.FieldRefAccess<object, Canvas.WillRenderCanvases>(f_Canvas_willRenderCanvases);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix, 
-                AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new [] {typeof(Part)} )),
-                this, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part), typeof(ConfigNode) })),
-                this, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part), typeof(ConfigNode)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScreenPhysics), nameof(ScreenPhysics.Start)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ScreenPhysics), nameof(ScreenPhysics.Start));
         }
 
         private static bool DragCubeSystem_RenderProceduralDragCube_Prefix(Part p, out DragCube __result)
@@ -634,7 +622,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => boundsSize.y,
                 DragCube.DragFace.YN => boundsSize.y,
                 DragCube.DragFace.ZP => boundsSize.z,
-                DragCube.DragFace.ZN => boundsSize.z
+                DragCube.DragFace.ZN => boundsSize.z,
+                _ => throw new NotImplementedException()
             } + cameraDoubleOffset;
         }
 
@@ -654,7 +643,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => partTransform.rotation * lookDown,
                 DragCube.DragFace.YN => partTransform.rotation * lookUp,
                 DragCube.DragFace.ZP => partTransform.rotation * lookBack,
-                DragCube.DragFace.ZN => partTransform.rotation * lookForward
+                DragCube.DragFace.ZN => partTransform.rotation * lookForward,
+                _ => throw new NotImplementedException()
             };
         }
 
@@ -667,7 +657,8 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YP => new Vector3(partBounds.center.x, partBounds.max.y + cameraOffset, partBounds.center.z),
                 DragCube.DragFace.YN => new Vector3(partBounds.center.x, partBounds.min.y - cameraOffset, partBounds.center.z),
                 DragCube.DragFace.ZP => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.max.z + cameraOffset),
-                DragCube.DragFace.ZN => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.min.z - cameraOffset)
+                DragCube.DragFace.ZN => new Vector3(partBounds.center.x, partBounds.center.y, partBounds.min.z - cameraOffset),
+                _ => throw new NotImplementedException()
             };
 
             return part.transform.rotation * pos + part.transform.position;
@@ -942,6 +933,7 @@ namespace KSPCommunityFixes.Performance
                 DragCube.DragFace.YN => instance.yn,
                 DragCube.DragFace.ZP => instance.zp,
                 DragCube.DragFace.ZN => instance.zn,
+                _ => throw new NotImplementedException()
             };
 
             if (currentTexture.IsNullOrDestroyed())

@@ -9,12 +9,9 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Administration), nameof(Administration.AddKerbalListItem)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Administration), nameof(Administration.AddKerbalListItem));
         }
 
         static void Administration_AddKerbalListItem_Postfix(Administration __instance, ref Strategies.DepartmentConfig dep)
