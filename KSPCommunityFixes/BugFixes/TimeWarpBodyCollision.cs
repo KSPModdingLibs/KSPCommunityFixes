@@ -31,7 +31,7 @@ namespace KSPCommunityFixes.BugFixes
             if (obt.patchEndTransition != Orbit.PatchTransitionType.FINAL && rate > maxAllowedSOITransitionRate)
             {
                 double warpDeltaTime = obt.EndUT - Planetarium.GetUniversalTime() - secondsBeforeSOItransition;
-                __instance.getMaxWarpRateForTravel(warpDeltaTime, 8, 2.5, out var rateIdx);
+                __instance.getMaxWarpRateForTravel(warpDeltaTime, 1, 4, out var rateIdx);
                 if (rate < rateIdx)
                 {
                     __result = rate;
