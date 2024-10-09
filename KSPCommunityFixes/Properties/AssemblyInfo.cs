@@ -34,3 +34,4 @@ using System.Runtime.InteropServices;
 
 [assembly: KSPAssembly("KSPCommunityFixes", 1, 35, 2)]
 [assembly: KSPAssemblyDependency("MultipleModulePartAPI", 1, 0, 0)]
+[assembly: KSPAssemblyDependency("ModuleManager", 1, 0)]

@@ -79,17 +79,5 @@ namespace KSPCommunityFixes
 
             return false;
         }
-
-        /// <summary>
-        /// Evaluate whether a given integral value is a power of 2.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        public static bool IsPowerOfTwo(int value) => (value & (value - 1)) == 0 && value > 0;
-
-        /// <summary>
-        /// Evaluate whether a given integral value is a power of 2.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        public static bool IsPowerOfTwo(uint value) => (value & (value - 1)) == 0 && value != 0;
     }
 }
