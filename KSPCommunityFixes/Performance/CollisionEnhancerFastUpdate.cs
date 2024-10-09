@@ -10,11 +10,9 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate))));
+            AddPatch(PatchType.Prefix, typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate));
         }
 
         private static bool CollisionEnhancer_FixedUpdate_Prefix(CollisionEnhancer __instance)

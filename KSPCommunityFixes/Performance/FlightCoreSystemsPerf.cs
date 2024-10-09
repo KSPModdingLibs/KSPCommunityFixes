@@ -33,47 +33,23 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats))));
+            AddPatch(PatchType.Prefix, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar))));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody))));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection))));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats))));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetSunArea));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetBodyArea));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate))));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Override,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation))));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Override,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.GetSunArea))));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Override,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.GetBodyArea))));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset))));
+            AddPatch(PatchType.Prefix, typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset));
         }
 
         private static HashSet<int> activePS = new HashSet<int>(200);

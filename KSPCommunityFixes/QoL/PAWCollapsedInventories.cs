@@ -14,27 +14,17 @@ namespace KSPCommunityFixes.UI
 
         protected override Version VersionMin => new Version(1, 11, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateMassVolumeDisplay))));
+            AddPatch(PatchType.Postfix, typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateMassVolumeDisplay));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Setup))));
+            AddPatch(PatchType.Postfix, typeof(UIPartActionInventory), nameof(UIPartActionInventory.Setup));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) })));
+            AddPatch(PatchType.Transpiler, typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) })));
+            AddPatch(PatchType.Postfix, typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) });
         }
 
         static string GetGroupName(ModuleInventoryPart inventory)

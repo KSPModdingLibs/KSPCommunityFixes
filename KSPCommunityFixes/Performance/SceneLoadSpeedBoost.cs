@@ -20,15 +20,11 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(GamePersistence), "SaveGame", new Type[] { typeof(Game), typeof(string), typeof(string), typeof(SaveMode) })));
+            AddPatch(PatchType.Transpiler, typeof(GamePersistence), "SaveGame", new Type[] { typeof(Game), typeof(string), typeof(string), typeof(SaveMode) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(GamePersistence), "LoadGame", new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) })));
+            AddPatch(PatchType.Transpiler, typeof(GamePersistence), "LoadGame", new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) });
 
             //patches.Add(new PatchInfo(
             //    PatchMethodType.Prefix,

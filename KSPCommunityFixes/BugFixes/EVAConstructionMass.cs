@@ -16,11 +16,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EVAConstructionModeEditor), nameof(EVAConstructionModeEditor.PickupPart))));
+            AddPatch(PatchType.Transpiler, typeof(EVAConstructionModeEditor), nameof(EVAConstructionModeEditor.PickupPart));
         }
 
         // the stock code sets selectedpart.mass to the prefab mass, which breaks terribly in cases where there are mass modifiers involved

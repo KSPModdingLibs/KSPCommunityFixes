@@ -21,11 +21,9 @@ namespace KSPCommunityFixes.Performance
 {
     internal class DisableHiddenPortraits : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(KerbalPortrait), nameof(KerbalPortrait.OnEnable))));
+            AddPatch(PatchType.Prefix, typeof(KerbalPortrait), nameof(KerbalPortrait.OnEnable));
         }
 
         private static bool KerbalPortrait_OnEnable_Prefix(KerbalPortrait __instance)

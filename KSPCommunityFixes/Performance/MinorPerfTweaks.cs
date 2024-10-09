@@ -9,15 +9,11 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Override,
-                AccessTools.Method(typeof(Part), nameof(Part.isKerbalEVA))));
+            AddPatch(PatchType.Override, typeof(Part), nameof(Part.isKerbalEVA));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Override,
-                AccessTools.Method(typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update))));
+            AddPatch(PatchType.Override, typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update));
         }
 
         // Called (sometimes multiple times) in Part.FixedUpdate()

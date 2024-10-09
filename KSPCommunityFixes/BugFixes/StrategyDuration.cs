@@ -10,25 +10,19 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
+            AddPatch(PatchType.Prefix,
                 AccessTools.PropertyGetter(typeof(Strategy), nameof(Strategy.LongestDuration)),
-                nameof(Strategy_LongestDuration)));
+                nameof(Strategy_LongestDuration));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
+            AddPatch(PatchType.Prefix,
                 AccessTools.PropertyGetter(typeof(Strategy), nameof(Strategy.LeastDuration)),
-                nameof(Strategy_LeastDuration)));
+                nameof(Strategy_LeastDuration));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Strategy), nameof(Strategy.CanBeDeactivated))));
+            AddPatch(PatchType.Transpiler, typeof(Strategy), nameof(Strategy.CanBeDeactivated));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Strategy), nameof(Strategy.SendStateMessage))));
+            AddPatch(PatchType.Transpiler, typeof(Strategy), nameof(Strategy.SendStateMessage));
         }
 
         static bool Strategy_LongestDuration(Strategy __instance, ref double __result)

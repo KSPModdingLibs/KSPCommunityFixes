@@ -14,15 +14,11 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PQS), nameof(PQS.StartSphere))));
+            AddPatch(PatchType.Transpiler, typeof(PQS), nameof(PQS.StartSphere));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PQS), nameof(PQS.ResetAndWait))));
+            AddPatch(PatchType.Transpiler, typeof(PQS), nameof(PQS.ResetAndWait));
         }
 
         // StartCoroutine(UpdateSphere());

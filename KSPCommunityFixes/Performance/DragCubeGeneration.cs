@@ -52,7 +52,7 @@ namespace KSPCommunityFixes.Performance
 {
     public class DragCubeGeneration : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             dragMaterial = new Material(DragCubeSystem.Instance.dragShader);
             defaultCubeNameArray = new[] { defaultCubeName };
@@ -70,23 +70,13 @@ namespace KSPCommunityFixes.Performance
             FieldInfo f_Canvas_willRenderCanvases = AccessTools.Field(typeof(Canvas), "willRenderCanvases");
             fieldRef_Canvas_WillRenderCanvases = AccessTools.FieldRefAccess<object, Canvas.WillRenderCanvases>(f_Canvas_willRenderCanvases);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix, 
-                AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube))));
+            AddPatch(PatchType.Prefix, typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new [] {typeof(Part)} )),
-                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part), typeof(ConfigNode) })),
-                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part), typeof(ConfigNode)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScreenPhysics), nameof(ScreenPhysics.Start))));
+            AddPatch(PatchType.Prefix, typeof(ScreenPhysics), nameof(ScreenPhysics.Start));
         }
 
         private static bool DragCubeSystem_RenderProceduralDragCube_Prefix(Part p, out DragCube __result)

@@ -21,23 +21,15 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid))));
+            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato))));
+            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid))));
+            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato))));
+            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato));
         }
 
         static bool ModuleAsteroidDrill_IsSituationValid_Prefix(ModuleAsteroidDrill __instance, ref bool __result)

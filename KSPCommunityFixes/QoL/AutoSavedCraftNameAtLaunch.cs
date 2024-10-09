@@ -10,12 +10,10 @@ namespace KSPCommunityFixes.QoL
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Constructor(typeof(VesselSpawnDialog.VesselDataItem), new Type[] {typeof(FileInfo), typeof(bool), typeof(bool)}),
-                nameof(VesselDataItem_Ctor_Postfix)));
+            AddPatch(PatchType.Postfix, AccessTools.Constructor(typeof(VesselSpawnDialog.VesselDataItem), new Type[] { typeof(FileInfo), typeof(bool), typeof(bool) }),
+                nameof(VesselDataItem_Ctor_Postfix));
         }
 
         static void VesselDataItem_Ctor_Postfix(VesselSpawnDialog.VesselDataItem __instance, FileInfo fInfo, bool steamItem)

@@ -8,11 +8,9 @@ namespace KSPCommunityFixes.QoL
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScenarioNewGameIntro), nameof(ScenarioNewGameIntro.OnAwake))));
+            AddPatch(PatchType.Prefix, typeof(ScenarioNewGameIntro), nameof(ScenarioNewGameIntro.OnAwake));
         }
 
         static void ScenarioNewGameIntro_OnAwake_Prefix(ScenarioNewGameIntro __instance)

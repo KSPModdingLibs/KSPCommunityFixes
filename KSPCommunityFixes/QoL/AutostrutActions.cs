@@ -16,15 +16,11 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Awake))));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.Awake));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.ModulesOnStartFinished))));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.ModulesOnStartFinished));
 
             kspActionAutostrutOff = new KSPAction(Localizer.Format("#autoLOC_6001318"), KSPActionGroup.None, true); // Autostrut: Disabled
             kspActionAutostrutRoot = new KSPAction(Localizer.Format("#autoLOC_6001320"), KSPActionGroup.None, true); // Autostrut: Root Part

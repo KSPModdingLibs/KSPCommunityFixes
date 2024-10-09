@@ -13,19 +13,13 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update))));
+            AddPatch(PatchType.Prefix, typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Highlighter), nameof(Highlighter.UpdateRenderers))));
+            AddPatch(PatchType.Prefix, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor))));
+            AddPatch(PatchType.Prefix, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
 
             // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
         }

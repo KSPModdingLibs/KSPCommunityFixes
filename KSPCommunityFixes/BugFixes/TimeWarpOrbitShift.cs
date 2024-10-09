@@ -23,11 +23,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TimeWarp), nameof(TimeWarp.setRate))));
+            AddPatch(PatchType.Prefix, typeof(TimeWarp), nameof(TimeWarp.setRate));
         }
 
         static void TimeWarp_setRate_Prefix(TimeWarp __instance, int rateIdx)

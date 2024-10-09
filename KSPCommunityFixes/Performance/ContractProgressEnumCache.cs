@@ -18,11 +18,9 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress))));
+            AddPatch(PatchType.Transpiler, typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress));
 
 #if PROFILE_GETANYBODYPROGRESS
             patches.Add(new PatchInfo(

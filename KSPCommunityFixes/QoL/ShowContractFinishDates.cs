@@ -12,11 +12,9 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix, 
-                AccessTools.Method(typeof(MissionControl), "UpdateInfoPanelContract")));
+            AddPatch(PatchType.Postfix, typeof(MissionControl), "UpdateInfoPanelContract");
         }
 
         private static void MissionControl_UpdateInfoPanelContract_Postfix(MissionControl __instance, Contract contract)

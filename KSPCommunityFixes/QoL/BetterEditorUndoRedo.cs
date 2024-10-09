@@ -46,7 +46,7 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 3); // too many changes in previous versions, too lazy to check
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             m_EditorLogic_SetBackup = AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup));
             m_EditorLogicSetBackupNoShipModifiedEvent = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(EditorLogicSetBackupNoShipModifiedEvent));
@@ -56,65 +56,34 @@ namespace KSPCommunityFixes.QoL
             m_RefreshCrewAssignmentFromLiveState = AccessTools.Method(typeof(BetterEditorUndoRedo), nameof(RefreshCrewAssignmentFromLiveState));
             m_ShipConstruct_Contains = AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.Contains), new[] { typeof(Part) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState))));
+            AddPatch(PatchType.Prefix, typeof(EditorLogic), nameof(EditorLogic.RestoreState));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM))));
+            AddPatch(PatchType.Postfix, typeof(EditorLogic), nameof(EditorLogic.SetupFSM));
 
             // Create backup before moving a part with the rotate/offset tools, instead of after
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart))));
+            AddPatch(PatchType.Prefix, typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart))));
+            AddPatch(PatchType.Prefix, typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated)),
-                nameof(CallModifiedInsteadOfBackupTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated), nameof(CallModifiedInsteadOfBackupTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
-                nameof(CallModifiedInsteadOfBackupTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated), nameof(CallModifiedInsteadOfBackupTranspiler));
 
             // Create backup before selecting a variant, instead of after
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant))));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
-                nameof(CallModifiedInsteadOfBackupTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged), nameof(CallModifiedInsteadOfBackupTranspiler));
 
             // Move backup creation at the begining of the following methods :
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
-                nameof(MoveSetBackupAtStartTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(Part), nameof(Part.RemoveFromSymmetry), nameof(MoveSetBackupAtStartTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}),
-                nameof(MoveSetBackupAtStartTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}, nameof(MoveSetBackupAtStartTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup)),
-                nameof(MoveSetBackupAtStartTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup), nameof(MoveSetBackupAtStartTranspiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup)),
-                nameof(MoveSetBackupAtStartTranspiler)));
+            AddPatch(PatchType.Transpiler, typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup), nameof(MoveSetBackupAtStartTranspiler));
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(

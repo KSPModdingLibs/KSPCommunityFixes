@@ -31,26 +31,20 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             // ConfigurePart() was added in 1.11, by stripping a portion of the 1.10 ProtoPartSnapshot.Load()
             // method in a separate method.
             if (KSPCommunityFixes.KspVersion < new Version(1, 11, 0))
             {
-                patches.Add(new PatchInfo(
-                    PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load))));
+                AddPatch(PatchType.Transpiler, typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load));
             }
             else
             {
-                patches.Add(new PatchInfo(
-                    PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ProtoPartSnapshot), "ConfigurePart")));
+                AddPatch(PatchType.Transpiler, typeof(ProtoPartSnapshot), "ConfigurePart");
             }
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() })));
+            AddPatch(PatchType.Transpiler, typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() });
 
             Type partModuleType = typeof(PartModule);
             Type multiModuleType = typeof(IMultipleModuleInPart);

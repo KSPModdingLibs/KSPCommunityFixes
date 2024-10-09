@@ -14,11 +14,9 @@ namespace KSPCommunityFixes
         private static Func<ROCManager, string, CelestialBody> ValidCelestialBody;
         private static Func<ROCManager, CelestialBody, string, bool> ValidCBBiome;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ROCManager), "ValidateCBBiomeCombos")));
+            AddPatch(PatchType.Prefix, typeof(ROCManager), "ValidateCBBiomeCombos");
 
             ValidCelestialBody = AccessTools.MethodDelegate<Func<ROCManager, string, CelestialBody>>(AccessTools.Method(typeof(ROCManager), "ValidCelestialBody"));
             ValidCBBiome = AccessTools.MethodDelegate<Func<ROCManager, CelestialBody, string, bool>>(AccessTools.Method(typeof(ROCManager), "ValidCBBiome"));

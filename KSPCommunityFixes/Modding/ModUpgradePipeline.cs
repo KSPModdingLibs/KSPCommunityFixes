@@ -25,34 +25,19 @@ namespace KSPCommunityFixes.Modding
         // That means we can't get the callback directly, so we have to get it by reflection.
         private static FieldInfo OnSetCfgNodeVersionCallback = typeof(SaveUpgradePipeline.SaveUpgradePipeline).GetField(nameof(SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion), AccessTools.all);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.SaveShip))));
+            AddPatch(PatchType.Postfix, typeof(ShipConstruct), nameof(ShipConstruct.SaveShip));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Game), nameof(Game.Save))));
+            AddPatch(PatchType.Postfix, typeof(Game), nameof(Game.Save));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(KSPUpgradePipeline), nameof(KSPUpgradePipeline.Process))));
+            AddPatch(PatchType.Prefix, typeof(KSPUpgradePipeline), nameof(KSPUpgradePipeline.Process));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.Init)),
-                nameof(SaveUpgradePipeline_Init_Postfix)));
+            AddPatch(PatchType.Postfix, typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.Init), nameof(SaveUpgradePipeline_Init_Postfix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.SanityCheck)),
-                nameof(SaveUpgradePipeline_SanityCheck_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.SanityCheck), nameof(SaveUpgradePipeline_SanityCheck_Prefix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.RunIteration)),
-                nameof(SaveUpgradePipeline_RunIteration_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.RunIteration), nameof(SaveUpgradePipeline_RunIteration_Prefix));
 
             // For some reason this method is failing to be found normally.
             // So we'll find it manually.
@@ -65,15 +50,10 @@ namespace KSPCommunityFixes.Modding
                     break;
                 }
             }
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                runMethod,
-                nameof(SaveUpgradePipeline_Run_Postfix)));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UpgradeScript), nameof(UpgradeScript.Test)),
-                nameof(UpgradeScript_Test_Prefix)));
+            AddPatch(PatchType.Postfix, runMethod, nameof(SaveUpgradePipeline_Run_Postfix));
+
+            AddPatch(PatchType.Prefix, typeof(UpgradeScript), nameof(UpgradeScript.Test), nameof(UpgradeScript_Test_Prefix));
 
             SaveCurrentVersions();
 

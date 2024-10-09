@@ -8,11 +8,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(CraftThumbnail), nameof(CraftThumbnail.TakePartSnapshot))));
+            AddPatch(PatchType.Postfix, typeof(CraftThumbnail), nameof(CraftThumbnail.TakePartSnapshot));
         }
 
         private static void CraftThumbnail_TakePartSnapshot_Postfix()

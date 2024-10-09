@@ -23,31 +23,19 @@ namespace KSPCommunityFixes.BugFixes
             return base.CanApplyPatch(out reason);
         }
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(BaseServo), nameof(BaseServo.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnDestroy))));
+            AddPatch(PatchType.Postfix, typeof(BaseServo), nameof(BaseServo.OnDestroy));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.RecurseCoordUpdate))));
+            AddPatch(PatchType.Prefix, typeof(BaseServo), nameof(BaseServo.RecurseCoordUpdate));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnSave))));
+            AddPatch(PatchType.Prefix, typeof(BaseServo), nameof(BaseServo.OnSave));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.ModifyLocked))));
+            AddPatch(PatchType.Prefix, typeof(BaseServo), nameof(BaseServo.ModifyLocked));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack))));
+            AddPatch(PatchType.Prefix, typeof(BaseServo), nameof(BaseServo.OnPartPack));
 
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }

@@ -14,15 +14,11 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.FindNodeApproaches))));
+            AddPatch(PatchType.Prefix, typeof(ModuleDockingNode), nameof(ModuleDockingNode.FindNodeApproaches));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad))));
+            AddPatch(PatchType.Postfix, typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad));
         }
 
         // Very unlikely to be necessary, but in theory nodeType could differ from the string stored 

@@ -28,40 +28,19 @@ namespace KSPCommunityFixes.Modding
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            MethodInfo ConfigNode_ReadObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.ReadObject), new Type[] { typeof(object), typeof(ConfigNode) });
-            MethodInfo ConfigNode_WriteObject = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.WriteObject), new Type[] { typeof(object), typeof(ConfigNode), typeof(int) });
+            AddPatch(PatchType.Prefix, typeof(ConfigNode), nameof(ConfigNode.ReadObject), new Type[] { typeof(object), typeof(ConfigNode) });
 
-            if (ConfigNode_ReadObject == null)
-                throw new Exception("ConfigNode.ReadObject() : method not found");
+            AddPatch(PatchType.Prefix, typeof(ConfigNode), nameof(ConfigNode.WriteObject), new Type[] { typeof(object), typeof(ConfigNode), typeof(int) });
 
-            if (ConfigNode_WriteObject == null)
-                throw new Exception("ConfigNode.WriteObject() : method not found");
+            AddPatch(PatchType.Prefix, typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                ConfigNode_ReadObject));
+            AddPatch(PatchType.Postfix, typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                ConfigNode_WriteObject));
+            AddPatch(PatchType.Prefix, typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) })));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) })));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) })));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) })));
+            AddPatch(PatchType.Postfix, typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) });
         }
 
         // This will fail if nested, so we cache off the old writeLinks.

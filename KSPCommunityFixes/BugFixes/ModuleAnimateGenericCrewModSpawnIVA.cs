@@ -11,11 +11,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleAnimateGeneric), nameof(ModuleAnimateGeneric.CheckCrewState))));
+            AddPatch(PatchType.Transpiler, typeof(ModuleAnimateGeneric), nameof(ModuleAnimateGeneric.CheckCrewState));
         }
 
         // Insert a call to our static OnCrewCapacityChanged() method in the "if (crewCapacity != base.part.CrewCapacity)" condition

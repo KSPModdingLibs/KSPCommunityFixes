@@ -14,15 +14,11 @@ namespace KSPCommunityFixes.Performance
 
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(
-                new PatchInfo(PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage))));
+            AddPatch(PatchType.Transpiler, typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS))));
+            AddPatch(PatchType.Prefix, typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS));
 
             KSPCommunityFixes.Instance.StartCoroutine(ResetSyncOnFixedEnd());
         }

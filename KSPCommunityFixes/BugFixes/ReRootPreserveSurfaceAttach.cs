@@ -15,11 +15,9 @@ namespace KSPCommunityFixes.BugFixes
 {
     class ReRootPreserveSurfaceAttach : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot))));
+            AddPatch(PatchType.Transpiler, typeof(Part), nameof(Part.SetHierarchyRoot));
         }
 
         // skip the portion of that method that alter surface nodes position/orientation on re-rooting, 

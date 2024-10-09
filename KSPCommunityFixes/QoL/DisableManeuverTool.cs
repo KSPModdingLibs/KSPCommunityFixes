@@ -15,7 +15,7 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             ConfigNode defaultsNode = KSPCommunityFixes.SettingsNode.GetNode("MANEUVER_TOOL_DEFAULTS");
 
@@ -28,9 +28,7 @@ namespace KSPCommunityFixes.QoL
             if (alwaysDisabled)
                 enableManeuverTool = false;
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix, 
-                AccessTools.Method(typeof(ManeuverTool), "OnAppAboutToStart")));
+            AddPatch(PatchType.Prefix, typeof(ManeuverTool), "OnAppAboutToStart");
         }
 
         public static bool alwaysDisabled = false;
