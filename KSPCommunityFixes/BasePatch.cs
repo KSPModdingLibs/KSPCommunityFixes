@@ -138,8 +138,6 @@ namespace KSPCommunityFixes
                 this.patchedMethod = patchedMethod;
                 this.patchMethodName = patchMethodName;
                 this.patchPriority = patchPriority;
-
-
             }
         }
 
@@ -306,6 +304,7 @@ namespace KSPCommunityFixes
             if (!overrides.TryGetValue(__originalMethod, out PatchInfo patch))
                 throw new Exception($"Could not find override method for patched method {__originalMethod.FullDescription()}");
 
+            // When we want to be able to debug the override method, we generate transpiler that is calling it
             if (patch.debugOverride)
             {
                 int instanceArg = __originalMethod.IsStatic ? 0 : 1;
@@ -330,6 +329,18 @@ namespace KSPCommunityFixes
                 return debugIl;
             }
 
+            // Otherwise, we want to return all instructions of the override method.
+            // We call an Harmony library method (GetOriginalInstructions) that return the IL and a matching ILGenerator for
+            // our override. This is the same method Harmony use internally to weave patches together.
+            // But the difficulty here is that we need correctly defined variables, labels and exception handlers in the
+            // IlGenerator instance Harmony will use (and that is passed as an argument), so we need to copy all that stuff from
+            // the IlGenerator for our override method to the ILGenertor instance that Harmony will actually use. This gets
+            // quite complicated because the ILGenerator isn't actually an ILGenerator from reflection, but a runtime generated
+            // replacement from MonoMod. Long story short, copying all the stuff require accessing all that internal MonoMod
+            // generator stuff, which we publicize for convenience.
+            // This however mean that this is very likely to break on updating MonoMod/Harmony, and as a matter of fact, will
+            // definitely break if we start using Harmony 2.3+, which is based on new major version of MonoMod where all this
+            // stuff has been heavily refactored.
             List<CodeInstruction> il = PatchProcessor.GetOriginalInstructions(patch.patchMethod, out ILGenerator overrideGen);
 
             CecilILGenerator patchCecilGen = patchGen.GetProxiedShim<CecilILGenerator>();
@@ -366,46 +377,6 @@ namespace KSPCommunityFixes
             patchBody.Variables.AddRange(overrideBody.Variables);
 
             return il;
-        }
-
-        public static void XValueArgTest6(double a, double test, double c, double d, double e, double f)
-        {
-            XValueArgTest6(a, test, c, d, e, f);
-        }
-
-        public static void XValueArgTestLong(double a, double test, double c, double d, double e, double f, double g, double k, double z, double t, double p, double et, double po, double ty, double pp, double ks)
-        {
-            XValueArgTestLong(a, test, c, d, e, f, g, k, z, t, p, et, po, ty, pp, ks);
-        }
-
-        public static void XRefArgTest(double a, double test)
-        {
-            XRefArgTest(a, test);
-        }
-
-        public static void XOutValueArgTest(double a, out double test)
-        {
-            XOutValueArgTest(a,out test);
-        }
-
-        public static void XRefValueArgTest(double a, ref double test)
-        {
-            XRefValueArgTest(a,ref test);
-        }
-
-        public static void XOutRefArgTest(double a, out string test)
-        {
-            XOutRefArgTest(a,out test);
-        }
-
-        public static void XRefRefArgTest(double a, ref string test)
-        {
-            XRefRefArgTest(a,ref test);
-        }
-
-        public static void XParamArgTest(params double[] args)
-        {
-            XParamArgTest(args);
         }
     }
 }
