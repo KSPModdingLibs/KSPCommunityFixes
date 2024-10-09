@@ -10,8 +10,6 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        private static bool useStockCheck = true;
-
         protected override void ApplyPatches(List<PatchInfo> patches)
         {
             patches.Add(new PatchInfo(
