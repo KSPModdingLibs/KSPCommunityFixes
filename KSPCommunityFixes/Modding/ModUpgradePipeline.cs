@@ -29,33 +29,30 @@ namespace KSPCommunityFixes.Modding
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.SaveShip)),
-                this));
+                AccessTools.Method(typeof(ShipConstruct), nameof(ShipConstruct.SaveShip))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Game), nameof(Game.Save)),
-                this));
+                AccessTools.Method(typeof(Game), nameof(Game.Save))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(KSPUpgradePipeline), nameof(KSPUpgradePipeline.Process)),
-                this));
+                AccessTools.Method(typeof(KSPUpgradePipeline), nameof(KSPUpgradePipeline.Process))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.Init)),
-                this, "SaveUpgradePipeline_Init_Postfix"));
+                nameof(SaveUpgradePipeline_Init_Postfix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.SanityCheck)),
-                this, "SaveUpgradePipeline_SanityCheck_Prefix"));
+                nameof(SaveUpgradePipeline_SanityCheck_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.RunIteration)),
-                this, "SaveUpgradePipeline_RunIteration_Prefix"));
+                nameof(SaveUpgradePipeline_RunIteration_Prefix)));
 
             // For some reason this method is failing to be found normally.
             // So we'll find it manually.
@@ -71,12 +68,12 @@ namespace KSPCommunityFixes.Modding
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 runMethod,
-                this, "SaveUpgradePipeline_Run_Postfix"));
+                nameof(SaveUpgradePipeline_Run_Postfix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(UpgradeScript), nameof(UpgradeScript.Test)),
-                this, "UpgradeScript_Test_Prefix"));
+                nameof(UpgradeScript_Test_Prefix)));
 
             SaveCurrentVersions();
 

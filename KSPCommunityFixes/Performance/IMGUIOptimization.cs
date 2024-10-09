@@ -22,8 +22,7 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(GUILayoutUtility), nameof(GUILayoutUtility.Begin)),
-                this));
+                AccessTools.Method(typeof(GUILayoutUtility), nameof(GUILayoutUtility.Begin))));
         }
 
         static bool GUILayoutUtility_Begin_Prefix(int instanceID)

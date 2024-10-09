@@ -37,13 +37,11 @@ namespace KSPCommunityFixes.BugFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.ApplyVariant), ApplyVariant_parameterTypes),
-                this));
+                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.ApplyVariant), ApplyVariant_parameterTypes)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.UpdatePartPosition)),
-                this));
+                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.UpdatePartPosition))));
         }
 
         static IEnumerable<CodeInstruction> ModulePartVariants_ApplyVariant_Transpiler(IEnumerable<CodeInstruction> instructions)

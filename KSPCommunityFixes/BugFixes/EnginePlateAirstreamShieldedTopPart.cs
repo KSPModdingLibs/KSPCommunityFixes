@@ -15,8 +15,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDecouplerBase), nameof(ModuleDecouplerBase.SetAirstream)),
-                this));
+                AccessTools.Method(typeof(ModuleDecouplerBase), nameof(ModuleDecouplerBase.SetAirstream))));
         }
 
         static bool ModuleDecouplerBase_SetAirstream_Prefix(ModuleDecouplerBase __instance, bool enclosed)

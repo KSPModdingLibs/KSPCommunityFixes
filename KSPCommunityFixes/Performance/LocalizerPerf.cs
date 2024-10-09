@@ -26,22 +26,21 @@ namespace KSPCommunityFixes.Performance
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string) }),
-                this, nameof(Localizer_FormatNoParams_Prefix)));
+                nameof(Localizer_FormatNoParams_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(string[]) }),
-                this, nameof(Localizer_FormatStringParams_Prefix)));
+                nameof(Localizer_FormatStringParams_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(Localizer), nameof(Localizer.Format), new[] { typeof(string), typeof(object[]) }),
-                this, nameof(Localizer_FormatObjectParams_Prefix)));
+                nameof(Localizer_FormatObjectParams_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Localizer), nameof(Localizer.TranslateBranch)),
-                this));
+                AccessTools.Method(typeof(Localizer), nameof(Localizer.TranslateBranch))));
         }
 
         private static bool Localizer_FormatNoParams_Prefix(string template, out string __result)

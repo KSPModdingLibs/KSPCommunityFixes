@@ -26,8 +26,7 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(
                 new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(CollisionManager), nameof(CollisionManager.UpdatePartCollisionIgnores)),
-                    this));
+                    AccessTools.Method(typeof(CollisionManager), nameof(CollisionManager.UpdatePartCollisionIgnores))));
         }
 
         static bool CollisionManager_UpdatePartCollisionIgnores_Prefix(CollisionManager __instance)

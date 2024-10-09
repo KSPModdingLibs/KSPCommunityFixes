@@ -13,8 +13,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltipController), nameof(PartListTooltipController.CreateTooltip)),
-                this));
+                AccessTools.Method(typeof(PartListTooltipController), nameof(PartListTooltipController.CreateTooltip))));
         }
 
         static void PartListTooltipController_CreateTooltip_Postfix(PartListTooltipController __instance, PartListTooltip tooltip)

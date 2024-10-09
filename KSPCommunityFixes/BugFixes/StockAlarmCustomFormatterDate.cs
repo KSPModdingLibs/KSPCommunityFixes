@@ -37,13 +37,11 @@ namespace KSPCommunityFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AppUIMemberDateTime), "OnRefreshUI"),
-                this));
+                AccessTools.Method(typeof(AppUIMemberDateTime), "OnRefreshUI")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AppUIMemberDateTime), "InputEdited"),
-                this));
+                AccessTools.Method(typeof(AppUIMemberDateTime), "InputEdited")));
         }
 
         static bool AppUIMemberDateTime_OnRefreshUI_Prefix(

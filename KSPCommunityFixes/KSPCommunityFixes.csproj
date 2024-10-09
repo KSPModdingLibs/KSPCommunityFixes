@@ -100,6 +100,17 @@
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
     <Publicize Include="mscorlib:System.String.m_firstChar" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.ILGeneratorShimExt" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelInfo" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelledExceptionHandler" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+ExceptionHandlerChain" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelInfos" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelsToMark" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlersToMark" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._Variables" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlers" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator.labelCounter" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ILOffset" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
@@ -136,7 +147,7 @@
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
-    <Compile Include="Performance\AuxiliarySystemsFastUpdate.cs" />
+    <Compile Include="Performance\PartSystemsFastUpdate.cs" />
     <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />

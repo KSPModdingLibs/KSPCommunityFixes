@@ -72,23 +72,21 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix, 
-                AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube)),
-                this));
+                AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new [] {typeof(Part)} )),
-                this, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part), typeof(ConfigNode) })),
-                this, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
+                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScreenPhysics), nameof(ScreenPhysics.Start)),
-                this));
+                AccessTools.Method(typeof(ScreenPhysics), nameof(ScreenPhysics.Start))));
         }
 
         private static bool DragCubeSystem_RenderProceduralDragCube_Prefix(Part p, out DragCube __result)

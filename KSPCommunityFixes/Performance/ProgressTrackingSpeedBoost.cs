@@ -10,13 +10,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ProgressTracking), nameof(ProgressTracking.Update)),
-                this));
+                AccessTools.Method(typeof(ProgressTracking), nameof(ProgressTracking.Update))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.DeclaredConstructor(typeof(KSPAchievements.CelestialBodySubtree), new Type[] { typeof(CelestialBody) }),
-                this,
                 nameof(CelestialBodySubtree_Constructor_Postfix)));
         }
 

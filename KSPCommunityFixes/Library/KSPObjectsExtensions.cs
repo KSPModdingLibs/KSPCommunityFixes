@@ -1,10 +1,9 @@
-﻿using System;
+﻿// #define PROFILE_KSPObjectsExtensions
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -320,7 +319,12 @@ namespace KSPCommunityFixes
         {
             return FindModelSkinnedMeshRenderersReadOnly(part).ToArray();
         }
+    }
 
+#if PROFILE_KSPObjectsExtensions
+    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
+    public class MainMenuTester : MonoBehaviour
+    {
         public static Stopwatch w1 = new Stopwatch();
         public static Stopwatch w2 = new Stopwatch();
         public static Stopwatch w3 = new Stopwatch();
@@ -328,6 +332,21 @@ namespace KSPCommunityFixes
         public static Stopwatch w5 = new Stopwatch();
         public static Stopwatch w6 = new Stopwatch();
         public static Stopwatch w7 = new Stopwatch();
+
+        public IEnumerator Start()
+        {
+            for (int i = 0; i < 50; i++)
+            {
+                yield return null;
+            }
+
+            for (int i = 0; i < 50; i++)
+            {
+                Benchmark();
+                yield return null;
+            }
+            
+        }
 
         public static void Benchmark()
         {
@@ -337,7 +356,7 @@ namespace KSPCommunityFixes
             // warmup
             foreach (AvailablePart availablePart in PartLoader.LoadedPartsList)
             {
-                FindModelRenderersFast(availablePart.partPrefab, renderers); 
+                availablePart.partPrefab.FindModelRenderersFast(renderers);
                 renderers = availablePart.partPrefab.FindModelComponents<Renderer>();
                 renderers = availablePart.partPrefab.FindModelRenderersCached();
                 renderersArray = availablePart.partPrefab.FindModelRenderersCachedFast();
@@ -346,7 +365,7 @@ namespace KSPCommunityFixes
             w1.Start();
             foreach (AvailablePart availablePart in PartLoader.LoadedPartsList)
             {
-                FindModelRenderersFast(availablePart.partPrefab, renderers);
+                availablePart.partPrefab.FindModelRenderersFast(renderers);
             }
             w1.Stop();
             Debug.Log($"FindModelRenderersFast : {w1.Elapsed.TotalMilliseconds:F3} ms");
@@ -374,26 +393,7 @@ namespace KSPCommunityFixes
             }
             w4.Stop();
             Debug.Log($"FindModelRenderersCachedFast : {w4.Elapsed.TotalMilliseconds:F3} ms");
-
         }
     }
-
-    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
-    public class MainMenuTester : MonoBehaviour
-    {
-        public IEnumerator Start()
-        {
-            for (int i = 0; i < 50; i++)
-            {
-                yield return null;
-            }
-
-            for (int i = 0; i < 50; i++)
-            {
-                KSPObjectsExtensions.Benchmark();
-                yield return null;
-            }
-            
-        }
-    }
+#endif
 }

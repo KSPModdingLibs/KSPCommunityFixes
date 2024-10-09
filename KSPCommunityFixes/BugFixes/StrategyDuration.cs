@@ -15,22 +15,20 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.PropertyGetter(typeof(Strategy), nameof(Strategy.LongestDuration)),
-                this, nameof(Strategy_LongestDuration)));
+                nameof(Strategy_LongestDuration)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.PropertyGetter(typeof(Strategy), nameof(Strategy.LeastDuration)),
-                this, nameof(Strategy_LeastDuration)));
+                nameof(Strategy_LeastDuration)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Strategy), nameof(Strategy.CanBeDeactivated)),
-                this));
+                AccessTools.Method(typeof(Strategy), nameof(Strategy.CanBeDeactivated))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Strategy), nameof(Strategy.SendStateMessage)),
-                this));
+                AccessTools.Method(typeof(Strategy), nameof(Strategy.SendStateMessage))));
         }
 
         static bool Strategy_LongestDuration(Strategy __instance, ref double __result)

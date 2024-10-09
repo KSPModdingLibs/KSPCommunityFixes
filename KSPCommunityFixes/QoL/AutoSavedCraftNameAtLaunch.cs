@@ -15,7 +15,7 @@ namespace KSPCommunityFixes.QoL
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Constructor(typeof(VesselSpawnDialog.VesselDataItem), new Type[] {typeof(FileInfo), typeof(bool), typeof(bool)}),
-                this, nameof(VesselDataItem_Ctor_Postfix)));
+                nameof(VesselDataItem_Ctor_Postfix)));
         }
 
         static void VesselDataItem_Ctor_Postfix(VesselSpawnDialog.VesselDataItem __instance, FileInfo fInfo, bool steamItem)

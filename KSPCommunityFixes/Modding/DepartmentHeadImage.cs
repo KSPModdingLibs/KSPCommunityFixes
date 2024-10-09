@@ -13,8 +13,7 @@ namespace KSPCommunityFixes.Modding
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Administration), nameof(Administration.AddKerbalListItem)),
-                this));
+                AccessTools.Method(typeof(Administration), nameof(Administration.AddKerbalListItem))));
         }
 
         static void Administration_AddKerbalListItem_Postfix(Administration __instance, ref Strategies.DepartmentConfig dep)

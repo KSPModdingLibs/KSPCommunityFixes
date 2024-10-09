@@ -18,13 +18,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.FindNodeApproaches)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.FindNodeApproaches))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad))));
         }
 
         // Very unlikely to be necessary, but in theory nodeType could differ from the string stored 

@@ -25,8 +25,7 @@ namespace KSPCommunityFixes.QoL
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ExpansionsLoader), nameof(ExpansionsLoader.InitializeExpansion)),
-                this));
+                AccessTools.Method(typeof(ExpansionsLoader), nameof(ExpansionsLoader.InitializeExpansion))));
         }
 
         protected override void OnLoadData(ConfigNode node)

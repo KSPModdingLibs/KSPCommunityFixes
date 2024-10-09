@@ -25,8 +25,7 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(KerbalPortrait), nameof(KerbalPortrait.OnEnable)),
-                this));
+                AccessTools.Method(typeof(KerbalPortrait), nameof(KerbalPortrait.OnEnable))));
         }
 
         private static bool KerbalPortrait_OnEnable_Prefix(KerbalPortrait __instance)

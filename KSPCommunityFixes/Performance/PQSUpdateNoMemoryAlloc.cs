@@ -15,8 +15,7 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PQS), nameof(PQS.BuildTangents)),
-                this));
+                AccessTools.Method(typeof(PQS), nameof(PQS.BuildTangents))));
         }
 
         static bool PQS_BuildTangents_Prefix(PQ quad)

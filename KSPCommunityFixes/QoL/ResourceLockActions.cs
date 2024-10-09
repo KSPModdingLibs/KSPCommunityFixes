@@ -20,8 +20,7 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Awake)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.Awake))));
 
             kspActionResourcesEnableFlow = new KSPAction(Localizer.Format("#autoLOC_444646") + ": " + Localizer.Format("#autoLOC_6001423"), KSPActionGroup.None, true); // Resources: Flow
             kspActionResourcesDisableFlow = new KSPAction(Localizer.Format("#autoLOC_444646") + ": " + Localizer.Format("#autoLOC_215362"), KSPActionGroup.None, true); // Resources: Locked

@@ -15,7 +15,7 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.PropertySetter(typeof(ModuleSpaceObjectInfo), nameof(ModuleSpaceObjectInfo.currentMassVal)),
-                this, nameof(ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix)));
+                nameof(ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix)));
         }
 
         static bool ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix(ModuleSpaceObjectInfo __instance, double value)

@@ -18,18 +18,15 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.Awake)),
-                this));
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.Awake))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetFieldControl)),
-                this));
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetFieldControl))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetControl)),
-                this));
+                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetControl))));
         }
 
         static void UIPartActionController_Awake_Postfix(UIPartActionController __instance)

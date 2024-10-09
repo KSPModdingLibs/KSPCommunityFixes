@@ -12,8 +12,7 @@ namespace KSPCommunityFixes.Modding
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionFieldItem), nameof(UIPartActionFieldItem.SetSymCounterpartValue)),
-                this));
+                AccessTools.Method(typeof(UIPartActionFieldItem), nameof(UIPartActionFieldItem.SetSymCounterpartValue))));
         }
 
         static bool UIPartActionFieldItem_SetSymCounterpartValue_Prefix(UIPartActionFieldItem __instance, object value, out bool __result)

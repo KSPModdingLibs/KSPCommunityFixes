@@ -12,13 +12,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription)),
-                this));
+                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription)),
-                this));
+                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription))));
         }
 
         // doing this this way rather than via __state

@@ -14,8 +14,7 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate)),
-                this));
+                AccessTools.Method(typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate))));
         }
 
         private static bool CollisionEnhancer_FixedUpdate_Prefix(CollisionEnhancer __instance)

@@ -87,13 +87,11 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(partStartEnumerator, "MoveNext"),
-                this,
                 nameof(Part_StartEnumerator_MoveNext_Transpiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Update)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Update))));
         }
 
         static IEnumerable<CodeInstruction> Part_StartEnumerator_MoveNext_Transpiler(IEnumerable<CodeInstruction> instructions)

@@ -18,8 +18,7 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds)),
-                this));
+                AccessTools.Method(typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds))));
         }
 
         static readonly List<Renderer> partRenderersBuffer = new List<Renderer>();

@@ -17,8 +17,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FlagDecalBackground), nameof(FlagDecalBackground.EnableCurrentFlagMesh)),
-                this));
+                AccessTools.Method(typeof(FlagDecalBackground), nameof(FlagDecalBackground.EnableCurrentFlagMesh))));
         }
 
         static void FlagDecalBackground_EnableCurrentFlagMesh_Postfix(FlagDecalBackground __instance)

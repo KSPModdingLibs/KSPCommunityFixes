@@ -16,6 +16,54 @@ namespace KSPCommunityFixes.Library
             v.z = 0f;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3d v, Vector3 other)
+        {
+            v.x = other.x;
+            v.y = other.y;
+            v.z = other.z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3d v, Vector3d other)
+        {
+            v.x = other.x;
+            v.y = other.y;
+            v.z = other.z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3d v, ref Vector3d other)
+        {
+            v.x = other.x;
+            v.y = other.y;
+            v.z = other.z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3 v, Vector3 other)
+        {
+            v.x = other.x;
+            v.y = other.y;
+            v.z = other.z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3 v, Vector3d other)
+        {
+            v.x = (float)other.x;
+            v.y = (float)other.y;
+            v.z = (float)other.z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyFrom(ref this Vector3 v, ref Vector3d other)
+        {
+            v.x = (float)other.x;
+            v.y = (float)other.y;
+            v.z = (float)other.z;
+        }
+
         /// <summary>
         /// mutating add, ~10 times faster than using the + operator
         /// </summary>
@@ -61,6 +109,50 @@ namespace KSPCommunityFixes.Library
         }
 
         /// <summary>
+        /// mutate vector v with the result of a + b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateAdd(ref Vector3d v, ref Vector3d a, ref Vector3d b)
+        {
+            v.x = a.x + b.x;
+            v.y = a.y + b.y;
+            v.z = a.z + b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a + b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateAdd(ref Vector3d v, Vector3d a, ref Vector3d b)
+        {
+            v.x = a.x + b.x;
+            v.y = a.y + b.y;
+            v.z = a.z + b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a + b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateAdd(ref Vector3d v, ref Vector3d a, Vector3d b)
+        {
+            v.x = a.x + b.x;
+            v.y = a.y + b.y;
+            v.z = a.z + b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a + b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateAdd(ref Vector3d v, Vector3d a, Vector3d b)
+        {
+            v.x = a.x + b.x;
+            v.y = a.y + b.y;
+            v.z = a.z + b.z;
+        }
+
+        /// <summary>
         /// mutating substract, ~10 times faster than using the + operator
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,6 +194,50 @@ namespace KSPCommunityFixes.Library
             v.x -= x;
             v.y -= y;
             v.z -= z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a - b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateSubstract(ref Vector3d v, ref Vector3d a, ref Vector3d b)
+        {
+            v.x = a.x - b.x;
+            v.y = a.y - b.y;
+            v.z = a.z - b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a - b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateSubstract(ref Vector3d v, Vector3d a, ref Vector3d b)
+        {
+            v.x = a.x - b.x;
+            v.y = a.y - b.y;
+            v.z = a.z - b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a - b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateSubstract(ref Vector3d v, ref Vector3d a, Vector3d b)
+        {
+            v.x = a.x - b.x;
+            v.y = a.y - b.y;
+            v.z = a.z - b.z;
+        }
+
+        /// <summary>
+        /// mutate vector v with the result of a - b
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MutateSubstract(ref Vector3d v, Vector3d a, Vector3d b)
+        {
+            v.x = a.x - b.x;
+            v.y = a.y - b.y;
+            v.z = a.z - b.z;
         }
 
         /// <summary>
@@ -281,11 +417,13 @@ namespace KSPCommunityFixes.Library
     /// <summary>
     /// A readonly 4x3 double-backed matrix for transform operations
     /// </summary>
-    public readonly struct TransformMatrix
+    public struct TransformMatrix
     {
-        public readonly double m00, m01, m02, m03;
-        public readonly double m10, m11, m12, m13;
-        public readonly double m20, m21, m22, m23;
+        private static TransformMatrix current;
+
+        public double m00, m01, m02, m03;
+        public double m10, m11, m12, m13;
+        public double m20, m21, m22, m23;
 
         public TransformMatrix(double m00, double m01, double m02, double m03, double m10, double m11, double m12, double m13, double m20, double m21, double m22, double m23)
         {
@@ -340,6 +478,50 @@ namespace KSPCommunityFixes.Library
         }
 
         /// <summary>
+        /// Local to world space transform matrix, returning a ref to the singleton TransformMatrix.
+        /// A call to WorldToLocalCurrent or LocalToWorldCurrent will mutate the ref, so only one can be used at a time.
+        /// </summary>
+        public static ref TransformMatrix LocalToWorldCurrent(Transform transform)
+        {
+            Matrix4x4 matrix = transform.localToWorldMatrix;
+            current.m00 = matrix.m00;
+            current.m01 = matrix.m01;
+            current.m02 = matrix.m02;
+            current.m03 = matrix.m03;
+            current.m10 = matrix.m10;
+            current.m11 = matrix.m11;
+            current.m12 = matrix.m12;
+            current.m13 = matrix.m13;
+            current.m20 = matrix.m20;
+            current.m21 = matrix.m21;
+            current.m22 = matrix.m22;
+            current.m23 = matrix.m23;
+            return ref current;
+        }
+
+        /// <summary>
+        /// World to local space (inverse) transform matrix, returning a ref to the singleton TransformMatrix.
+        /// A call to WorldToLocalCurrent or LocalToWorldCurrent will mutate the ref, so only one can be used at a time.
+        /// </summary>
+        public static ref TransformMatrix WorldToLocalCurrent(Transform transform)
+        {
+            Matrix4x4 matrix = transform.worldToLocalMatrix;
+            current.m00 = matrix.m00;
+            current.m01 = matrix.m01;
+            current.m02 = matrix.m02;
+            current.m03 = matrix.m03;
+            current.m10 = matrix.m10;
+            current.m11 = matrix.m11;
+            current.m12 = matrix.m12;
+            current.m13 = matrix.m13;
+            current.m20 = matrix.m20;
+            current.m21 = matrix.m21;
+            current.m22 = matrix.m22;
+            current.m23 = matrix.m23;
+            return ref current;
+        }
+
+        /// <summary>
         /// Local to world space transform matrix
         /// </summary>
         public static TransformMatrix LocalToWorld(Transform transform)
@@ -366,7 +548,7 @@ namespace KSPCommunityFixes.Library
         /// <summary>
         /// Transform point
         /// </summary>
-        public void MultiplyPoint3x4(ref Vector3d point)
+        public void MutateMultiplyPoint3x4(ref Vector3d point)
         {
             double x = point.x;
             double y = point.y;
@@ -379,7 +561,7 @@ namespace KSPCommunityFixes.Library
         /// <summary>
         /// Transform point
         /// </summary>
-        public Vector3d MultiplyPoint3x4(Vector3d point)
+        public Vector3d MultiplyPoint3x4(ref Vector3d point)
         {
             return new Vector3d(
                 m00 * point.x + m01 * point.y + m02 * point.z + m03,
@@ -401,7 +583,7 @@ namespace KSPCommunityFixes.Library
         /// <summary>
         /// Transform vector
         /// </summary>
-        public void MultiplyVector(ref Vector3d point)
+        public void MutateMultiplyVector(ref Vector3d point)
         {
             double x = point.x;
             double y = point.y;
@@ -414,7 +596,7 @@ namespace KSPCommunityFixes.Library
         /// <summary>
         /// Transform vector
         /// </summary>
-        public Vector3d MultiplyVector(Vector3d point)
+        public Vector3d MultiplyVector(ref Vector3d point)
         {
             return new Vector3d(
                 m00 * point.x + m01 * point.y + m02 * point.z,

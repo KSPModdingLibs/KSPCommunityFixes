@@ -14,12 +14,11 @@ namespace KSPCommunityFixes.Modding
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked"),
-                this, null, Priority.First));
+                null, Priority.First));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked"),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked")));
         }
 
         static void ModuleDockingNode_ModifyLocked_Prefix(ModuleDockingNode __instance)

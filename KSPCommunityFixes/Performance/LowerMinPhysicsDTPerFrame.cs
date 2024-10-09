@@ -29,13 +29,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(
                 new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(SettingsScreen), nameof(SettingsScreen.Awake)),
-                    this));
+                    AccessTools.Method(typeof(SettingsScreen), nameof(SettingsScreen.Awake))));
 
             patches.Add(
                 new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ReflectedSettingsWindow), nameof(SetupReflectionValues)),
-                    this));
+                    AccessTools.Method(typeof(ReflectedSettingsWindow), nameof(SetupReflectionValues))));
         }
 
         static void SettingsScreen_Awake_Prefix(SettingsScreen __instance)

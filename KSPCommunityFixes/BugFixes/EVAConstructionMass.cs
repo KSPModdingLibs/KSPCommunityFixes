@@ -20,8 +20,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(EVAConstructionModeEditor), nameof(EVAConstructionModeEditor.PickupPart)),
-                this));
+                AccessTools.Method(typeof(EVAConstructionModeEditor), nameof(EVAConstructionModeEditor.PickupPart))));
         }
 
         // the stock code sets selectedpart.mass to the prefab mass, which breaks terribly in cases where there are mass modifiers involved

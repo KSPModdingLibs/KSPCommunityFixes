@@ -39,21 +39,18 @@ namespace KSPCommunityFixes
             {
                 patches.Add(new PatchInfo(
                     PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load)),
-                    this));
+                    AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load))));
             }
             else
             {
                 patches.Add(new PatchInfo(
                     PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ProtoPartSnapshot), "ConfigurePart"),
-                    this));
+                    AccessTools.Method(typeof(ProtoPartSnapshot), "ConfigurePart")));
             }
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() }),
-                this));
+                AccessTools.Method(typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() })));
 
             Type partModuleType = typeof(PartModule);
             Type multiModuleType = typeof(IMultipleModuleInPart);

@@ -15,8 +15,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleAnimateGeneric), nameof(ModuleAnimateGeneric.CheckCrewState)),
-                this));
+                AccessTools.Method(typeof(ModuleAnimateGeneric), nameof(ModuleAnimateGeneric.CheckCrewState))));
         }
 
         // Insert a call to our static OnCrewCapacityChanged() method in the "if (crewCapacity != base.part.CrewCapacity)" condition

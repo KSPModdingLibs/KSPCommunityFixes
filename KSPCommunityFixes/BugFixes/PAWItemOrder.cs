@@ -22,14 +22,14 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] {typeof(Transform), typeof(BasePAWGroup)}),
-                this, nameof(UIPartActionWindow_AddGroup_1_Prefix)));
+                nameof(UIPartActionWindow_AddGroup_1_Prefix)));
 
             if (KSPCommunityFixes.KspVersion >= new Version(1, 11, 0))
             {
                 patches.Add(new PatchInfo(
                     PatchMethodType.Prefix,
                     AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] { typeof(Transform), typeof(string), typeof(bool) }),
-                    this, nameof(UIPartActionWindow_AddGroup_2_Prefix)));
+                    nameof(UIPartActionWindow_AddGroup_2_Prefix)));
             }
 
 #if DEBUG
@@ -37,8 +37,7 @@ namespace KSPCommunityFixes
             {
                 patches.Add(new PatchInfo(
                     PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList)),
-                    this));
+                    AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList))));
             }
 #endif
         }

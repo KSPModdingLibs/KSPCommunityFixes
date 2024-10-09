@@ -24,13 +24,11 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "DrawMiniSettings"),
-                this));
+                AccessTools.Method(typeof(GameplaySettingsScreen), "DrawMiniSettings")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(GameplaySettingsScreen), "ApplySettings"),
-                this));
+                AccessTools.Method(typeof(GameplaySettingsScreen), "ApplySettings")));
 
             altimeterPatch = KSPCommunityFixes.GetPatchInstance<AltimeterHorizontalPosition>();
             if (altimeterPatch != null)

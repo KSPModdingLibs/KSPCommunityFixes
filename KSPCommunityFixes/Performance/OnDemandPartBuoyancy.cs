@@ -20,8 +20,7 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartBuoyancy), "FixedUpdate"),
-                this));
+                AccessTools.Method(typeof(PartBuoyancy), nameof(PartBuoyancy.FixedUpdate))));
 
             GameEvents.onLevelWasLoaded.Add(OnLevelLoaded);
         }

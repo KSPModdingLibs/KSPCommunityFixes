@@ -37,45 +37,43 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats)),
-                this));
+                AccessTools.Method(typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate))));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Override,
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation))));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Override,
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.GetSunArea))));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Override,
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.GetBodyArea))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation)),
-                this));
-
-            // Mainly an optimization of particle repositioning, but can have a 
-            // huge impact in high engine count situation.
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset)),
-                this));
+                AccessTools.Method(typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset))));
         }
 
         private static HashSet<int> activePS = new HashSet<int>(200);
@@ -324,62 +322,70 @@ namespace KSPCommunityFixes.Performance
             return false;
         }
 
-        private static bool FlightIntegrator_PrecalcRadiation_Prefix(FlightIntegrator __instance, PartThermalData ptd)
+        // Roughly twice faster than the stock implementation.
+        // Most of the gains are from optimized and manually inlined versions of GetSunArea() and GetBodyArea().
+        // They are virtual method that could in theory be overriden with MFI, but given how narrow scoped and tightly tied
+        // the drag cube implementation they are, it is very unlikely to ever happen.
+        // About half the remaining time is in getting the transform matrix from Unity. Once again, it would be immensely 
+        // benefical not having to do that again and again in every subsystem...
+        private static void FlightIntegrator_PrecalcRadiation_Override(FlightIntegrator fi, PartThermalData ptd)
         {
             Part part = ptd.part;
-            double num = __instance.cacheRadiationFactor * 0.001;
-            ptd.emissScalar = part.emissiveConstant * num;
-            ptd.absorbScalar = part.absorptiveConstant * num;
+            double radfactor = fi.cacheRadiationFactor * 0.001;
+            ptd.emissScalar = part.emissiveConstant * radfactor;
+            ptd.absorbScalar = part.absorptiveConstant * radfactor;
             ptd.sunFlux = 0.0;
-            ptd.bodyFlux = __instance.bodyEmissiveFlux + __instance.bodyAlbedoFlux;
-            
+            ptd.bodyFlux = fi.bodyEmissiveFlux + fi.bodyAlbedoFlux;
+
             ptd.expFlux = 0.0;
             ptd.unexpFlux = 0.0;
-            ptd.brtUnexposed = __instance.backgroundRadiationTemp;
-            ptd.brtExposed = Numerics.Lerp(__instance.backgroundRadiationTemp, __instance.backgroundRadiationTempExposed, ptd.convectionTempMultiplier);
+            ptd.brtUnexposed = fi.backgroundRadiationTemp;
+            ptd.brtExposed = Numerics.Lerp(fi.backgroundRadiationTemp, fi.backgroundRadiationTempExposed, ptd.convectionTempMultiplier);
 
             if (part.DragCubes.None || part.ShieldedFromAirstream)
-                return false;
+                return;
 
-            bool computeSunFlux = __instance.vessel.directSunlight;
+            bool computeSunFlux = fi.vessel.directSunlight;
             bool computeBodyFlux = ptd.bodyFlux > 0.0;
 
             if (!computeSunFlux && !computeBodyFlux)
-                return false;
+                return;
 
             double unexposedRadiativeArea = part.radiativeArea * (1.0 - part.skinExposedAreaFrac);
             float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
+            ref TransformMatrix partInverseTransform = ref TransformMatrix.WorldToLocalCurrent(part.partTransform);
 
             if (computeSunFlux)
             {
                 // FlightIntegrator.GetSunArea() manual inline start
-                Vector3 sunLocalDir = part.partTransform.InverseTransformDirection(__instance.sunVector);
+                Vector3d sunDir = fi.sunVector;
+                partInverseTransform.MutateMultiplyVector(ref sunDir);
 
                 double sunArea = 0.0;
-                if (sunLocalDir.x > 0.0)
-                    sunArea += dragCubeAreaOccluded[0] * sunLocalDir.x; // right
+                if (sunDir.x > 0.0)
+                    sunArea += dragCubeAreaOccluded[0] * sunDir.x; // right
                 else
-                    sunArea += dragCubeAreaOccluded[1] * -sunLocalDir.x; // left
+                    sunArea += dragCubeAreaOccluded[1] * -sunDir.x; // left
 
-                if (sunLocalDir.y > 0.0)
-                    sunArea += dragCubeAreaOccluded[2] * sunLocalDir.y; // up
+                if (sunDir.y > 0.0)
+                    sunArea += dragCubeAreaOccluded[2] * sunDir.y; // up
                 else
-                    sunArea += dragCubeAreaOccluded[3] * -sunLocalDir.y; // down
+                    sunArea += dragCubeAreaOccluded[3] * -sunDir.y; // down
 
-                if (sunLocalDir.z > 0.0)
-                    sunArea += dragCubeAreaOccluded[4] * sunLocalDir.z; // forward
+                if (sunDir.z > 0.0)
+                    sunArea += dragCubeAreaOccluded[4] * sunDir.z; // forward
                 else
-                    sunArea += dragCubeAreaOccluded[5] * -sunLocalDir.z; // back
+                    sunArea += dragCubeAreaOccluded[5] * -sunDir.z; // back
 
                 sunArea *= ptd.sunAreaMultiplier;
                 // FlightIntegrator.GetSunArea() manual inline end
 
                 if (sunArea > 0.0)
                 {
-                    ptd.sunFlux = ptd.absorbScalar * __instance.solarFlux;
+                    ptd.sunFlux = ptd.absorbScalar * fi.solarFlux;
                     if (ptd.exposed)
                     {
-                        double sunDot = (Vector3.Dot(__instance.sunVector, __instance.nVel) + 1.0) * 0.5;
+                        double sunDot = (Vector3d.Dot(fi.sunVector, fi.nVel) + 1.0) * 0.5;
                         double sunExpArea = Math.Min(sunArea, part.skinExposedArea * sunDot);
                         double sunUnexpArea = Math.Min(sunArea - sunExpArea, unexposedRadiativeArea * (1.0 - sunDot));
                         ptd.expFlux += ptd.sunFlux * sunExpArea;
@@ -395,33 +401,33 @@ namespace KSPCommunityFixes.Performance
             if (computeBodyFlux)
             {
                 // FlightIntegrator.GetBodyArea() manual inline start
-                Vector3 bodyLocalDir = part.partTransform.InverseTransformDirection(-__instance.vessel.upAxis);
+                Vector3d bodyDir = partInverseTransform.MultiplyVector(-fi.vessel.upAxis.x, -fi.vessel.upAxis.y, -fi.vessel.upAxis.z);
 
                 double bodyArea = 0.0;
-                if (bodyLocalDir.x > 0.0)
-                    bodyArea += dragCubeAreaOccluded[0] * bodyLocalDir.x; // right
+                if (bodyDir.x > 0.0)
+                    bodyArea += dragCubeAreaOccluded[0] * bodyDir.x; // right
                 else
-                    bodyArea += dragCubeAreaOccluded[1] * -bodyLocalDir.x; // left
+                    bodyArea += dragCubeAreaOccluded[1] * -bodyDir.x; // left
 
-                if (bodyLocalDir.y > 0.0)
-                    bodyArea += dragCubeAreaOccluded[2] * bodyLocalDir.y; // up
+                if (bodyDir.y > 0.0)
+                    bodyArea += dragCubeAreaOccluded[2] * bodyDir.y; // up
                 else
-                    bodyArea += dragCubeAreaOccluded[3] * -bodyLocalDir.y; // down
+                    bodyArea += dragCubeAreaOccluded[3] * -bodyDir.y; // down
 
-                if (bodyLocalDir.z > 0.0)
-                    bodyArea += dragCubeAreaOccluded[4] * bodyLocalDir.z; // forward
+                if (bodyDir.z > 0.0)
+                    bodyArea += dragCubeAreaOccluded[4] * bodyDir.z; // forward
                 else
-                    bodyArea += dragCubeAreaOccluded[5] * -bodyLocalDir.z; // back
+                    bodyArea += dragCubeAreaOccluded[5] * -bodyDir.z; // back
 
                 bodyArea *= ptd.bodyAreaMultiplier;
                 // FlightIntegrator.GetBodyArea() manual inline end
 
                 if (bodyArea > 0.0)
                 {
-                    ptd.bodyFlux = Numerics.Lerp(0.0, ptd.bodyFlux, __instance.densityThermalLerp) * ptd.absorbScalar;
+                    ptd.bodyFlux = Numerics.Lerp(0.0, ptd.bodyFlux, fi.densityThermalLerp) * ptd.absorbScalar;
                     if (ptd.exposed)
                     {
-                        double bodyDot = (Vector3.Dot(-__instance.vessel.upAxis, __instance.nVel) + 1.0) * 0.5;
+                        double bodyDot = (Vector3.Dot(-fi.vessel.upAxis, fi.nVel) + 1.0) * 0.5;
                         double bodyExpArea = Math.Min(bodyArea, part.skinExposedArea * bodyDot);
                         double bodyUnexpArea = Math.Min(bodyArea - bodyExpArea, unexposedRadiativeArea * (1.0 - bodyDot));
                         ptd.expFlux += ptd.bodyFlux * bodyExpArea;
@@ -433,8 +439,66 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
             }
+        }
 
-            return false;
+        // we manually inline the call to GetSunArea() in PrecalcRadiation(), but this is also used
+        // in CalculateAnalyticTemperature(), so that should help there too.
+        public static double FlightIntegrator_GetSunArea_Override(FlightIntegrator fi, PartThermalData ptd)
+        {
+            Part part = ptd.part;
+            if (part.DragCubes.None)
+                return 0.0;
+
+            Vector3 sunLocalDir = part.partTransform.InverseTransformDirection(fi.sunVector);
+            float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
+
+            double sunArea = 0.0;
+            if (sunLocalDir.x > 0.0)
+                sunArea += dragCubeAreaOccluded[0] * sunLocalDir.x; // right
+            else
+                sunArea += dragCubeAreaOccluded[1] * -sunLocalDir.x; // left
+
+            if (sunLocalDir.y > 0.0)
+                sunArea += dragCubeAreaOccluded[2] * sunLocalDir.y; // up
+            else
+                sunArea += dragCubeAreaOccluded[3] * -sunLocalDir.y; // down
+
+            if (sunLocalDir.z > 0.0)
+                sunArea += dragCubeAreaOccluded[4] * sunLocalDir.z; // forward
+            else
+                sunArea += dragCubeAreaOccluded[5] * -sunLocalDir.z; // back
+
+            return sunArea * ptd.sunAreaMultiplier;
+        }
+
+        // we manually inline the call to GetBodyArea() in PrecalcRadiation(), but this is also used
+        // in CalculateAnalyticTemperature(), so that should help there too.
+        public static double FlightIntegrator_GetBodyArea_Override(FlightIntegrator fi, PartThermalData ptd)
+        {
+            Part part = ptd.part;
+            if (part.DragCubes.None)
+                return 0.0;
+
+            Vector3 bodyLocalDir = part.partTransform.InverseTransformDirection(-fi.vessel.upAxis);
+            float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
+
+            double bodyArea = 0.0;
+            if (bodyLocalDir.x > 0.0)
+                bodyArea += dragCubeAreaOccluded[0] * bodyLocalDir.x; // right
+            else
+                bodyArea += dragCubeAreaOccluded[1] * -bodyLocalDir.x; // left
+
+            if (bodyLocalDir.y > 0.0)
+                bodyArea += dragCubeAreaOccluded[2] * bodyLocalDir.y; // up
+            else
+                bodyArea += dragCubeAreaOccluded[3] * -bodyLocalDir.y; // down
+
+            if (bodyLocalDir.z > 0.0)
+                bodyArea += dragCubeAreaOccluded[4] * bodyLocalDir.z; // forward
+            else
+                bodyArea += dragCubeAreaOccluded[5] * -bodyLocalDir.z; // back
+
+            return bodyArea * ptd.bodyAreaMultiplier;
         }
 
         private class FIIntegrationData
@@ -855,15 +919,16 @@ namespace KSPCommunityFixes.Performance
                     else
                     {
                         InertiaTensor inertiaTensor = new InertiaTensor();
+                        Vector3d vesselCoM = vessel.CoMD;
+                        Vector3d CoMToPart = default;
                         for (int i = 0; i < rbPartCount; i++)
                         {
                             PartVesselPreData partPreData = vesselPrePartBuffer[i];
                             Part part = vessel.parts[partPreData.partIndex];
 
                             // add part inertia tensor to vessel inertia tensor
-                            Vector3d principalMoments = part.rb.inertiaTensor;
                             QuaternionD princAxesRot = vesselInverseReferenceRotation * partPreData.rotation * (QuaternionD)part.rb.inertiaTensorRotation;
-                            inertiaTensor.AddPartInertiaTensor(principalMoments, princAxesRot);
+                            inertiaTensor.AddPartInertiaTensor(part.rb.inertiaTensor, ref princAxesRot);
 
                             // add part mass and position contribution to vessel inertia tensor
                             double rbMass = Math.Max(part.partInfo.minimumRBMass, part.physicsMass);
@@ -876,8 +941,10 @@ namespace KSPCommunityFixes.Performance
                             //     rbMass *= 0.5;
                             // Note 2 : another side effect of using Part.physicsMass instead of rb.mass is that mass will be correct on scene
                             // loads, before FI.UpdateMassStats() has run (when it hasn't run yet, rb.mass is set to 1 for all parts)
-                            Vector3d CoMToPart = vesselInverseReferenceMatrix.MultiplyVector(partPreData.position - vessel.CoMD); // Note this uses the reference orientation, but doesn't use the translation
-                            inertiaTensor.AddPartMass(rbMass, CoMToPart);
+
+                            Numerics.MutateSubstract(ref CoMToPart, partPreData.position, ref vesselCoM);
+                            vesselInverseReferenceMatrix.MutateMultiplyVector(ref CoMToPart); // Note this uses the reference orientation, but doesn't use the translation
+                            inertiaTensor.AddPartMass(rbMass, ref CoMToPart);
                         }
 
                         vessel.MOI = inertiaTensor.MoI;
@@ -967,8 +1034,12 @@ namespace KSPCommunityFixes.Performance
             public double m11;
             public double m22;
 
-            public void AddPartInertiaTensor(Vector3d principalMoments, QuaternionD princAxesRot)
+            public void AddPartInertiaTensor(Vector3 principalMoments, ref QuaternionD princAxesRot)
             {
+                double principalMomentsX = principalMoments.x;
+                double principalMomentsY = principalMoments.y;
+                double principalMomentsZ = principalMoments.z;
+
                 // inverse the princAxesRot quaternion
                 double invpx = -princAxesRot.x;
                 double invpy = -princAxesRot.y;
@@ -989,19 +1060,19 @@ namespace KSPCommunityFixes.Performance
                 double ipz2w = princAxesRot.w * ipz2;
 
                 // inverse rotate column 0
-                double ir0x = principalMoments.x * (1.0 - (ipy2y + ipz2z));
-                double ir0y = principalMoments.y * (ipy2x + ipz2w);
+                double ir0x = principalMomentsX * (1.0 - (ipy2y + ipz2z));
+                double ir0y = principalMomentsY * (ipy2x + ipz2w);
                 double ir0z = principalMoments.z * (ipz2x - ipy2w);
 
                 // inverse rotate column 1
-                double ir1x = principalMoments.x * (ipy2x - ipz2w);
-                double ir1y = principalMoments.y * (1.0 - (ipx2x + ipz2z));
-                double ir1z = principalMoments.z * (ipz2y + ipx2w);
+                double ir1x = principalMomentsX * (ipy2x - ipz2w);
+                double ir1y = principalMomentsY * (1.0 - (ipx2x + ipz2z));
+                double ir1z = principalMomentsZ * (ipz2y + ipx2w);
 
                 // inverse rotate column 2
-                double ir2x = principalMoments.x * (ipz2x + ipy2w);
-                double ir2y = principalMoments.y * (ipz2y - ipx2w);
-                double ir2z = principalMoments.z * (1.0 - (ipx2x + ipy2y));
+                double ir2x = principalMomentsX * (ipz2x + ipy2w);
+                double ir2y = principalMomentsY * (ipz2y - ipx2w);
+                double ir2z = principalMomentsZ * (1.0 - (ipx2x + ipy2y));
 
                 // prepare rotation
                 double qx2 = princAxesRot.x * 2.0;
@@ -1027,7 +1098,7 @@ namespace KSPCommunityFixes.Performance
                 m22 += (qz2x - qy2w) * ir2x + (qz2y + qx2w) * ir2y + (1.0 - (qx2x + qy2y)) * ir2z;
             }
 
-            public void AddPartMass(double partMass, Vector3d partPosition)
+            public void AddPartMass(double partMass, ref Vector3d partPosition)
             {
                 double massLever = partMass * partPosition.sqrMagnitude;
                 double invMass = -partMass;
@@ -1040,6 +1111,7 @@ namespace KSPCommunityFixes.Performance
             public Vector3 MoI => new Vector3((float)m00, (float)m11, (float)m22);
         }
 
+#if DEBUG_FLIGHTINTEGRATOR
         private static void VerifyPhysicsStats(VesselPrecalculate vesselPre)
         {
             Vessel vessel = vesselPre.Vessel;
@@ -1135,8 +1207,9 @@ namespace KSPCommunityFixes.Performance
                 }
             }
         }
+#endif
 
-        #endregion
+#endregion
 
         #region FlightIntegrator.UpdateMassStats optimizations
 
@@ -1155,17 +1228,17 @@ namespace KSPCommunityFixes.Performance
                 Part part = parts[i];
 
                 List<PartResource> partResources = part._resources.dict.list;
-                float resourceMass = 0f;
+                double resourceMass = 0.0;
                 double resourceThermalMass = 0.0;
                 for (int j = partResources.Count; j-- > 0;)
                 {
                     PartResource partResource = partResources[j];
-                    float resMass = (float)partResource.amount * partResource.info.density;
+                    double resMass = partResource.amount * partResource.info._density;
                     resourceMass += resMass;
                     resourceThermalMass += resMass * partResource.info._specificHeatCapacity;
                 }
 
-                part.resourceMass = resourceMass;
+                part.resourceMass = (float)resourceMass;
                 part.resourceThermalMass = resourceThermalMass;
                 part.thermalMass = part.mass * __instance.cacheStandardSpecificHeatCapacity * part.thermalMassModifier + part.resourceThermalMass;
                 __instance.SetSkinThermalMass(part);

@@ -41,33 +41,27 @@ namespace KSPCommunityFixes.Modding
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                ConfigNode_ReadObject,
-                this));
+                ConfigNode_ReadObject));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                ConfigNode_WriteObject,
-                this));
+                ConfigNode_WriteObject));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) }),
-                this));
+                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) }),
-                this));
+                AccessTools.Method(typeof(ConfigNode), nameof(CreateConfigFromObject), new Type[] { typeof(object), typeof(int), typeof(ConfigNode) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) }),
-                this));
+                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) }),
-                this));
+                AccessTools.Method(typeof(ConfigNode), nameof(LoadObjectFromConfig), new Type[] { typeof(object), typeof(ConfigNode), typeof(int), typeof(bool) })));
         }
 
         // This will fail if nested, so we cache off the old writeLinks.

@@ -12,13 +12,11 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnSave)),
-                this));
+                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnSave))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnLoad)),
-                this));
+                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnLoad))));
         }
 
         private static void ModuleProceduralFairing_OnSave_Prefix(ModuleProceduralFairing __instance, ConfigNode node)

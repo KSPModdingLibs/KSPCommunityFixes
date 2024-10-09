@@ -9,7 +9,7 @@ using static Highlighting.Highlighter;
 
 namespace KSPCommunityFixes.Performance
 {
-    internal class AuxiliarySystemsFastUpdate : BasePatch
+    internal class PartSystemsFastUpdate : BasePatch
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
@@ -17,23 +17,17 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update)),
-                this));
+                AccessTools.Method(typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Highlighter), nameof(Highlighter.UpdateRenderers)),
-                this));
+                AccessTools.Method(typeof(Highlighter), nameof(Highlighter.UpdateRenderers))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update)),
-                this));
+                AccessTools.Method(typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor))));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor)),
-                this));
+            // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
         }
 
         private static bool TemperatureGaugeSystem_Update_Prefix(TemperatureGaugeSystem __instance)
@@ -118,40 +112,6 @@ namespace KSPCommunityFixes.Performance
             }
 
             return false;
-        }
-
-        private static bool VolumeNormalizer_Update_Prefix(VolumeNormalizer __instance)
-        {
-            float newVolume;
-            if (GameSettings.SOUND_NORMALIZER_ENABLED)
-            {
-                __instance.threshold = GameSettings.SOUND_NORMALIZER_THRESHOLD;
-                __instance.sharpness = GameSettings.SOUND_NORMALIZER_RESPONSIVENESS;
-                AudioListener.GetOutputData(__instance.samples, 0);
-                __instance.level = 0f;
-
-                for (int i = 0; i < __instance.sampleCount; i += 1 + GameSettings.SOUND_NORMALIZER_SKIPSAMPLES)
-                    __instance.level = Mathf.Max(__instance.level, Mathf.Abs(__instance.samples[i]));
-
-                if (__instance.level > __instance.threshold)
-                    newVolume = __instance.threshold / __instance.level;
-                else
-                    newVolume = 1f;
-
-                newVolume = Mathf.Lerp(AudioListener.volume, newVolume * GameSettings.MASTER_VOLUME, __instance.sharpness * Time.deltaTime);
-            }
-            else
-            {
-                newVolume = Mathf.Lerp(AudioListener.volume, GameSettings.MASTER_VOLUME, __instance.sharpness * Time.deltaTime);
-            }
-
-            if (newVolume != __instance.volume)
-                AudioListener.volume = newVolume;
-
-            __instance.volume = newVolume;
-
-            return false;
-
         }
 
         private static bool CModuleLinkedMesh_TrackAnchor_Prefix(CModuleLinkedMesh __instance, bool setTgtAnchor, Vector3 rDir, Vector3 rPos, Quaternion rRot)

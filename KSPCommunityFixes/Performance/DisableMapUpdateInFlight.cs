@@ -14,13 +14,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(OrbitRendererBase), nameof(OrbitRendererBase.Start)),
-                this));
+                AccessTools.Method(typeof(OrbitRendererBase), nameof(OrbitRendererBase.Start))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(OrbitRendererBase), nameof(OrbitRendererBase.LateUpdate)),
-                this));
+                AccessTools.Method(typeof(OrbitRendererBase), nameof(OrbitRendererBase.LateUpdate))));
         }
 
         static void OrbitRendererBase_Start_Postfix(OrbitRendererBase __instance)

@@ -30,8 +30,7 @@ namespace KSPCommunityFixes.QoL
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix, 
-                AccessTools.Method(typeof(ManeuverTool), "OnAppAboutToStart"), 
-                this));
+                AccessTools.Method(typeof(ManeuverTool), "OnAppAboutToStart")));
         }
 
         public static bool alwaysDisabled = false;

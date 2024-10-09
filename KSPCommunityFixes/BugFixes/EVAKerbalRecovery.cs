@@ -14,8 +14,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsIncludingCargo)),
-                this));
+                AccessTools.Method(typeof(ProtoVessel), nameof(ProtoVessel.GetAllProtoPartsIncludingCargo))));
         }
 
         private static bool ProtoVessel_GetAllProtoPartsIncludingCargo_Prefix(ProtoVessel __instance, out List<ProtoPartSnapshot> __result)

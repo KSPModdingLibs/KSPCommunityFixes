@@ -18,63 +18,52 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Constructor(typeof(PartModule)),
-                this, "PartModule_ctor_Postfix"));
+                nameof(PartModule_ctor_Postfix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.SetupUpgradeInfo)),
-                this));
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.SetupUpgradeInfo))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) }),
-                this));
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.DisplayExtendedInfo)),
-                this));
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.DisplayExtendedInfo))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.CreateExtendedInfo)),
-                this));
+                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.CreateExtendedInfo))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartModule), nameof(PartModule.UpgradesAvailable), new Type[] { typeof(Part), typeof(ConfigNode) }),
-                this));
+                AccessTools.Method(typeof(PartModule), nameof(PartModule.UpgradesAvailable), new Type[] { typeof(Part), typeof(ConfigNode) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartModule), nameof(PartModule.FindUpgrades)),
-                this));
+                AccessTools.Method(typeof(PartModule), nameof(PartModule.FindUpgrades))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.OnPodSpawn)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.OnPodSpawn))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.GetModuleCosts)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.GetModuleCosts))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(PartUpgradeHandler.Upgrade), nameof(PartUpgradeHandler.Upgrade.GetUsedByStrings)),
-                this,
-                "GetUsedBy_Prefix"));
+                nameof(GetUsedBy_Prefix)));
         }
 
         static void PartModule_ctor_Postfix(PartModule __instance)

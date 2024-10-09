@@ -12,8 +12,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(CraftThumbnail), nameof(CraftThumbnail.TakePartSnapshot)),
-                this));
+                AccessTools.Method(typeof(CraftThumbnail), nameof(CraftThumbnail.TakePartSnapshot))));
         }
 
         private static void CraftThumbnail_TakePartSnapshot_Postfix()

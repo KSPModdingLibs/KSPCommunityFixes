@@ -17,13 +17,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(RDTech), nameof(RDTech.Start)),
-                this));
+                AccessTools.Method(typeof(RDTech), nameof(RDTech.Start))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(RDTech), nameof(RDTech.Load)),
-                this));
+                AccessTools.Method(typeof(RDTech), nameof(RDTech.Load))));
         }
 
         static void RDTech_Start_Postfix(RDTech __instance)

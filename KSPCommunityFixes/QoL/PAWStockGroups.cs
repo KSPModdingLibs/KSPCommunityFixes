@@ -18,38 +18,31 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), "Start"),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.Start))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDataTransmitter), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleDataTransmitter), nameof(ModuleDataTransmitter.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleCommand), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleCommand), nameof(ModuleCommand.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleReactionWheel), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleReactionWheel), nameof(ModuleReactionWheel.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleRCS), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleRCS), nameof(ModuleRCS.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleGimbal), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleGimbal), nameof(ModuleGimbal.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleControlSurface), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart))));
 
             partGroupTitle = Localizer.Format("#autoLOC_6100048"); // Part
             commsGroupTitle = Localizer.Format("#autoLOC_453582"); // Communication

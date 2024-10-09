@@ -58,79 +58,72 @@ namespace KSPCommunityFixes.QoL
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetupFSM))));
 
             // Create backup before moving a part with the rotate/offset tools, instead of after
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart)),
-                this));
+                AccessTools.Method(typeof(GizmoOffset), nameof(GizmoOffset.OnHandleMoveStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart)),
-                this));
+                AccessTools.Method(typeof(GizmoRotate), nameof(GizmoRotate.OnHandleRotateStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onRotateGizmoUpdated)),
-                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+                nameof(CallModifiedInsteadOfBackupTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.onOffsetGizmoUpdated)),
-                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+                nameof(CallModifiedInsteadOfBackupTranspiler)));
 
             // Create backup before selecting a variant, instead of after
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant)),
-                this));
+                AccessTools.Method(typeof(UIPartActionVariantSelector), nameof(UIPartActionVariantSelector.SelectVariant))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.onVariantChanged)),
-                this, nameof(CallModifiedInsteadOfBackupTranspiler)));
+                nameof(CallModifiedInsteadOfBackupTranspiler)));
 
             // Move backup creation at the begining of the following methods :
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(Part), nameof(Part.RemoveFromSymmetry)),
-                this, nameof(MoveSetBackupAtStartTranspiler)));
+                nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.ResetPart), new []{typeof(EditorActionPartSelector)}),
-                this, nameof(MoveSetBackupAtStartTranspiler)));
+                nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.AddActionToGroup)),
-                this, nameof(MoveSetBackupAtStartTranspiler)));
+                nameof(MoveSetBackupAtStartTranspiler)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
                 AccessTools.Method(typeof(EditorActionGroups), nameof(EditorActionGroups.RemoveActionFromGroup)),
-                this, nameof(MoveSetBackupAtStartTranspiler)));
+                nameof(MoveSetBackupAtStartTranspiler)));
 
 #if BEUR_DEBUG
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SetBackup))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState)),
-                this));
+                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.RestoreState))));
 #endif
         }
 
