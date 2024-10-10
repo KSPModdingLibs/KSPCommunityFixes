@@ -1,6 +1,7 @@
-﻿using HarmonyLib;
+﻿// #define DEBUG_OVERRIDE
+
+using HarmonyLib;
 using Mono.Cecil.Cil;
-using MonoMod.Utils;
 using MonoMod.Utils.Cil;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,9 @@ using System.Reflection;
 using System.Reflection.Emit;
 using UnityEngine;
 using static MonoMod.Utils.Cil.CecilILGenerator;
-using MethodBody = Mono.Cecil.Cil.MethodBody;
+using Label = System.Reflection.Emit.Label;
+using OpCode = System.Reflection.Emit.OpCode;
+using Version = System.Version;
 
 namespace KSPCommunityFixes
 {
@@ -111,7 +114,7 @@ namespace KSPCommunityFixes
             /// This is functionally similar as a "return false" prefix, but avoid some call overhead with prefixes.<para/>
             /// It also mean the patched method cannot be transpiled by another patch, and that prefixes for that method will work as usual (which isn't the case with "return false" prefixes).<para/>
             /// The patch method must be static, it must have the same return type and the same arguments in the same order as the patched method.<para/>
-            /// When the patched method is an instance method, the patch method must have the instance as an extra first argument (the name the argument doesn't matter).<para/>
+            /// When the patched method is an instance method, the patch method must have the instance as an extra first argument (the name of the argument doesn't matter).<para/>
             /// When building in a debug configuration, the patch method will be called from the transpiler, allowing to put breakpoints on it.<para/>
             /// In a release configuration, or if the patch has the [TranspileInDebug] attribute, the patch method is not called and can't be debugged.<para/> 
             /// </summary>
@@ -321,6 +324,7 @@ namespace KSPCommunityFixes
                 throw new Exception($"Could not find override method for patched method {__originalMethod.FullDescription()}");
 
             // When we want to be able to debug the override method, we generate transpiler that is calling it
+#if !DEBUG_OVERRIDE
             if (patch.debugOverride)
             {
                 int instanceArg = __originalMethod.IsStatic ? 0 : 1;
@@ -344,6 +348,7 @@ namespace KSPCommunityFixes
                 debugIl[i] = new CodeInstruction(OpCodes.Ret);
                 return debugIl;
             }
+#endif
 
             // Otherwise, we want to return all instructions of the override method.
             // We call an Harmony library method (GetOriginalInstructions) that return the IL and a matching ILGenerator for
@@ -357,42 +362,337 @@ namespace KSPCommunityFixes
             // This however mean that this is very likely to break on updating MonoMod/Harmony, and as a matter of fact, will
             // definitely break if we start using Harmony 2.3+, which is based on a new major version of MonoMod where all this
             // stuff has been heavily refactored.
-            List<CodeInstruction> il = PatchProcessor.GetOriginalInstructions(patch.patchMethod, out ILGenerator overrideGen);
+            List<CodeInstruction> overrideIl = PatchProcessor.GetOriginalInstructions(patch.patchMethod, out ILGenerator overrideGen);
+            PatchProcessor.GetOriginalInstructions(__originalMethod, out ILGenerator originalGen);
 
             CecilILGenerator patchCecilGen = patchGen.GetProxiedShim<CecilILGenerator>();
             CecilILGenerator overrideCecilGen = overrideGen.GetProxiedShim<CecilILGenerator>();
+            CecilILGenerator originalCecilGen = originalGen.GetProxiedShim<CecilILGenerator>();
 
-            patchCecilGen._LabelInfos.Clear();
+            Dictionary<int, int> modifiedOverrideLabelIndices = new Dictionary<int, int>(overrideCecilGen.labelCounter);
             foreach (KeyValuePair<Label, LabelInfo> item in overrideCecilGen._LabelInfos)
-                patchCecilGen._LabelInfos.Add(item.Key, item.Value);
+            {
+                Label label = item.Key;
+                int currentIndex = label.label;
+                while (patchCecilGen._LabelInfos.ContainsKey(label) || overrideCecilGen._LabelInfos.ContainsKey(label))
+                    label.label++;
 
-            patchCecilGen._Variables.Clear();
-            foreach (KeyValuePair<LocalBuilder, VariableDefinition> item in overrideCecilGen._Variables)
-                patchCecilGen._Variables.Add(item.Key, item.Value);
+                if (currentIndex != label.label)
+                    modifiedOverrideLabelIndices.Add(currentIndex, label.label);
 
-            patchCecilGen._LabelsToMark.Clear();
-            patchCecilGen._LabelsToMark.AddRange(overrideCecilGen._LabelsToMark);
+                patchCecilGen._LabelInfos.Add(label, item.Value);
+            }
 
-            patchCecilGen._ExceptionHandlersToMark.Clear();
-            patchCecilGen._ExceptionHandlersToMark.AddRange(overrideCecilGen._ExceptionHandlersToMark);
+            patchCecilGen.labelCounter = patchCecilGen._LabelInfos.Count;
 
-            patchCecilGen._ExceptionHandlers.Clear();
-            ExceptionHandlerChain[] exceptionHandlerChains = overrideCecilGen._ExceptionHandlers.ToArray();
-            for (int i = exceptionHandlerChains.Length; i-- > 0;)
-                patchCecilGen._ExceptionHandlers.Push(exceptionHandlerChains[i]);
+            int originalVariableCount = originalCecilGen._Variables.Count;
+            int variableOffset = patchCecilGen._Variables.Count;
+            Dictionary<int, int> modifiedOverrideVariableIndexes = new Dictionary<int, int>(overrideCecilGen._Variables.Count);
 
-            patchCecilGen._ILOffset = overrideCecilGen._ILOffset;
-            patchCecilGen.labelCounter = overrideCecilGen.labelCounter;
+            LocalBuilder[] patchLocalBuildersByLocalIndex = new LocalBuilder[patchCecilGen._Variables.Count];
+            foreach (LocalBuilder key in patchCecilGen._Variables.Keys)
+                patchLocalBuildersByLocalIndex[key.position] = key;
 
-            MethodBody patchBody = patchCecilGen.IL.Body;
-            MethodBody overrideBody = overrideCecilGen.IL.Body;
+            foreach (KeyValuePair<LocalBuilder, VariableDefinition> variableDef in overrideCecilGen._Variables)
+            {
+                int currentIndex = variableDef.Value.index;
+                
+                if (currentIndex < originalVariableCount)
+                {
+                    // if override variable index is within the range of the original variables, keep the index
+                    // but update the variable in the patch generator.
+                    LocalBuilder patchVariableKey = patchLocalBuildersByLocalIndex[currentIndex];
+                    LocalBuilder overrideLocalBuilder = variableDef.Key;
+                    patchVariableKey.position = overrideLocalBuilder.position;
+                    patchVariableKey.type = overrideLocalBuilder.type;
+                    patchVariableKey.is_pinned = overrideLocalBuilder.is_pinned;
+                    patchCecilGen._Variables[patchVariableKey] = variableDef.Value;
+                    patchCecilGen.IL.Body.Variables[currentIndex] = variableDef.Value;
+                }
+                else
+                {
+                    // else, update the index to the next unused, and add the variable to the patch generator
+                    int newIndex = variableOffset + modifiedOverrideVariableIndexes.Count;
+                    LocalBuilder newBuilderRef = patchGen.DeclareLocal(variableDef.Key.LocalType, variableDef.Key.IsPinned);
+                    if (currentIndex != newBuilderRef.position)
+                        modifiedOverrideVariableIndexes.Add(currentIndex, newIndex);
+                }
+            }
 
-            patchBody.ExceptionHandlers.Clear();
-            patchBody.Variables.Clear();
-            patchBody.ExceptionHandlers.AddRange(overrideBody.ExceptionHandlers);
-            patchBody.Variables.AddRange(overrideBody.Variables);
+            for (int i = overrideIl.Count; i-- > 0;)
+            {
+                CodeInstruction instruction = overrideIl[i];
+                for (int j = instruction.labels.Count; j-- > 0;)
+                {
+                    Label jumpLocation = instruction.labels[j];
+                    if (modifiedOverrideLabelIndices.TryGetValue(jumpLocation.label, out int newIndex))
+                    {
+                        jumpLocation.label = newIndex;
+                        instruction.labels[j] = jumpLocation;
+                    }
+                }
 
-            return il;
+                if (instruction.operand is Label jumpTo)
+                {
+                    if (modifiedOverrideLabelIndices.TryGetValue(jumpTo.label, out int newIndex))
+                    {
+                        jumpTo.label = newIndex;
+                        instruction.operand = jumpTo;
+                    }
+                }
+
+                OpCode opCode = instruction.opcode;
+                if (opCode == OpCodes.Stloc || opCode == OpCodes.Stloc_S)
+                {
+                    int currentVariableIdx;
+                    if (instruction.operand is LocalBuilder localBuilder)
+                        currentVariableIdx = localBuilder.LocalIndex;
+                    else
+                        currentVariableIdx = (int)instruction.operand;
+
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(currentVariableIdx, currentVariableIdx);
+
+                    if (newIndex > byte.MaxValue && opCode == OpCodes.Stloc_S)
+                        instruction.opcode = OpCodes.Stloc;
+
+                    if (opCode == OpCodes.Stloc_S)
+                        instruction.operand = (byte)newIndex;
+                    else
+                        instruction.operand = newIndex;
+                }
+                else if (opCode == OpCodes.Stloc_0)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(0, 0);
+                    SetStlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Stloc_1)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(1, 1);
+                    SetStlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Stloc_2)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(2, 2);
+                    SetStlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Stloc_3)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(3, 3);
+                    SetStlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Ldloca || opCode == OpCodes.Ldloca_S || opCode == OpCodes.Ldloc || opCode == OpCodes.Ldloc_S)
+                {
+                    int currentVariableIdx;
+                    if (instruction.operand is LocalBuilder localBuilder)
+                        currentVariableIdx = localBuilder.LocalIndex;
+                    else
+                        currentVariableIdx = (int)instruction.operand;
+
+                    if (!modifiedOverrideVariableIndexes.TryGetValue(currentVariableIdx, out int newIndex))
+                        newIndex = currentVariableIdx;
+
+                    if (newIndex > byte.MaxValue)
+                    {
+                        if (opCode == OpCodes.Ldloca_S)
+                            instruction.opcode = OpCodes.Ldloca;
+                        else if (opCode == OpCodes.Stloc_S)
+                            instruction.opcode = OpCodes.Stloc;
+                    }
+
+                    if (opCode == OpCodes.Stloc_S || opCode == OpCodes.Ldloca_S)
+                        instruction.operand = (byte)newIndex;
+                    else
+                        instruction.operand = newIndex;
+                }
+                else if (opCode == OpCodes.Ldloc_0)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(0, 0);
+                    SetLdlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Ldloc_1)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(1, 1);
+                    SetLdlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Ldloc_2)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(2, 2);
+                    SetLdlocForIndex(instruction, newIndex);
+                }
+                else if (opCode == OpCodes.Ldloc_3)
+                {
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(3, 3);
+                    SetLdlocForIndex(instruction, newIndex);
+                }
+            }
+
+            return overrideIl;
+        }
+
+        private static void SetStlocForIndex(CodeInstruction instruction, int varIndex)
+        {
+            if (varIndex == 0)
+            {
+                instruction.opcode = OpCodes.Stloc_0;
+            }
+            else if (varIndex == 1)
+            {
+                instruction.opcode = OpCodes.Stloc_1;
+            }
+            else if (varIndex == 2)
+            {
+                instruction.opcode = OpCodes.Stloc_2;
+            }
+            else if (varIndex == 3)
+            {
+                instruction.opcode = OpCodes.Stloc_3;
+            }
+            else if (varIndex < byte.MaxValue)
+            {
+                instruction.opcode = OpCodes.Stloc_S;
+                instruction.operand = varIndex;
+            }
+            else
+            {
+                instruction.opcode = OpCodes.Stloc;
+                instruction.operand = varIndex;
+            }
+        }
+
+        private static void SetLdlocForIndex(CodeInstruction instruction, int varIndex)
+        {
+            if (varIndex == 0)
+            {
+                instruction.opcode = OpCodes.Ldloc_0;
+            }
+            else if (varIndex == 1)
+            {
+                instruction.opcode = OpCodes.Ldloc_1;
+            }
+            else if (varIndex == 2)
+            {
+                instruction.opcode = OpCodes.Ldloc_2;
+            }
+            else if (varIndex == 3)
+            {
+                instruction.opcode = OpCodes.Ldloc_3;
+            }
+            else if (varIndex < byte.MaxValue)
+            {
+                instruction.opcode = OpCodes.Ldloc_S;
+                instruction.operand = varIndex;
+            }
+            else
+            {
+                instruction.opcode = OpCodes.Ldloc;
+                instruction.operand = varIndex;
+            }
         }
     }
+
+#if DEBUG_OVERRIDE
+    public class TranspilerTest : BasePatch
+    {
+        protected override bool IgnoreConfig => true;
+
+        protected override void ApplyPatches()
+        {
+            AddPatch(PatchType.Prefix, typeof(TranspilerTest), nameof(Method1));
+            AddPatch(PatchType.Postfix, typeof(TranspilerTest), nameof(Method1));
+            AddPatch(PatchType.Override, typeof(TranspilerTest), nameof(Method1));
+        }
+
+        private InstanceField testVarInstance = new InstanceField() {result = "instanceFieldValue"};
+
+        public ResultVar Method1()
+        {
+            Debug.Log("Hello from original");
+
+            if (testVarInstance.result == string.Empty)
+                return null;
+
+            try
+            {
+                LocalVarOrig localVar = new LocalVarOrig();
+                throw new Exception();
+            }
+            catch (Exception e)
+            {
+                Debug.Log("Catched exception from original");
+            }
+
+            if (testVarInstance.result == string.Empty)
+                return null;
+
+            if (testVarInstance.result == string.Empty)
+                return null;
+
+            try
+            {
+                LocalVarOrig localVar = new LocalVarOrig();
+                throw new Exception();
+            }
+            catch (Exception e)
+            {
+                Debug.Log("Catched exception from original");
+            }
+
+            return new ResultVar() { result = "origResult" };
+        }
+
+        [TranspileInDebug]
+        public static ResultVar TranspilerTest_Method1_Override(TranspilerTest __instance)
+        {
+            if (__instance.testVarInstance != null)
+                Debug.Log("Hello from override 1");
+
+            try
+            {
+                LocalVarOverride localVar = new LocalVarOverride();
+                throw new Exception();
+            }
+            catch (Exception e)
+            {
+                Debug.Log("Catched exception from override");
+            }
+
+            return new ResultVar() { result = "overrideResult" };
+        }
+
+        public static bool TranspilerTest_Method1_Prefix(TranspilerTest __instance, out StateVar __state, ref ResultVar __result)
+        {
+            Debug.Log("Hello from prefix 1");
+            __result = new ResultVar() { result = "prefixResult" };
+            __state = new StateVar();
+            __state.state = "good state !";
+            return true;
+        }
+
+        public static void TranspilerTest_Method1_Postfix(TranspilerTest __instance, InstanceField ___testVarInstance, StateVar __state, ref ResultVar __result)
+        {
+            Debug.Log($"Hello from postfix 1 : {__state.state}");
+            __result.result += "modifiedByPostfix";
+        }
+
+        public static IEnumerable<CodeInstruction> TranspilerTest_Method1_Transpiler(IEnumerable<CodeInstruction> original, ILGenerator ilGen)
+        {
+            Label label = ilGen.DefineLabel();
+            yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TranspilerTest), nameof(Throw))).WithBlocks(new ExceptionBlock(ExceptionBlockType.BeginExceptionBlock));
+            yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TranspilerTest), nameof(Log))).WithBlocks(new ExceptionBlock(ExceptionBlockType.BeginCatchBlock));
+            yield return new CodeInstruction(OpCodes.Leave_S, label).WithBlocks(new ExceptionBlock(ExceptionBlockType.EndExceptionBlock));
+            yield return new CodeInstruction(OpCodes.Ret).WithLabels(label);
+        }
+
+        public static void Log() => Debug.Log("Exception catched !");
+        public static void Throw() => throw new Exception();
+
+        public class InstanceField { public string result; }
+        public class ResultVar { public string result; }
+        public class LocalVarOrig { }
+        public class LocalVarPrefix { }
+        public class LocalVarPostfix { }
+        public class LocalVarOverride { }
+        public class StateVar { public string state; }
+    }
+#endif
 }

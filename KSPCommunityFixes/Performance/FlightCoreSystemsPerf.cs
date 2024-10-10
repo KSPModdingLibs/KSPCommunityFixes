@@ -35,40 +35,40 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
+            AddPatch(PatchType.Override, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
 
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection));
 
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
 
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
 
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetSunArea));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetBodyArea));
 
-            AddPatch(PatchType.Prefix, typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset));
+            AddPatch(PatchType.Override, typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset));
         }
 
         private static HashSet<int> activePS = new HashSet<int>(200);
 
-        private static bool FloatingOrigin_setOffset_Prefix(FloatingOrigin __instance, Vector3d refPos, Vector3d nonFrame)
+        private static void FloatingOrigin_setOffset_Override(FloatingOrigin fo, Vector3d refPos, Vector3d nonFrame)
         {
             if (refPos.IsInvalid())
-                return false;
+                return;
 
             if (double.IsInfinity(refPos.sqrMagnitude))
-                return false;
+                return;
 
-            __instance.SetOffsetThisFrame = true;
-            __instance.offset = refPos;
-            __instance.reverseoffset = new Vector3d(0.0 - refPos.x, 0.0 - refPos.y, 0.0 - refPos.z);
-            __instance.offsetNonKrakensbane = __instance.offset + nonFrame;
+            fo.SetOffsetThisFrame = true;
+            fo.offset = refPos;
+            fo.reverseoffset = new Vector3d(0.0 - refPos.x, 0.0 - refPos.y, 0.0 - refPos.z);
+            fo.offsetNonKrakensbane = fo.offset + nonFrame;
 
-            Vector3 offsetF = __instance.offset;
-            Vector3 offsetNonKrakensbaneF = __instance.offsetNonKrakensbane;
+            Vector3 offsetF = fo.offset;
+            Vector3 offsetNonKrakensbaneF = fo.offsetNonKrakensbane;
             float deltaTime = Time.deltaTime;
             Vector3 frameVelocity = Krakensbane.GetFrameVelocity();
 
@@ -76,9 +76,9 @@ namespace KSPCommunityFixes.Performance
 
             List<CelestialBody> bodies = FlightGlobals.Bodies;
             for (int i = bodies.Count; i-- > 0;)
-                bodies[i].position -= __instance.offsetNonKrakensbane;
+                bodies[i].position -= fo.offsetNonKrakensbane;
 
-            bool needCoMRecalc = __instance.offset.sqrMagnitude > __instance.CoMRecalcOffsetMaxSqr;
+            bool needCoMRecalc = fo.offset.sqrMagnitude > fo.CoMRecalcOffsetMaxSqr;
             List<Vessel> vessels = FlightGlobals.Vessels;
 
             for (int i = vessels.Count; i-- > 0;)
@@ -88,7 +88,7 @@ namespace KSPCommunityFixes.Performance
                 if (vessel.state == Vessel.State.DEAD)
                     continue;
 
-                Vector3d vesselOffset = (!vessel.loaded || vessel.packed || vessel.LandedOrSplashed) ? __instance.offsetNonKrakensbane : __instance.offset;
+                Vector3d vesselOffset = (!vessel.loaded || vessel.packed || vessel.LandedOrSplashed) ? fo.offsetNonKrakensbane : fo.offset;
                 vessel.SetPosition((Vector3d)vessel.transform.position - vesselOffset);
 
                 if (needCoMRecalc && vessel.packed)
@@ -245,12 +245,12 @@ namespace KSPCommunityFixes.Performance
             }
 
             // Just have another handling of the same stuff, sometimes overlapping, sometimes not, because why not ?
-            for (int i = __instance.particleSystems.Count; i-- > 0;)
+            for (int i = fo.particleSystems.Count; i-- > 0;)
             {
-                ParticleSystem particleSystem = __instance.particleSystems[i];
+                ParticleSystem particleSystem = fo.particleSystems[i];
                 if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
-                    __instance.particleSystems.RemoveAt(i);
+                    fo.particleSystems.RemoveAt(i);
                     continue;
                 }
 
@@ -263,7 +263,7 @@ namespace KSPCommunityFixes.Performance
 
                 if (activePS.Contains(particleSystem.GetInstanceIDFast()))
                 {
-                    __instance.particleSystems.RemoveAt(i);
+                    fo.particleSystems.RemoveAt(i);
                     continue;
                 }
 
@@ -279,8 +279,8 @@ namespace KSPCommunityFixes.Performance
             }
 
             // more particle system (explosions, fireworks...) moving in here, but this is getting silly, I don't care anymore...
-            if (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.radarAltitude < __instance.altToStopMovingExplosions)
-                FXMonger.OffsetPositions(-__instance.offsetNonKrakensbane);
+            if (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.radarAltitude < fo.altToStopMovingExplosions)
+                FXMonger.OffsetPositions(-fo.offsetNonKrakensbane);
 
             for (int i = FlightGlobals.physicalObjects.Count; i-- > 0;)
             {
@@ -292,10 +292,8 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            FloatingOrigin.TerrainShaderOffset += __instance.offsetNonKrakensbane;
-            GameEvents.onFloatingOriginShift.Fire(__instance.offset, nonFrame);
-
-            return false;
+            FloatingOrigin.TerrainShaderOffset += fo.offsetNonKrakensbane;
+            GameEvents.onFloatingOriginShift.Fire(fo.offset, nonFrame);
         }
 
         // Roughly twice faster than the stock implementation.
@@ -512,16 +510,16 @@ namespace KSPCommunityFixes.Performance
         private static FastStack<Part> partStack = new FastStack<Part>();
         private static FIIntegrationData fiData = new FIIntegrationData();
 
-        private static bool FlightIntegrator_Integrate_Prefix(FlightIntegrator __instance)
+        private static void FlightIntegrator_Integrate_Override(FlightIntegrator fi, Part _)
         {
-            fiData.Populate(__instance);
+            fiData.Populate(fi);
 
             // preorder traversal of the part tree
-            partStack.EnsureCapacity(__instance.vessel.parts.Count);
-            partStack.Push(__instance.partRef);
+            partStack.EnsureCapacity(fi.vessel.parts.Count);
+            partStack.Push(fi.partRef);
             while (partStack.TryPop(out Part part))
             {
-                IntegratePart(__instance, fiData, part);
+                IntegratePart(fi, fiData, part);
 
                 for (int i = part.children.Count; i-- > 0;)
                 {
@@ -530,8 +528,6 @@ namespace KSPCommunityFixes.Performance
                         partStack.Push(childPart);
                 }
             }
-
-            return false;
         }
 
         private static void IntegratePart(FlightIntegrator fi, FIIntegrationData fiData, Part part)
@@ -822,9 +818,9 @@ namespace KSPCommunityFixes.Performance
         /// Hard to optimize further, a large chunk of the time is spent getting transform / rb properties (~40%)
         /// and performing unavoidable double/float conversions (~10%).
         /// </summary>
-        private static bool VesselPrecalculate_CalculatePhysicsStats_Prefix(VesselPrecalculate __instance)
+        private static void VesselPrecalculate_CalculatePhysicsStats_Override(VesselPrecalculate vp)
         {
-            Vessel vessel = __instance.vessel;
+            Vessel vessel = vp.vessel;
             bool isMasslessOrNotLoaded = true;
 
             if (vessel.loaded)
@@ -941,7 +937,7 @@ namespace KSPCommunityFixes.Performance
                 {
                     if (vessel.LandedOrSplashed)
                     {
-                        vessel.CoMD = __instance.worldSurfacePos + __instance.worldSurfaceRot * vessel.localCoM;
+                        vessel.CoMD = vp.worldSurfacePos + vp.worldSurfaceRot * vessel.localCoM;
                     }
                     else
                     {
@@ -978,8 +974,7 @@ namespace KSPCommunityFixes.Performance
                 vessel.MOI.Zero();
                 vessel.angularMomentum.Zero();
             }
-            __instance.firstStatsRunComplete = true;
-            return false;
+            vp.firstStatsRunComplete = true;
         }
 
         private readonly struct PartVesselPreData
@@ -1195,9 +1190,9 @@ namespace KSPCommunityFixes.Performance
         // Setting mass is less costly and will change relatively often but avoiding setting when unecessary is still a decent improvement.
         // We also take the opportunity to make a few optimizations (faster null checks, inlined inner loop, using the PartResourceList
         // backing list instead of going through the custom indexer...)
-        static bool FlightIntegrator_UpdateMassStats_Prefix(FlightIntegrator __instance)
+        static void FlightIntegrator_UpdateMassStats_Override(FlightIntegrator fi)
         {
-            List<Part> parts = __instance.vessel.parts;
+            List<Part> parts = fi.vessel.parts;
             int partCount = parts.Count;
             for (int i = partCount; i-- > 0;)
             {
@@ -1216,8 +1211,8 @@ namespace KSPCommunityFixes.Performance
 
                 part.resourceMass = (float)resourceMass;
                 part.resourceThermalMass = resourceThermalMass;
-                part.thermalMass = part.mass * __instance.cacheStandardSpecificHeatCapacity * part.thermalMassModifier + part.resourceThermalMass;
-                __instance.SetSkinThermalMass(part);
+                part.thermalMass = part.mass * fi.cacheStandardSpecificHeatCapacity * part.thermalMassModifier + part.resourceThermalMass;
+                fi.SetSkinThermalMass(part);
                 part.thermalMass = Math.Max(part.thermalMass - part.skinThermalMass, 0.1);
                 part.thermalMassReciprocal = 1.0 / part.thermalMass;
             }
@@ -1259,8 +1254,6 @@ namespace KSPCommunityFixes.Performance
                     part.physicsMass = 0.0;
                 }
             }
-
-            return false;
         }
 
 
@@ -1284,10 +1277,8 @@ namespace KSPCommunityFixes.Performance
 
         #region FlightIntegrator.UpdateOcclusion optimizations
 
-        static bool FlightIntegrator_UpdateOcclusionConvection_Prefix(FlightIntegrator __instance)
+        static void FlightIntegrator_UpdateOcclusionConvection_Override(FlightIntegrator fi)
         {
-            FlightIntegrator fi = __instance;
-
             if (fi.mach <= 1.0)
             {
                 if (fi.wasMachConvectionEnabled)
@@ -1301,7 +1292,7 @@ namespace KSPCommunityFixes.Performance
                     }
                     fi.wasMachConvectionEnabled = false;
                 }
-                return false;
+                return;
             }
 
             bool requiresSort = false;
@@ -1442,12 +1433,11 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            return false;
+            return;
         }
 
-        static bool FlightIntegrator_UpdateOcclusionSolar_Prefix(FlightIntegrator __instance)
+        static void FlightIntegrator_UpdateOcclusionSolar_Override(FlightIntegrator fi)
         {
-            FlightIntegrator fi = __instance;
             List<OcclusionData> occlusionDataList = fi.occlusionSun;
             OcclusionCylinder[] occluders = fi.occludersSun;
             Vector3d velocity = fi.sunVector;
@@ -1543,13 +1533,10 @@ namespace KSPCommunityFixes.Performance
                     occluderCount++;
                 }
             }
-
-            return false;
         }
 
-        static bool FlightIntegrator_UpdateOcclusionBody_Prefix(FlightIntegrator __instance)
+        static void FlightIntegrator_UpdateOcclusionBody_Override(FlightIntegrator fi)
         {
-            FlightIntegrator fi = __instance;
             List<OcclusionData> occlusionDataList = fi.occlusionBody;
             OcclusionCylinder[] occluders = fi.occludersBody;
             Vector3d velocity = -fi.vessel.upAxis;
@@ -1636,7 +1623,6 @@ namespace KSPCommunityFixes.Performance
                     occluderCount++;
                 }
             }
-            return false;
         }
 
         // a lot of stuff is actually unused in OcclusionData

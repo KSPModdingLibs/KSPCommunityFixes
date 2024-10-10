@@ -45,7 +45,6 @@ namespace KSPCommunityFixes.Performance
 
         // setting AudioListener.volume is actually quite costly (0.7% of the frame time),
         // so avoid setting it when the value hasn't actually changed...
-        [TranspileInDebug]
         private static void VolumeNormalizer_Update_Override(VolumeNormalizer vn)
         {
             float newVolume;
