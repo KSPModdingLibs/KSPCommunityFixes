@@ -24,6 +24,8 @@ namespace KSPCommunityFixes
 
         public static KSPCommunityFixes Instance { get; private set; }
 
+        public static long FixedUpdateCount { get; private set; }
+
         private static string modPath;
         public static string ModPath
         {
@@ -116,6 +118,11 @@ namespace KSPCommunityFixes
             {
                 BasePatch.Patch(patchesType);
             }
+        }
+
+        void FixedUpdate()
+        {
+            FixedUpdateCount++;
         }
     }
 }

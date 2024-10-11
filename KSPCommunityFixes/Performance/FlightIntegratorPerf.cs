@@ -29,7 +29,7 @@ using Debug = UnityEngine.Debug;
 
 namespace KSPCommunityFixes.Performance
 {
-    internal class FlightCoreSystemsPerf : BasePatch
+    internal class FlightIntegratorPerf : BasePatch
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
@@ -37,781 +37,21 @@ namespace KSPCommunityFixes.Performance
         {
             AddPatch(PatchType.Override, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
 
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateAerodynamics));
+
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
+
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionConvection));
 
-            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
-
-            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
-
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.PrecalcRadiation));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetSunArea));
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.GetBodyArea));
-
-            AddPatch(PatchType.Override, typeof(FloatingOrigin), nameof(FloatingOrigin.setOffset));
         }
 
-        private static HashSet<int> activePS = new HashSet<int>(200);
-
-        private static void FloatingOrigin_setOffset_Override(FloatingOrigin fo, Vector3d refPos, Vector3d nonFrame)
-        {
-            if (refPos.IsInvalid())
-                return;
-
-            if (double.IsInfinity(refPos.sqrMagnitude))
-                return;
-
-            fo.SetOffsetThisFrame = true;
-            fo.offset = refPos;
-            fo.reverseoffset = new Vector3d(0.0 - refPos.x, 0.0 - refPos.y, 0.0 - refPos.z);
-            fo.offsetNonKrakensbane = fo.offset + nonFrame;
-
-            Vector3 offsetF = fo.offset;
-            Vector3 offsetNonKrakensbaneF = fo.offsetNonKrakensbane;
-            float deltaTime = Time.deltaTime;
-            Vector3 frameVelocity = Krakensbane.GetFrameVelocity();
-
-            activePS.Clear();
-
-            List<CelestialBody> bodies = FlightGlobals.Bodies;
-            for (int i = bodies.Count; i-- > 0;)
-                bodies[i].position -= fo.offsetNonKrakensbane;
-
-            bool needCoMRecalc = fo.offset.sqrMagnitude > fo.CoMRecalcOffsetMaxSqr;
-            List<Vessel> vessels = FlightGlobals.Vessels;
-
-            for (int i = vessels.Count; i-- > 0;)
-            {
-                Vessel vessel = vessels[i];
-
-                if (vessel.state == Vessel.State.DEAD)
-                    continue;
-
-                Vector3d vesselOffset = (!vessel.loaded || vessel.packed || vessel.LandedOrSplashed) ? fo.offsetNonKrakensbane : fo.offset;
-                vessel.SetPosition((Vector3d)vessel.transform.position - vesselOffset);
-
-                if (needCoMRecalc && vessel.packed)
-                {
-                    vessel.precalc.CalculatePhysicsStats();
-                }
-                else
-                {
-                    vessel.CoMD -= vesselOffset;
-                    vessel.CoM = vessel.CoMD;
-                }
-
-                // Update legacy (?) particle system
-                for (int j = vessel.parts.Count; j-- > 0;)
-                {
-                    Part part = vessel.parts[j];
-
-                    if (part.fxGroups.Count == 0)
-                        continue;
-
-                    bool partDataComputed = false;
-                    bool hasRigidbody = false;
-                    Vector3 partVelocity = Vector3.zero;
-
-                    for (int k = part.fxGroups.Count; k-- > 0;)
-                    {
-                        FXGroup fXGroup = part.fxGroups[k];
-                        for (int l = fXGroup.fxEmittersNewSystem.Count; l-- > 0;)
-                        {
-                            ParticleSystem particleSystem = fXGroup.fxEmittersNewSystem[l];
-                            
-                            int particleCount = particleSystem.particleCount;
-                            if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
-                                continue;
-
-                            activePS.Add(particleSystem.GetInstanceIDFast());
-
-                            if (!partDataComputed)
-                            {
-                                partDataComputed = true;
-                                Rigidbody partRB = part.Rigidbody;
-                                if (partRB.IsNotNullOrDestroyed())
-                                {
-                                    hasRigidbody = true;
-                                    partVelocity = partRB.velocity + frameVelocity;
-                                }
-                            }
-
-                            NativeArray<ParticleSystem.Particle> particleBuffer = particleSystem.GetParticlesNativeArray(ref particleCount);
-                            for (int pIdx = particleCount; pIdx-- > 0;)
-                            {
-                                Vector3 particlePos = particleBuffer.GetParticlePosition(pIdx);
-
-                                if (hasRigidbody)
-                                {
-                                    float scalar = UnityEngine.Random.value * deltaTime;
-                                    particlePos.Substract(partVelocity.x * scalar, partVelocity.y * scalar, partVelocity.z * scalar);
-                                }
-
-                                particlePos.Substract(offsetNonKrakensbaneF);
-                                particleBuffer.SetParticlePosition(pIdx, particlePos);
-                            }
-                            particleSystem.SetParticles(particleBuffer, particleCount);
-                        }
-                    }
-                }
-            }
-
-            // update "new" (but just as shitty) particle system (this replicate a call to EffectBehaviour.OffsetParticles())
-            Vector3 systemVelocity = Vector3.zero;
-
-            List<ParticleSystem> pSystems = EffectBehaviour.emitters;
-            for (int i = pSystems.Count; i-- > 0;)
-            {
-                ParticleSystem particleSystem = pSystems[i];
-
-                if (particleSystem.IsNullOrDestroyed())
-                {
-                    pSystems.RemoveAt(i);
-                    continue;
-                }
-
-                int particleCount = particleSystem.particleCount;
-                if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
-                    continue;
-
-                activePS.Add(particleSystem.GetInstanceIDFast());
-
-                bool hasRigidbody = false;
-                Rigidbody rb = particleSystem.GetComponentInParent<Rigidbody>();
-                if (rb.IsNotNullRef())
-                {
-                    hasRigidbody = true;
-                    systemVelocity = rb.velocity + frameVelocity;
-                }
-
-                NativeArray<ParticleSystem.Particle> particleBuffer = particleSystem.GetParticlesNativeArray(ref particleCount);
-                for (int pIdx = particleCount; pIdx-- > 0;)
-                {
-                    Vector3 particlePos = particleBuffer.GetParticlePosition(pIdx);
-
-                    if (hasRigidbody)
-                    {
-                        float scalar = UnityEngine.Random.value * deltaTime;
-                        particlePos.Substract(systemVelocity.x * scalar, systemVelocity.y * scalar, systemVelocity.z * scalar);
-                    }
-
-                    particlePos.Substract(offsetNonKrakensbaneF);
-                    particleBuffer.SetParticlePosition(pIdx, particlePos);
-                }
-                particleSystem.SetParticles(particleBuffer, particleCount);
-            }
-
-            List<KSPParticleEmitter> pSystemsKSP = EffectBehaviour.kspEmitters;
-            for (int i = pSystemsKSP.Count; i-- > 0;)
-            {
-                KSPParticleEmitter particleSystemKSP = pSystemsKSP[i];
-
-                if (particleSystemKSP.IsNullOrDestroyed())
-                {
-                    pSystemsKSP.RemoveAt(i);
-                    continue;
-                }
-
-                int particleCount = particleSystemKSP.ps.particleCount;
-                if (particleCount == 0 || !particleSystemKSP.useWorldSpace)
-                    continue;
-
-                activePS.Add(particleSystemKSP.ps.GetInstanceIDFast());
-
-                bool hasRigidbody = false;
-                Rigidbody rb = particleSystemKSP.GetComponentInParent<Rigidbody>();
-                if (rb.IsNotNullRef())
-                {
-                    hasRigidbody = true;
-                    systemVelocity = rb.velocity + frameVelocity;
-                }
-
-                NativeArray<ParticleSystem.Particle> particleBuffer = particleSystemKSP.ps.GetParticlesNativeArray(ref particleCount);
-                for (int pIdx = particleCount; pIdx-- > 0;)
-                {
-                    Vector3 particlePos = particleBuffer.GetParticlePosition(pIdx);
-
-                    if (hasRigidbody)
-                    {
-                        float scalar = UnityEngine.Random.value * deltaTime;
-                        particlePos.Substract(systemVelocity.x * scalar, systemVelocity.y * scalar, systemVelocity.z * scalar);
-                    }
-
-                    particlePos.Substract(offsetNonKrakensbaneF);
-                    particleBuffer.SetParticlePosition(pIdx, particlePos);
-                }
-                particleSystemKSP.ps.SetParticles(particleBuffer, particleCount);
-            }
-
-            // Just have another handling of the same stuff, sometimes overlapping, sometimes not, because why not ?
-            for (int i = fo.particleSystems.Count; i-- > 0;)
-            {
-                ParticleSystem particleSystem = fo.particleSystems[i];
-                if (particleSystem.IsNullOrDestroyed() || activePS.Contains(particleSystem.GetInstanceIDFast()))
-                {
-                    fo.particleSystems.RemoveAt(i);
-                    continue;
-                }
-
-                int particleCount = particleSystem.particleCount;
-                if (particleCount == 0)
-                    continue;
-
-                if (particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
-                    continue;
-
-                if (activePS.Contains(particleSystem.GetInstanceIDFast()))
-                {
-                    fo.particleSystems.RemoveAt(i);
-                    continue;
-                }
-
-                NativeArray<ParticleSystem.Particle> particleBuffer = particleSystem.GetParticlesNativeArray(ref particleCount);
-                for (int pIdx = particleCount; pIdx-- > 0;)
-                {
-                    Vector3 particlePos = particleBuffer.GetParticlePosition(pIdx);
-                    particlePos.Substract(offsetNonKrakensbaneF);
-                    particleBuffer.SetParticlePosition(pIdx, particlePos);
-                }
-
-                particleSystem.SetParticles(particleBuffer, particleCount);
-            }
-
-            // more particle system (explosions, fireworks...) moving in here, but this is getting silly, I don't care anymore...
-            if (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.radarAltitude < fo.altToStopMovingExplosions)
-                FXMonger.OffsetPositions(-fo.offsetNonKrakensbane);
-
-            for (int i = FlightGlobals.physicalObjects.Count; i-- > 0;)
-            {
-                physicalObject physicalObject = FlightGlobals.physicalObjects[i];
-                if (physicalObject.IsNotNullOrDestroyed())
-                {
-                    Transform obj = physicalObject.transform;
-                    obj.position -= offsetF;
-                }
-            }
-
-            FloatingOrigin.TerrainShaderOffset += fo.offsetNonKrakensbane;
-            GameEvents.onFloatingOriginShift.Fire(fo.offset, nonFrame);
-        }
-
-        // Roughly twice faster than the stock implementation.
-        // Most of the gains are from optimized and manually inlined versions of GetSunArea() and GetBodyArea().
-        // They are virtual method that could in theory be overriden with MFI, but given how narrow scoped and tightly tied
-        // the drag cube implementation they are, it is very unlikely to ever happen.
-        // About half the remaining time is in getting the transform matrix from Unity. Once again, it would be immensely 
-        // benefical not having to do that again and again in every subsystem...
-        private static void FlightIntegrator_PrecalcRadiation_Override(FlightIntegrator fi, PartThermalData ptd)
-        {
-            Part part = ptd.part;
-            double radfactor = fi.cacheRadiationFactor * 0.001;
-            ptd.emissScalar = part.emissiveConstant * radfactor;
-            ptd.absorbScalar = part.absorptiveConstant * radfactor;
-            ptd.sunFlux = 0.0;
-            ptd.bodyFlux = fi.bodyEmissiveFlux + fi.bodyAlbedoFlux;
-
-            ptd.expFlux = 0.0;
-            ptd.unexpFlux = 0.0;
-            ptd.brtUnexposed = fi.backgroundRadiationTemp;
-            ptd.brtExposed = Numerics.Lerp(fi.backgroundRadiationTemp, fi.backgroundRadiationTempExposed, ptd.convectionTempMultiplier);
-
-            if (part.DragCubes.None || part.ShieldedFromAirstream)
-                return;
-
-            bool computeSunFlux = fi.vessel.directSunlight;
-            bool computeBodyFlux = ptd.bodyFlux > 0.0;
-
-            if (!computeSunFlux && !computeBodyFlux)
-                return;
-
-            double unexposedRadiativeArea = part.radiativeArea * (1.0 - part.skinExposedAreaFrac);
-            float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
-            ref TransformMatrix partInverseTransform = ref TransformMatrix.WorldToLocalCurrent(part.partTransform);
-
-            if (computeSunFlux)
-            {
-                // FlightIntegrator.GetSunArea() manual inline start
-                Vector3d sunDir = fi.sunVector;
-                partInverseTransform.MutateMultiplyVector(ref sunDir);
-
-                double sunArea = 0.0;
-                if (sunDir.x > 0.0)
-                    sunArea += dragCubeAreaOccluded[0] * sunDir.x; // right
-                else
-                    sunArea += dragCubeAreaOccluded[1] * -sunDir.x; // left
-
-                if (sunDir.y > 0.0)
-                    sunArea += dragCubeAreaOccluded[2] * sunDir.y; // up
-                else
-                    sunArea += dragCubeAreaOccluded[3] * -sunDir.y; // down
-
-                if (sunDir.z > 0.0)
-                    sunArea += dragCubeAreaOccluded[4] * sunDir.z; // forward
-                else
-                    sunArea += dragCubeAreaOccluded[5] * -sunDir.z; // back
-
-                sunArea *= ptd.sunAreaMultiplier;
-                // FlightIntegrator.GetSunArea() manual inline end
-
-                if (sunArea > 0.0)
-                {
-                    ptd.sunFlux = ptd.absorbScalar * fi.solarFlux;
-                    if (ptd.exposed)
-                    {
-                        double sunDot = (Vector3d.Dot(fi.sunVector, fi.nVel) + 1.0) * 0.5;
-                        double sunExpArea = Math.Min(sunArea, part.skinExposedArea * sunDot);
-                        double sunUnexpArea = Math.Min(sunArea - sunExpArea, unexposedRadiativeArea * (1.0 - sunDot));
-                        ptd.expFlux += ptd.sunFlux * sunExpArea;
-                        ptd.unexpFlux += ptd.sunFlux * sunUnexpArea;
-                    }
-                    else
-                    {
-                        ptd.expFlux += ptd.sunFlux * sunArea;
-                    }
-                }
-            }
-
-            if (computeBodyFlux)
-            {
-                // FlightIntegrator.GetBodyArea() manual inline start
-                Vector3d bodyDir = partInverseTransform.MultiplyVector(-fi.vessel.upAxis.x, -fi.vessel.upAxis.y, -fi.vessel.upAxis.z);
-
-                double bodyArea = 0.0;
-                if (bodyDir.x > 0.0)
-                    bodyArea += dragCubeAreaOccluded[0] * bodyDir.x; // right
-                else
-                    bodyArea += dragCubeAreaOccluded[1] * -bodyDir.x; // left
-
-                if (bodyDir.y > 0.0)
-                    bodyArea += dragCubeAreaOccluded[2] * bodyDir.y; // up
-                else
-                    bodyArea += dragCubeAreaOccluded[3] * -bodyDir.y; // down
-
-                if (bodyDir.z > 0.0)
-                    bodyArea += dragCubeAreaOccluded[4] * bodyDir.z; // forward
-                else
-                    bodyArea += dragCubeAreaOccluded[5] * -bodyDir.z; // back
-
-                bodyArea *= ptd.bodyAreaMultiplier;
-                // FlightIntegrator.GetBodyArea() manual inline end
-
-                if (bodyArea > 0.0)
-                {
-                    ptd.bodyFlux = Numerics.Lerp(0.0, ptd.bodyFlux, fi.densityThermalLerp) * ptd.absorbScalar;
-                    if (ptd.exposed)
-                    {
-                        double bodyDot = (Vector3.Dot(-fi.vessel.upAxis, fi.nVel) + 1.0) * 0.5;
-                        double bodyExpArea = Math.Min(bodyArea, part.skinExposedArea * bodyDot);
-                        double bodyUnexpArea = Math.Min(bodyArea - bodyExpArea, unexposedRadiativeArea * (1.0 - bodyDot));
-                        ptd.expFlux += ptd.bodyFlux * bodyExpArea;
-                        ptd.unexpFlux += ptd.bodyFlux * bodyUnexpArea;
-                    }
-                    else
-                    {
-                        ptd.expFlux += ptd.bodyFlux * bodyArea;
-                    }
-                }
-            }
-        }
-
-        // we manually inline the call to GetSunArea() in PrecalcRadiation(), but this is also used
-        // in CalculateAnalyticTemperature(), so that should help there too.
-        public static double FlightIntegrator_GetSunArea_Override(FlightIntegrator fi, PartThermalData ptd)
-        {
-            Part part = ptd.part;
-            if (part.DragCubes.None)
-                return 0.0;
-
-            Vector3 sunLocalDir = part.partTransform.InverseTransformDirection(fi.sunVector);
-            float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
-
-            double sunArea = 0.0;
-            if (sunLocalDir.x > 0.0)
-                sunArea += dragCubeAreaOccluded[0] * sunLocalDir.x; // right
-            else
-                sunArea += dragCubeAreaOccluded[1] * -sunLocalDir.x; // left
-
-            if (sunLocalDir.y > 0.0)
-                sunArea += dragCubeAreaOccluded[2] * sunLocalDir.y; // up
-            else
-                sunArea += dragCubeAreaOccluded[3] * -sunLocalDir.y; // down
-
-            if (sunLocalDir.z > 0.0)
-                sunArea += dragCubeAreaOccluded[4] * sunLocalDir.z; // forward
-            else
-                sunArea += dragCubeAreaOccluded[5] * -sunLocalDir.z; // back
-
-            return sunArea * ptd.sunAreaMultiplier;
-        }
-
-        // we manually inline the call to GetBodyArea() in PrecalcRadiation(), but this is also used
-        // in CalculateAnalyticTemperature(), so that should help there too.
-        public static double FlightIntegrator_GetBodyArea_Override(FlightIntegrator fi, PartThermalData ptd)
-        {
-            Part part = ptd.part;
-            if (part.DragCubes.None)
-                return 0.0;
-
-            Vector3 bodyLocalDir = part.partTransform.InverseTransformDirection(-fi.vessel.upAxis);
-            float[] dragCubeAreaOccluded = part.DragCubes.areaOccluded;
-
-            double bodyArea = 0.0;
-            if (bodyLocalDir.x > 0.0)
-                bodyArea += dragCubeAreaOccluded[0] * bodyLocalDir.x; // right
-            else
-                bodyArea += dragCubeAreaOccluded[1] * -bodyLocalDir.x; // left
-
-            if (bodyLocalDir.y > 0.0)
-                bodyArea += dragCubeAreaOccluded[2] * bodyLocalDir.y; // up
-            else
-                bodyArea += dragCubeAreaOccluded[3] * -bodyLocalDir.y; // down
-
-            if (bodyLocalDir.z > 0.0)
-                bodyArea += dragCubeAreaOccluded[4] * bodyLocalDir.z; // forward
-            else
-                bodyArea += dragCubeAreaOccluded[5] * -bodyLocalDir.z; // back
-
-            return bodyArea * ptd.bodyAreaMultiplier;
-        }
-
-        private class FIIntegrationData
-        {
-            public Vector3 vesselPreIntegrationAccelF;
-            public bool hasVesselPreIntegrationAccel;
-            public Vector3 krakensbaneFrameVelocityF;
-
-            public double dragMult;
-            public double dragTail;
-            public double dragTip;
-            public double dragSurf;
-            public double dragCdPower;
-
-            public double liftMach;
-
-            public void Populate(FlightIntegrator fi)
-            {
-                vesselPreIntegrationAccelF = fi.vessel.precalc.integrationAccel;
-                hasVesselPreIntegrationAccel = !vesselPreIntegrationAccelF.IsZero();
-                krakensbaneFrameVelocityF = Krakensbane.GetFrameVelocity();
-
-                float mach = (float)fi.mach;
-
-                dragMult = PhysicsGlobals.Instance.dragCurveMultiplier.Evaluate(mach);
-                dragTail = PhysicsGlobals.Instance.dragCurveTail.Evaluate(mach);
-                dragTip = PhysicsGlobals.Instance.dragCurveTip.Evaluate(mach);
-                dragSurf = PhysicsGlobals.Instance.dragCurveSurface.Evaluate(mach);
-                dragCdPower = PhysicsGlobals.Instance.dragCurveCdPower.Evaluate(mach);
-
-                liftMach = PhysicsGlobals.BodyLiftCurve.liftMachCurve.Evaluate(mach); // maybe should be done on demand, as this doesn't apply in all cases...
-            }
-        }
-
-        private static FastStack<Part> partStack = new FastStack<Part>();
-        private static FIIntegrationData fiData = new FIIntegrationData();
-
-        private static void FlightIntegrator_Integrate_Override(FlightIntegrator fi, Part _)
-        {
-            fiData.Populate(fi);
-
-            // preorder traversal of the part tree
-            partStack.EnsureCapacity(fi.vessel.parts.Count);
-            partStack.Push(fi.partRef);
-            while (partStack.TryPop(out Part part))
-            {
-                IntegratePart(fi, fiData, part);
-
-                for (int i = part.children.Count; i-- > 0;)
-                {
-                    Part childPart = part.children[i];
-                    if (childPart.isAttached)
-                        partStack.Push(childPart);
-                }
-            }
-        }
-
-        private static void IntegratePart(FlightIntegrator fi, FIIntegrationData fiData, Part part)
-        {
-            bool hasRb = part.rb.IsNotNullOrDestroyed();
-            bool hasServoRb = part.servoRb.IsNotNullOrDestroyed();
-
-            // base force integration
-            if (hasRb)
-            {
-                if (fiData.hasVesselPreIntegrationAccel)
-                    part.rb.AddForce(fiData.vesselPreIntegrationAccelF, ForceMode.Acceleration);
-
-                if (!part.force.IsZero())
-                    part.rb.AddForce(part.force);
-
-                if (!part.torque.IsZero())
-                    part.rb.AddTorque(part.torque);
-
-                for (int i = part.forces.Count; i-- > 0;)
-                {
-                    Part.ForceHolder force = part.forces[i];
-                    part.rb.AddForceAtPosition(force.force, force.pos);
-                }
-            }
-
-            if (hasServoRb)
-            {
-                part.servoRb.AddForce(fiData.vesselPreIntegrationAccelF, ForceMode.Acceleration);
-            }
-            part.forces.Clear();
-            part.force.Zero();
-            part.torque.Zero();
-
-            // UpdateAerodynamics(part);
-            Rigidbody partOrParentRb = part.rb;
-            if (!hasRb)
-            {
-                Part parent = part.parent;
-                while (partOrParentRb.IsNullOrDestroyed() && parent.IsNotNullOrDestroyed())
-                {
-                    partOrParentRb = parent.rb;
-                    parent = parent.parent;
-                }
-            }
-
-            if (partOrParentRb.IsNotNullOrDestroyed())
-            {
-                part.aerodynamicArea = 0.0;
-                part.exposedArea = fi.CalculateAreaExposed(part);
-                part.submergedDynamicPressurekPa = 0.0;
-                part.dynamicPressurekPa = 0.0;
-
-                if (part.angularDragByFI)
-                {
-                    if (hasRb)
-
-                        part.rb.angularDrag = 0f;
-
-                    if (hasServoRb)
-                        part.servoRb.angularDrag = 0f;
-                }
-
-                part.dragVector = partOrParentRb.velocity + fiData.krakensbaneFrameVelocityF;
-                part.dragVectorSqrMag = part.dragVector.sqrMagnitude;
-
-                bool hasVelocity = false;
-                if (part.dragVectorSqrMag != 0f)
-                {
-                    hasVelocity = true;
-                    part.dragVectorMag = Mathf.Sqrt(part.dragVectorSqrMag);
-                    part.dragVectorDir = part.dragVector / part.dragVectorMag;
-                    part.dragVectorDirLocal = -part.partTransform.InverseTransformDirection(part.dragVectorDir);
-                    part.dragScalar = 0f;
-                }
-                else
-                {
-                    part.dragVectorMag = 0f;
-                    part.dragVectorDir.Zero();
-                    part.dragVectorDirLocal.Zero();
-                    part.dragScalar = 0f;
-                }
-
-                double submergedPortion = part.submergedPortion;
-
-                if (!part.ShieldedFromAirstream && (part.atmDensity > 0.0 || submergedPortion > 0.0))
-                {
-                    if (!part.dragCubes.none)
-                    {
-                        SetDragCubeDrag(fiData, part.dragCubes, part.dragVectorDirLocal);
-                    }
-
-                    part.aerodynamicArea = fi.CalculateAerodynamicArea(part);
-                    if (fi.cacheApplyDrag && hasVelocity && (partOrParentRb.RefEquals(part.rb) || fi.cacheApplyDragToNonPhysicsParts))
-                    {
-                        double emergedPortion = 1.0;
-                        bool isInWater = false;
-                        double pressure;
-                        if (fi.currentMainBody.ocean)
-                        {
-                            if (submergedPortion > 0.0)
-                            {
-                                isInWater = true;
-                                double waterDensity = fi.currentMainBody.oceanDensity * 1000.0;
-                                if (submergedPortion >= 1.0)
-                                {
-                                    emergedPortion = 0.0;
-                                    part.submergedDynamicPressurekPa = waterDensity;
-                                    pressure = waterDensity * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier;
-                                }
-                                else
-                                {
-                                    emergedPortion = 1.0 - submergedPortion;
-                                    part.submergedDynamicPressurekPa = waterDensity;
-                                    pressure = part.staticPressureAtm * emergedPortion + submergedPortion * waterDensity * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier;
-                                }
-                            }
-                            else
-                            {
-                                part.dynamicPressurekPa = part.atmDensity;
-                                pressure = part.staticPressureAtm;
-                            }
-                        }
-                        else
-                        {
-                            part.dynamicPressurekPa = part.atmDensity;
-                            pressure = part.staticPressureAtm;
-                        }
-
-                        double dragSqrMag = 0.0005 * part.dragVectorSqrMag;
-                        part.dynamicPressurekPa *= dragSqrMag;
-                        part.submergedDynamicPressurekPa *= dragSqrMag;
-                        if (hasRb && part.angularDragByFI)
-                        {
-                            if (isInWater)
-                            {
-                                pressure += part.dynamicPressurekPa * FlightIntegrator.KPA2ATM * emergedPortion;
-                                pressure += part.submergedDynamicPressurekPa * FlightIntegrator.KPA2ATM * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier * submergedPortion;
-                            }
-                            else
-                            {
-                                pressure = part.dynamicPressurekPa * FlightIntegrator.KPA2ATM;
-                            }
-
-                            if (pressure < 0.0)
-                                pressure = 0.0;
-
-                            float rbAngularDrag = part.angularDrag * (float)pressure * fi.cacheAngularDragMultiplier;
-                            part.rb.angularDrag = rbAngularDrag;
-                            if (hasServoRb)
-                                part.servoRb.angularDrag = rbAngularDrag;
-                        }
-
-                        double dragValue = fi.CalculateDragValue(part) * fi.pseudoReDragMult;
-                        if (!double.IsNaN(dragValue) && dragValue != 0.0)
-                        {
-                            part.dragScalar = (float)(part.dynamicPressurekPa * dragValue * emergedPortion) * fi.cacheDragMultiplier;
-                            fi.ApplyAeroDrag(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force);
-                        }
-                        else
-                        {
-                            part.dragScalar = 0f;
-                        }
-
-                        if (!part.hasLiftModule && (!part.bodyLiftOnlyUnattachedLiftActual || part.bodyLiftOnlyProvider == null || !part.bodyLiftOnlyProvider.IsLifting))
-                        {
-                            double bodyLiftScalar = part.bodyLiftMultiplier * fi.cacheBodyLiftMultiplier * fiData.liftMach;
-                            if (isInWater)
-                                bodyLiftScalar *= part.dynamicPressurekPa * emergedPortion + part.submergedDynamicPressurekPa * part.submergedLiftScalar * submergedPortion;
-                            else
-                                bodyLiftScalar *= part.dynamicPressurekPa;
-
-                            part.bodyLiftScalar = (float)bodyLiftScalar;
-                            if (part.bodyLiftScalar != 0f && part.DragCubes.LiftForce != Vector3.zero && !part.DragCubes.LiftForce.IsInvalid())
-                            {
-                                fi.ApplyAeroLift(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Replacement for DragCubes.SetDrag() and DragCubes.DragCubeAddSurfaceDragDirection()
-        /// </summary>
-        private static void SetDragCubeDrag(FIIntegrationData fiData, DragCubeList dragCubes, Vector3 direction)
-        {
-            direction *= -1f;
-
-            if (dragCubes.rotateDragVector)
-                direction = dragCubes.dragVectorRotation * direction;
-                
-            double dotSum = 0.0;
-            double area = 0.0;
-            double areaDrag = 0.0;
-            double crossSectionalArea = 0.0;
-            double exposedArea = 0.0;
-            double liftForceX = 0.0;
-            double liftForceY = 0.0;
-            double liftForceZ = 0.0;
-            double depth = 0.0;
-            double taperDot = 0.0;
-            double dragCoeff = 0.0;
-
-            for (int i = 0; i < 6; i++)
-            {
-                Vector3 faceDir = faceDirections[i];
-                double areaOccluded = dragCubes.areaOccluded[i];
-                double weightedDrag = dragCubes.weightedDrag[i];
-
-                double dot = Vector3.Dot(direction, faceDir);
-                double dotNormalized = (dot + 1.0) * 0.5;
-                double drag; // = PhysicsGlobals.DragCurveValue(__instance.SurfaceCurves, dotNormalized, machNumber);
-
-                if (dotNormalized <= 0.5)
-                    drag = Numerics.Lerp(fiData.dragTail, fiData.dragSurf, dotNormalized * 2.0) * fiData.dragMult;
-                else
-                    drag = Numerics.Lerp(fiData.dragSurf, fiData.dragTip, (dotNormalized - 0.5) * 2.0) * fiData.dragMult;
-
-                double areaOccludedByDrag = areaOccluded * drag;
-                area += areaOccludedByDrag;
-                double dragCd = areaOccludedByDrag;
-
-                if (dragCd < 1.0)
-                    dragCd = Math.Pow(dragCubes.DragCurveCd.Evaluate((float)weightedDrag), fiData.dragCdPower);
-
-                areaDrag += areaOccludedByDrag * dragCd;
-                crossSectionalArea += areaOccluded * Numerics.Clamp01(dot);
-
-                double weightedDragMod = (!(weightedDrag < 1.0) || !(weightedDrag > 0.01)) ? 1.0 : (1.0 / weightedDrag);
-                exposedArea += areaOccludedByDrag / fiData.dragMult * weightedDragMod;
-
-                if (dot > 0.0)
-                {
-                    dotSum += dot;
-                    double bodyLift = dragCubes.BodyLiftCurve.liftCurve.Evaluate((float)dot);
-                    double weightedBodylift = dot * areaOccluded * weightedDrag * bodyLift * -1.0;
-
-                    if (!double.IsNaN(weightedBodylift) && weightedBodylift > 0.0)
-                    {
-                        liftForceX += faceDir.x * weightedBodylift;
-                        liftForceY += faceDir.y * weightedBodylift;
-                        liftForceZ += faceDir.z * weightedBodylift;
-                    }
-
-                    depth += dot * dragCubes.weightedDepth[i];
-                    taperDot += dot * weightedDragMod;
-                }
-            }
-
-            if (dotSum > 0.0)
-            {
-                double invDotSum = 1f / dotSum;
-                depth *= invDotSum;
-                taperDot *= invDotSum;
-            }
-
-            if (area > 0.0)
-            {
-                dragCoeff = areaDrag / area;
-                areaDrag = area * dragCoeff;
-            }
-            else
-            {
-                dragCoeff = 0.0;
-                areaDrag = 0.0;
-            }
-
-            dragCubes.cubeData = new CubeData()
-            {
-                dragVector = direction,
-                liftForce = new Vector3((float)liftForceX, (float)liftForceY, (float)liftForceZ),
-                area = (float)area,
-                areaDrag = (float)areaDrag,
-                depth = (float)depth,
-                crossSectionalArea = (float)crossSectionalArea,
-                exposedArea = (float)exposedArea,
-                dragCoeff = (float)dragCoeff,
-                taperDot = (float)taperDot
-            };
-        }
-
-        #region VesselPrecalculate.CalculatePhysicsStats optimizations
+        #region CalculatePhysicsStats
 
         /// <summary>
         /// 40-60% faster than the stock method depending on the situation.
@@ -1180,9 +420,360 @@ namespace KSPCommunityFixes.Performance
         }
 #endif
 
-#endregion
+        #endregion
 
-        #region FlightIntegrator.UpdateMassStats optimizations
+        #region Integrate and UpdateAerodynamics
+
+        /// <summary>
+        /// Per FlightIntegrator.FixedUpdate() call global cache for avoiding redundant computations on a per-subsystem / per-part basis.
+        /// Used in the Integrate > UpdateAerodynamics code paths
+        /// </summary>
+        private class FIFixedUpdateIntegrationData
+        {
+            public Vector3 vesselPreIntegrationAccelF;
+            public bool hasVesselPreIntegrationAccel;
+            public Vector3 krakensbaneFrameVelocityF;
+
+            public double dragMult;
+            public double dragTail;
+            public double dragTip;
+            public double dragSurf;
+            public double dragCdPower;
+
+            public double liftMach;
+
+            private long currentFixedUpdate;
+            private int currentVesselInstanceId;
+
+            public void PopulateIfNeeded(FlightIntegrator fi)
+            {
+                if (currentFixedUpdate == KSPCommunityFixes.FixedUpdateCount && currentVesselInstanceId == fi.vessel.GetInstanceIDFast())
+                    return;
+
+                currentFixedUpdate = KSPCommunityFixes.FixedUpdateCount;
+                currentVesselInstanceId = fi.vessel.GetInstanceIDFast();
+
+                vesselPreIntegrationAccelF = fi.vessel.precalc.integrationAccel;
+                hasVesselPreIntegrationAccel = !vesselPreIntegrationAccelF.IsZero();
+                krakensbaneFrameVelocityF = Krakensbane.GetFrameVelocity();
+
+                float mach = (float)fi.mach;
+
+                dragMult = PhysicsGlobals.Instance.dragCurveMultiplier.Evaluate(mach);
+                dragTail = PhysicsGlobals.Instance.dragCurveTail.Evaluate(mach);
+                dragTip = PhysicsGlobals.Instance.dragCurveTip.Evaluate(mach);
+                dragSurf = PhysicsGlobals.Instance.dragCurveSurface.Evaluate(mach);
+                dragCdPower = PhysicsGlobals.Instance.dragCurveCdPower.Evaluate(mach);
+                liftMach = PhysicsGlobals.BodyLiftCurve.liftMachCurve.Evaluate(mach);
+            }
+        }
+
+        private static readonly FIFixedUpdateIntegrationData fiData = new FIFixedUpdateIntegrationData();
+
+        private static void FlightIntegrator_Integrate_Override(FlightIntegrator fi, Part part)
+        {
+            fiData.PopulateIfNeeded(fi);
+
+            bool hasRb = part.rb.IsNotNullOrDestroyed();
+            bool hasServoRb = part.servoRb.IsNotNullOrDestroyed();
+
+            // base force integration
+            if (hasRb)
+            {
+                if (fiData.hasVesselPreIntegrationAccel)
+                    part.rb.AddForce(fiData.vesselPreIntegrationAccelF, ForceMode.Acceleration);
+
+                if (!part.force.IsZero())
+                    part.rb.AddForce(part.force);
+
+                if (!part.torque.IsZero())
+                    part.rb.AddTorque(part.torque);
+
+                for (int i = part.forces.Count; i-- > 0;)
+                {
+                    Part.ForceHolder force = part.forces[i];
+                    part.rb.AddForceAtPosition(force.force, force.pos);
+                }
+            }
+
+            if (hasServoRb && fiData.hasVesselPreIntegrationAccel)
+            {
+                part.servoRb.AddForce(fiData.vesselPreIntegrationAccelF, ForceMode.Acceleration);
+            }
+
+            part.forces.Clear();
+            part.force.Zero();
+            part.torque.Zero();
+
+            fi.UpdateAerodynamics(part);
+            int childCount = part.children.Count;
+            for (int i = 0; i < childCount; i++)
+            {
+                Part child = part.children[i];
+                if (child.isAttached)
+                {
+                    fi.Integrate(child);
+                }
+            }
+        }
+
+        private static void FlightIntegrator_UpdateAerodynamics_Override(FlightIntegrator fi, Part part)
+        {
+            fiData.PopulateIfNeeded(fi);
+            bool hasRb = part.rb.IsNotNullOrDestroyed();
+            bool hasServoRb = part.servoRb.IsNotNullOrDestroyed();
+
+            Rigidbody partOrParentRb = part.rb;
+            if (!hasRb)
+            {
+                Part parent = part.parent;
+                while (partOrParentRb.IsNullOrDestroyed() && parent.IsNotNullOrDestroyed())
+                {
+                    partOrParentRb = parent.rb;
+                    parent = parent.parent;
+                }
+            }
+
+            if (partOrParentRb.IsNotNullOrDestroyed())
+            {
+                part.aerodynamicArea = 0.0;
+                part.exposedArea = fi.CalculateAreaExposed(part);
+                part.submergedDynamicPressurekPa = 0.0;
+                part.dynamicPressurekPa = 0.0;
+
+                if (part.angularDragByFI)
+                {
+                    if (hasRb)
+
+                        part.rb.angularDrag = 0f;
+
+                    if (hasServoRb)
+                        part.servoRb.angularDrag = 0f;
+                }
+
+                part.dragVector = partOrParentRb.velocity + fiData.krakensbaneFrameVelocityF;
+                part.dragVectorSqrMag = part.dragVector.sqrMagnitude;
+
+                bool hasVelocity = false;
+                if (part.dragVectorSqrMag != 0f)
+                {
+                    hasVelocity = true;
+                    part.dragVectorMag = Mathf.Sqrt(part.dragVectorSqrMag);
+                    part.dragVectorDir = part.dragVector / part.dragVectorMag;
+                    part.dragVectorDirLocal = -part.partTransform.InverseTransformDirection(part.dragVectorDir);
+                    part.dragScalar = 0f;
+                }
+                else
+                {
+                    part.dragVectorMag = 0f;
+                    part.dragVectorDir.Zero();
+                    part.dragVectorDirLocal.Zero();
+                    part.dragScalar = 0f;
+                }
+
+                double submergedPortion = part.submergedPortion;
+
+                if (!part.ShieldedFromAirstream && (part.atmDensity > 0.0 || submergedPortion > 0.0))
+                {
+                    if (!part.dragCubes.none)
+                    {
+                        SetDragCubeDrag(part.dragCubes, part.dragVectorDirLocal);
+                    }
+
+                    part.aerodynamicArea = fi.CalculateAerodynamicArea(part);
+                    if (fi.cacheApplyDrag && hasVelocity && (partOrParentRb.RefEquals(part.rb) || fi.cacheApplyDragToNonPhysicsParts))
+                    {
+                        double emergedPortion = 1.0;
+                        bool isInWater = false;
+                        double pressure;
+                        if (fi.currentMainBody.ocean)
+                        {
+                            if (submergedPortion > 0.0)
+                            {
+                                isInWater = true;
+                                double waterDensity = fi.currentMainBody.oceanDensity * 1000.0;
+                                if (submergedPortion >= 1.0)
+                                {
+                                    emergedPortion = 0.0;
+                                    part.submergedDynamicPressurekPa = waterDensity;
+                                    pressure = waterDensity * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier;
+                                }
+                                else
+                                {
+                                    emergedPortion = 1.0 - submergedPortion;
+                                    part.submergedDynamicPressurekPa = waterDensity;
+                                    pressure = part.staticPressureAtm * emergedPortion + submergedPortion * waterDensity * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier;
+                                }
+                            }
+                            else
+                            {
+                                part.dynamicPressurekPa = part.atmDensity;
+                                pressure = part.staticPressureAtm;
+                            }
+                        }
+                        else
+                        {
+                            part.dynamicPressurekPa = part.atmDensity;
+                            pressure = part.staticPressureAtm;
+                        }
+
+                        double dragSqrMag = 0.0005 * part.dragVectorSqrMag;
+                        part.dynamicPressurekPa *= dragSqrMag;
+                        part.submergedDynamicPressurekPa *= dragSqrMag;
+                        if (hasRb && part.angularDragByFI)
+                        {
+                            if (isInWater)
+                            {
+                                pressure += part.dynamicPressurekPa * FlightIntegrator.KPA2ATM * emergedPortion;
+                                pressure += part.submergedDynamicPressurekPa * FlightIntegrator.KPA2ATM * fi.cacheBuoyancyWaterAngularDragScalar * part.waterAngularDragMultiplier * submergedPortion;
+                            }
+                            else
+                            {
+                                pressure = part.dynamicPressurekPa * FlightIntegrator.KPA2ATM;
+                            }
+
+                            if (pressure < 0.0)
+                                pressure = 0.0;
+
+                            float rbAngularDrag = part.angularDrag * (float)pressure * fi.cacheAngularDragMultiplier;
+                            part.rb.angularDrag = rbAngularDrag;
+                            if (hasServoRb)
+                                part.servoRb.angularDrag = rbAngularDrag;
+                        }
+
+                        double dragValue = fi.CalculateDragValue(part) * fi.pseudoReDragMult;
+                        if (!double.IsNaN(dragValue) && dragValue != 0.0)
+                        {
+                            part.dragScalar = (float)(part.dynamicPressurekPa * dragValue * emergedPortion) * fi.cacheDragMultiplier;
+                            fi.ApplyAeroDrag(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force); // TODO: inline to avoid the "is part ? is parent ?" check
+                        }
+                        else
+                        {
+                            part.dragScalar = 0f;
+                        }
+
+                        if (!part.hasLiftModule && (!part.bodyLiftOnlyUnattachedLiftActual || part.bodyLiftOnlyProvider == null || !part.bodyLiftOnlyProvider.IsLifting))
+                        {
+                            double bodyLiftScalar = part.bodyLiftMultiplier * fi.cacheBodyLiftMultiplier * fiData.liftMach;
+                            if (isInWater)
+                                bodyLiftScalar *= part.dynamicPressurekPa * emergedPortion + part.submergedDynamicPressurekPa * part.submergedLiftScalar * submergedPortion;
+                            else
+                                bodyLiftScalar *= part.dynamicPressurekPa;
+
+                            part.bodyLiftScalar = (float)bodyLiftScalar;
+                            if (part.bodyLiftScalar != 0f && part.DragCubes.LiftForce != Vector3.zero && !part.DragCubes.LiftForce.IsInvalid())
+                            {
+                                fi.ApplyAeroLift(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force); // TODO: inline to avoid the "is part ? is parent ?" check
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Replacement for DragCubes.SetDrag() and DragCubes.DragCubeAddSurfaceDragDirection()
+        /// </summary>
+        private static void SetDragCubeDrag(DragCubeList dragCubes, Vector3 direction)
+        {
+            direction *= -1f;
+
+            if (dragCubes.rotateDragVector)
+                direction = dragCubes.dragVectorRotation * direction;
+
+            double dotSum = 0.0;
+            double area = 0.0;
+            double areaDrag = 0.0;
+            double crossSectionalArea = 0.0;
+            double exposedArea = 0.0;
+            double liftForceX = 0.0;
+            double liftForceY = 0.0;
+            double liftForceZ = 0.0;
+            double depth = 0.0;
+            double taperDot = 0.0;
+            double dragCoeff = 0.0;
+
+            for (int i = 0; i < 6; i++)
+            {
+                Vector3 faceDir = faceDirections[i];
+                double areaOccluded = dragCubes.areaOccluded[i];
+                double weightedDrag = dragCubes.weightedDrag[i];
+
+                double dot = Vector3.Dot(direction, faceDir);
+                double dotNormalized = (dot + 1.0) * 0.5;
+                double drag; // = PhysicsGlobals.DragCurveValue(__instance.SurfaceCurves, dotNormalized, machNumber);
+
+                if (dotNormalized <= 0.5)
+                    drag = Numerics.Lerp(fiData.dragTail, fiData.dragSurf, dotNormalized * 2.0) * fiData.dragMult;
+                else
+                    drag = Numerics.Lerp(fiData.dragSurf, fiData.dragTip, (dotNormalized - 0.5) * 2.0) * fiData.dragMult;
+
+                double areaOccludedByDrag = areaOccluded * drag;
+                area += areaOccludedByDrag;
+                double dragCd = areaOccludedByDrag;
+
+                if (dragCd < 1.0)
+                    dragCd = Math.Pow(dragCubes.DragCurveCd.Evaluate((float)weightedDrag), fiData.dragCdPower);
+
+                areaDrag += areaOccludedByDrag * dragCd;
+                crossSectionalArea += areaOccluded * Numerics.Clamp01(dot);
+
+                double weightedDragMod = (!(weightedDrag < 1.0) || !(weightedDrag > 0.01)) ? 1.0 : (1.0 / weightedDrag);
+                exposedArea += areaOccludedByDrag / fiData.dragMult * weightedDragMod;
+
+                if (dot > 0.0)
+                {
+                    dotSum += dot;
+                    double bodyLift = dragCubes.BodyLiftCurve.liftCurve.Evaluate((float)dot);
+                    double weightedBodylift = dot * areaOccluded * weightedDrag * bodyLift * -1.0;
+
+                    if (!double.IsNaN(weightedBodylift) && weightedBodylift > 0.0)
+                    {
+                        liftForceX += faceDir.x * weightedBodylift;
+                        liftForceY += faceDir.y * weightedBodylift;
+                        liftForceZ += faceDir.z * weightedBodylift;
+                    }
+
+                    depth += dot * dragCubes.weightedDepth[i];
+                    taperDot += dot * weightedDragMod;
+                }
+            }
+
+            if (dotSum > 0.0)
+            {
+                double invDotSum = 1f / dotSum;
+                depth *= invDotSum;
+                taperDot *= invDotSum;
+            }
+
+            if (area > 0.0)
+            {
+                dragCoeff = areaDrag / area;
+                areaDrag = area * dragCoeff;
+            }
+            else
+            {
+                dragCoeff = 0.0;
+                areaDrag = 0.0;
+            }
+
+            dragCubes.cubeData = new CubeData()
+            {
+                dragVector = direction,
+                liftForce = new Vector3((float)liftForceX, (float)liftForceY, (float)liftForceZ),
+                area = (float)area,
+                areaDrag = (float)areaDrag,
+                depth = (float)depth,
+                crossSectionalArea = (float)crossSectionalArea,
+                exposedArea = (float)exposedArea,
+                dragCoeff = (float)dragCoeff,
+                taperDot = (float)taperDot
+            };
+        }
+
+        #endregion
+
+        #region UpdateMassStats
 
         // Avoid setting RigidBody.mass and RigidBody.centerOfMass for all parts on every update if they didn't change
         // Setting these properties is quite costly on the PhysX side, especially centerOfMass (1% to 2% of the frame time
@@ -1275,7 +866,7 @@ namespace KSPCommunityFixes.Performance
 
         #endregion
 
-        #region FlightIntegrator.UpdateOcclusion optimizations
+        #region UpdateOcclusion
 
         static void FlightIntegrator_UpdateOcclusionConvection_Override(FlightIntegrator fi)
         {
@@ -1775,6 +1366,146 @@ namespace KSPCommunityFixes.Performance
                 x = (1.0 - (qy2y + qz2z)) * point.x + (qy2x - qz2w) * point.y + (qz2x + qy2w) * point.z;
                 z = (qz2x - qy2w) * point.x + (qz2y + qx2w) * point.y + (1.0 - (qx2x + qy2y)) * point.z;
             }
+        }
+
+        #endregion
+
+        #region PrecalcRadiation and related methods
+
+        // Roughly twice faster than the stock implementation.
+        // Most of the gains are from optimized and manually inlined versions of GetSunArea() and GetBodyArea().
+        // They are virtual method that could in theory be overriden with MFI, but given how narrow scoped and tightly tied
+        // the drag cube implementation they are, it is very unlikely to ever happen.
+        // About half the remaining time is in getting the transform matrix from Unity. Once again, it would be immensely 
+        // benefical not having to do that again and again in every subsystem...
+        private static void FlightIntegrator_PrecalcRadiation_Override(FlightIntegrator fi, PartThermalData ptd)
+        {
+            Part part = ptd.part;
+            double radfactor = fi.cacheRadiationFactor * 0.001;
+            ptd.emissScalar = part.emissiveConstant * radfactor;
+            ptd.absorbScalar = part.absorptiveConstant * radfactor;
+            ptd.sunFlux = 0.0;
+            ptd.bodyFlux = fi.bodyEmissiveFlux + fi.bodyAlbedoFlux;
+
+            ptd.expFlux = 0.0;
+            ptd.unexpFlux = 0.0;
+            ptd.brtUnexposed = fi.backgroundRadiationTemp;
+            ptd.brtExposed = Numerics.Lerp(fi.backgroundRadiationTemp, fi.backgroundRadiationTempExposed, ptd.convectionTempMultiplier);
+
+            if (part.DragCubes.None || part.ShieldedFromAirstream)
+                return;
+
+            bool computeSunFlux = fi.vessel.directSunlight;
+            bool computeBodyFlux = ptd.bodyFlux > 0.0;
+
+            if (!computeSunFlux && !computeBodyFlux)
+                return;
+
+            double unexposedRadiativeArea = part.radiativeArea * (1.0 - part.skinExposedAreaFrac);
+
+            if (computeSunFlux)
+            {
+                // Inlining this would allow to reclaim a bit of perf, but GetSunArea() is MFI-overridable, and actually overriden by FAR
+                double sunArea = fi.GetSunArea(ptd);
+
+                if (sunArea > 0.0)
+                {
+                    ptd.sunFlux = ptd.absorbScalar * fi.solarFlux;
+                    if (ptd.exposed)
+                    {
+                        double sunDot = (Vector3d.Dot(fi.sunVector, fi.nVel) + 1.0) * 0.5;
+                        double sunExpArea = Math.Min(sunArea, part.skinExposedArea * sunDot);
+                        double sunUnexpArea = Math.Min(sunArea - sunExpArea, unexposedRadiativeArea * (1.0 - sunDot));
+                        ptd.expFlux += ptd.sunFlux * sunExpArea;
+                        ptd.unexpFlux += ptd.sunFlux * sunUnexpArea;
+                    }
+                    else
+                    {
+                        ptd.expFlux += ptd.sunFlux * sunArea;
+                    }
+                }
+            }
+
+            if (computeBodyFlux)
+            {
+                // Inlining this would allow to reclaim a bit of perf, but GetBodyArea() is MFI-overridable, and actually overriden by FAR
+                double bodyArea = fi.GetBodyArea(ptd);
+
+                if (bodyArea > 0.0)
+                {
+                    ptd.bodyFlux = Numerics.Lerp(0.0, ptd.bodyFlux, fi.densityThermalLerp) * ptd.absorbScalar;
+                    if (ptd.exposed)
+                    {
+                        double bodyDot = (Vector3.Dot(-fi.vessel.upAxis, fi.nVel) + 1.0) * 0.5;
+                        double bodyExpArea = Math.Min(bodyArea, part.skinExposedArea * bodyDot);
+                        double bodyUnexpArea = Math.Min(bodyArea - bodyExpArea, unexposedRadiativeArea * (1.0 - bodyDot));
+                        ptd.expFlux += ptd.bodyFlux * bodyExpArea;
+                        ptd.unexpFlux += ptd.bodyFlux * bodyUnexpArea;
+                    }
+                    else
+                    {
+                        ptd.expFlux += ptd.bodyFlux * bodyArea;
+                    }
+                }
+            }
+        }
+
+        // we manually inline the call to GetSunArea() in PrecalcRadiation(), but this is also used
+        // in CalculateAnalyticTemperature(), so that should help there too.
+        private static double FlightIntegrator_GetSunArea_Override(FlightIntegrator fi, PartThermalData ptd)
+        {
+            if (ptd.part.DragCubes.None)
+                return 0.0;
+
+            Vector3 sunLocalDir = ptd.part.partTransform.InverseTransformDirection(fi.sunVector);
+            float[] dragCubeAreaOccluded = ptd.part.DragCubes.areaOccluded;
+
+            double sunArea = 0.0;
+            if (sunLocalDir.x > 0.0)
+                sunArea += dragCubeAreaOccluded[0] * sunLocalDir.x; // right
+            else
+                sunArea += dragCubeAreaOccluded[1] * -sunLocalDir.x; // left
+
+            if (sunLocalDir.y > 0.0)
+                sunArea += dragCubeAreaOccluded[2] * sunLocalDir.y; // up
+            else
+                sunArea += dragCubeAreaOccluded[3] * -sunLocalDir.y; // down
+
+            if (sunLocalDir.z > 0.0)
+                sunArea += dragCubeAreaOccluded[4] * sunLocalDir.z; // forward
+            else
+                sunArea += dragCubeAreaOccluded[5] * -sunLocalDir.z; // back
+
+            return sunArea * ptd.sunAreaMultiplier;
+        }
+
+        // we manually inline the call to GetBodyArea() in PrecalcRadiation(), but this is also used
+        // in CalculateAnalyticTemperature(), so that should help there too.
+        private static double FlightIntegrator_GetBodyArea_Override(FlightIntegrator fi, PartThermalData ptd)
+        {
+            if (ptd.part.DragCubes.None)
+                return 0.0;
+
+            Vector3 bodyLocalDir = ptd.part.partTransform.InverseTransformDirection(-fi.vessel.upAxis);
+            float[] dragCubeAreaOccluded = ptd.part.DragCubes.areaOccluded;
+
+            double bodyArea = 0.0;
+            if (bodyLocalDir.x > 0.0)
+                bodyArea += dragCubeAreaOccluded[0] * bodyLocalDir.x; // right
+            else
+                bodyArea += dragCubeAreaOccluded[1] * -bodyLocalDir.x; // left
+
+            if (bodyLocalDir.y > 0.0)
+                bodyArea += dragCubeAreaOccluded[2] * bodyLocalDir.y; // up
+            else
+                bodyArea += dragCubeAreaOccluded[3] * -bodyLocalDir.y; // down
+
+            if (bodyLocalDir.z > 0.0)
+                bodyArea += dragCubeAreaOccluded[4] * bodyLocalDir.z; // forward
+            else
+                bodyArea += dragCubeAreaOccluded[5] * -bodyLocalDir.z; // back
+
+            return bodyArea * ptd.bodyAreaMultiplier;
         }
 
         #endregion
