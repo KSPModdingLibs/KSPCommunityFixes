@@ -131,6 +131,12 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**CollisionManagerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/174) [KSP 1.11.0 - 1.12.5]<br/>3-4 times faster update of parts inter-collision state, significantly reduce stutter on docking, undocking, decoupling and joint failure events.
 - [**LowerMinPhysicsDTPerFrame**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/175) [KSP 1.12.3 - 1.12.5]<br/>Allow a min value of 0.02 instead of 0.03 for the "Max Physics Delta-Time Per Frame" main menu setting.  This allows for higher and smoother framerate at the expense of the game lagging behind real time.
 - [**OptimizedModuleRaycasts**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/216) [KSP 1.12.3 - 1.12.5]<br/>Improve engine exhaust damage and solar panel line of sight raycasts performance by avoiding extra physics state synchronization and caching solar panels scaled space raycasts results.
+- [**ModuleDockingNodeFindOtherNodesFaster**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Faster lookup of other docking nodes.
+- [**CollisionEnhancerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of the `CollisionEnhancer` component (responsible for part to terrain collision detection).
+- [**PartSystemsFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of various flight scene auxiliary subsystems : temperature gauges, highlighter, strut position tracking...
+- [**MinorPerfTweaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Various small performance patches (volume normalizer, eva module checks)
+- [**FlightIntegratorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>General micro-optimization of `FlightIntegrator` and `VesselPrecalculate`, components in charge of most of heavy lifting for newtonian physics as well as atmospheric and thermal physics.
+- [**FloatingOriginPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -189,6 +195,17 @@ The `Start` action of the IDE will trigger a build, update the `GameData` files 
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
 
 ### Changelog
+
+##### vNext
+- New KSP performance patches : this update introduce a collection of patches intended to fix various performance bottlenecks mainly relevant in high part count situations. See [PR #257](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) and [PR #256](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/256) :
+  - **ModuleDockingNodeFindOtherNodesFaster** : Faster lookup of other docking nodes.
+  - **CollisionEnhancerFastUpdate** : Optimization of the `CollisionEnhancer` component (responsible for part to terrain collision detection).
+  - **PartSystemsFastUpdate** : Optimization of various flight scene auxiliary subsystems : temperature gauges, highlighter, strut position tracking...
+  - **MinorPerfTweaks** : Various small performance patches (volume normalizer, eva module checks)
+  - **FlightIntegratorPerf** : General micro-optimization of `FlightIntegrator` and `VesselPrecalculate`, components in charge of most of heavy lifting for newtonian physics as well as atmospheric and thermal physics.
+  - **FloatingOriginPerf** : General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
+- Small internal refactor of the patching infrastructure for less verbose patch declaration.
+- Introduced a new "override" patch type, basically an automatic transpiler allowing to replace a method body with another. This has a little less overhead than a prefix doing the same thing, and allow for other patches (including non-KSPCF ones) to prefix the patched method as usual.
 
 ##### 1.35.2
 - **FastLoader** : Fixed a regression introduced in 1.35.1, causing PNG normal maps to be generated with empty mipmaps.

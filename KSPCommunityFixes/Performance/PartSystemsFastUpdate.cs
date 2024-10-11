@@ -1,8 +1,7 @@
-﻿using System;
-using CompoundParts;
-using HarmonyLib;
+﻿using CompoundParts;
 using Highlighting;
 using KSP.UI.Screens.Flight;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using static Highlighting.Highlighter;
@@ -15,180 +14,174 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update));
+            AddPatch(PatchType.Override, typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update));
 
-            AddPatch(PatchType.Prefix, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
+            AddPatch(PatchType.Override, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
 
-            AddPatch(PatchType.Prefix, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
+            AddPatch(PatchType.Override, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
 
             // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
         }
 
-        private static bool TemperatureGaugeSystem_Update_Prefix(TemperatureGaugeSystem __instance)
+        private static void TemperatureGaugeSystem_Update_Override(TemperatureGaugeSystem tgs)
         {
             if (!FlightGlobals.ready || !HighLogic.LoadedSceneIsFlight)
-                return false;
+                return;
 
             if (GameSettings.TEMPERATURE_GAUGES_MODE < 1 || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
             {
-                if (__instance.gaugeCount > 0)
-                    __instance.DestroyGauges();
-
-                return false;
+                if (tgs.gaugeCount > 0)
+                    tgs.DestroyGauges();
+                return;
             }
 
-            if (__instance.TestRecreate())
-                __instance.CreateGauges();
+            Vessel activeVessel = FlightGlobals.ActiveVessel;
+            if (activeVessel.NotDestroyedRefNotEquals(tgs.activeVessel))
+                tgs.CreateGauges();
 
-            if (__instance.TestRebuild())
-                __instance.RebuildGaugeList();
+            if (activeVessel.IsNotNullOrDestroyed() && activeVessel.parts.Count != tgs.partCount)
+                tgs.RebuildGaugeList();
 
-            if (__instance.gaugeCount == 0)
-                return false;
+            if (tgs.gaugeCount == 0)
+                return;
 
-            __instance.visibleGauges.Clear();
-            for (int i = __instance.gaugeCount; i-- > 0;)
+            tgs.visibleGauges.Clear();
+            for (int i = tgs.gaugeCount; i-- > 0;)
             {
-                TemperatureGauge gauge = __instance.gauges[i];
+                TemperatureGauge gauge = tgs.gauges[i];
                 gauge.GaugeUpdate();
                 if (gauge.gaugeActive)
-                    __instance.visibleGauges.Add(gauge);
+                    tgs.visibleGauges.Add(gauge);
             }
 
-            __instance.visibleGaugeCount = __instance.visibleGauges.Count;
+            tgs.visibleGaugeCount = tgs.visibleGauges.Count;
 
-            if (__instance.visibleGaugeCount > 0)
+            if (tgs.visibleGaugeCount > 0)
             {
-                __instance.visibleGauges.Sort();
+                tgs.visibleGauges.Sort();
 
-                for (int i = 0; i < __instance.visibleGaugeCount; i++)
-                    __instance.visibleGauges[i].rTrf.SetSiblingIndex(i);
+                for (int i = 0; i < tgs.visibleGaugeCount; i++)
+                    tgs.visibleGauges[i].rTrf.SetSiblingIndex(i);
             }
-            return false;
         }
 
-        private static bool Highlighter_UpdateRenderers_Prefix(Highlighter __instance, out bool __result)
+        private static bool Highlighter_UpdateRenderers_Override(Highlighter hl)
         {
-            __result = __instance.renderersDirty;
-            if (__result)
+            if (hl.renderersDirty)
             {
-                Part part = __instance.tr.GetComponent<Part>();
+                Part part = hl.tr.GetComponent<Part>();
                 if (part.IsNullRef())
                     return true; // if highlighter is not on a part, fall back to stock logic
 
                 List<Renderer> partRenderers = part.FindModelRenderersReadOnly();
-                __instance.highlightableRenderers = new List<RendererCache>(partRenderers.Count);
+                hl.highlightableRenderers = new List<RendererCache>(partRenderers.Count);
                 for (int i = partRenderers.Count; i-- > 0;)
                 {
                     Renderer renderer = partRenderers[i];
                     if (renderer.gameObject.layer != 1 && !renderer.material.name.Contains("KSP/Alpha/Translucent Additive"))
                     {
-                        RendererCache rendererCache = new RendererCache(renderer, __instance.opaqueMaterial, __instance.zTestFloat, __instance.stencilRefFloat);
-                        __instance.highlightableRenderers.Add(rendererCache);
+                        RendererCache rendererCache = new RendererCache(renderer, hl.opaqueMaterial, hl.zTestFloat, hl.stencilRefFloat);
+                        hl.highlightableRenderers.Add(rendererCache);
                     }
                 }
-                __instance.highlighted = false;
-                __instance.renderersDirty = false;
-                __instance.currentColor = Color.clear;
-                __result = true;
-                return false;
+                hl.highlighted = false;
+                hl.renderersDirty = false;
+                hl.currentColor = Color.clear;
+                return true;
             }
 
-            for (int i = __instance.highlightableRenderers.Count; i-- > 0;)
+            bool dirty = false;
+            for (int i = hl.highlightableRenderers.Count; i-- > 0;)
             {
-                if (__instance.highlightableRenderers[i].renderer.IsDestroyed())
+                if (hl.highlightableRenderers[i].renderer.IsDestroyed())
                 {
-                    __instance.highlightableRenderers[i].CleanUp();
-                    __instance.highlightableRenderers.RemoveAt(i);
-                    __instance.renderersDirty = true;
-                    __result = true;
+                    hl.highlightableRenderers[i].CleanUp();
+                    hl.highlightableRenderers.RemoveAt(i);
+                    hl.renderersDirty = true;
+                    dirty = true;
                 }
             }
 
-            return false;
+            return dirty;
         }
 
-        private static bool CModuleLinkedMesh_TrackAnchor_Prefix(CModuleLinkedMesh __instance, bool setTgtAnchor, Vector3 rDir, Vector3 rPos, Quaternion rRot)
+        private static void CModuleLinkedMesh_TrackAnchor_Override(CModuleLinkedMesh strut, bool setTgtAnchor, Vector3 rDir, Vector3 rPos, Quaternion rRot)
         {
-            CModuleLinkedMesh st = __instance;
-
-            if (st.targetAnchor.IsNotNullOrDestroyed())
+            if (strut.targetAnchor.IsNotNullOrDestroyed())
             {
-                if (!st.tweakingTarget && !st.part.PartTweakerSelected)
+                if (!strut.tweakingTarget && !strut.part.PartTweakerSelected)
                 {
-                    if (setTgtAnchor && st.compoundPart.IsNotNullOrDestroyed() && st.compoundPart.transform.IsNotNullOrDestroyed())
+                    if (setTgtAnchor && strut.compoundPart.IsNotNullOrDestroyed() && strut.compoundPart.transform.IsNotNullOrDestroyed())
                     {
-                        st.targetAnchor.position = st.compoundPart.transform.TransformPoint(rPos);
-                        st.targetAnchor.rotation = st.compoundPart.transform.rotation * rRot;
+                        strut.targetAnchor.position = strut.compoundPart.transform.TransformPoint(rPos);
+                        strut.targetAnchor.rotation = strut.compoundPart.transform.rotation * rRot;
                     }
                 }
                 else
                 {
-                    st.compoundPart.targetPosition = st.transform.InverseTransformPoint(st.targetAnchor.position);
-                    st.compoundPart.targetRotation = st.targetAnchor.localRotation;
-                    st.compoundPart.UpdateWorldValues();
+                    strut.compoundPart.targetPosition = strut.transform.InverseTransformPoint(strut.targetAnchor.position);
+                    strut.compoundPart.targetRotation = strut.targetAnchor.localRotation;
+                    strut.compoundPart.UpdateWorldValues();
                 }
             }
 
             bool lineRotationComputed = false;
             Quaternion lineRotation = default;
-            if (st.endCap.IsNotNullOrDestroyed())
+            if (strut.endCap.IsNotNullOrDestroyed())
             {
-                Vector3 vector = st.line.position - st.endCap.position;
+                Vector3 vector = strut.line.position - strut.endCap.position;
                 float magnitude = vector.magnitude;
                 if (magnitude != 0f)
                 {
-                    if (magnitude < st.lineMinimumLength)
+                    if (magnitude < strut.lineMinimumLength)
                     {
-                        st.line.gameObject.SetActive(false);
+                        strut.line.gameObject.SetActive(false);
                     }
                     else
                     {
-                        st.line.gameObject.SetActive(true);
-                        lineRotation = Quaternion.LookRotation(vector / magnitude, st.transform.forward);
+                        strut.line.gameObject.SetActive(true);
+                        lineRotation = Quaternion.LookRotation(vector / magnitude, strut.transform.forward);
                         lineRotationComputed = true;
-                        st.line.rotation = lineRotation;
-                        Vector3 localScale = st.line.localScale;
-                        st.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * st.part.scaleFactor);
-                        st.endCap.rotation = lineRotation;
+                        strut.line.rotation = lineRotation;
+                        Vector3 localScale = strut.line.localScale;
+                        strut.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * strut.part.scaleFactor);
+                        strut.endCap.rotation = lineRotation;
                     }
                 }
             }
-            else if (st.transform.IsNotNullOrDestroyed() && st.targetAnchor.IsNotNullOrDestroyed())
+            else if (strut.transform.IsNotNullOrDestroyed() && strut.targetAnchor.IsNotNullOrDestroyed())
             {
-                Vector3 vector = st.transform.position - st.targetAnchor.position;
+                Vector3 vector = strut.transform.position - strut.targetAnchor.position;
                 float magnitude = vector.magnitude;
                 if (magnitude != 0f)
                 {
-                    if (magnitude < st.lineMinimumLength)
+                    if (magnitude < strut.lineMinimumLength)
                     {
-                        st.line.gameObject.SetActive(false);
+                        strut.line.gameObject.SetActive(false);
                     }
                     else
                     {
-                        st.line.gameObject.SetActive(true);
+                        strut.line.gameObject.SetActive(true);
                         if (float.IsNaN(magnitude) || float.IsInfinity(magnitude))
                         {
-                            Debug.LogError(string.Concat("[CModuleLinkedMesh]: Object ", st.name, ": Look vector magnitude invalid. Vector is (", vector.x, ", ", vector.y, ", ", vector.z, "). Transform ", st.transform.position.IsInvalid() ? "invalid" : "valid", " ", st.transform.position, ", target ", st.targetAnchor.position.IsInvalid() ? "invalid" : "valid", ", ", st.targetAnchor.position));
-                            return false;
+                            Debug.LogError(string.Concat("[CModuleLinkedMesh]: Object ", strut.name, ": Look vector magnitude invalid. Vector is (", vector.x, ", ", vector.y, ", ", vector.z, "). Transform ", strut.transform.position.IsInvalid() ? "invalid" : "valid", " ", strut.transform.position, ", target ", strut.targetAnchor.position.IsInvalid() ? "invalid" : "valid", ", ", strut.targetAnchor.position));
+                            return;
                         }
-                        lineRotation = Quaternion.LookRotation(vector / magnitude, st.transform.forward);
+                        lineRotation = Quaternion.LookRotation(vector / magnitude, strut.transform.forward);
                         lineRotationComputed = true;
-                        st.line.rotation = lineRotation;
-                        Vector3 localScale = st.line.localScale;
-                        st.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * st.part.scaleFactor);
+                        strut.line.rotation = lineRotation;
+                        Vector3 localScale = strut.line.localScale;
+                        strut.line.localScale = new Vector3(localScale.x, localScale.y, magnitude * strut.part.scaleFactor);
                     }
                 }
             }
-            if (st.startCap.IsNotNullOrDestroyed())
+            if (strut.startCap.IsNotNullOrDestroyed())
             {
                 if (!lineRotationComputed)
-                    st.startCap.rotation = st.line.rotation;
+                    strut.startCap.rotation = strut.line.rotation;
                 else
-                    st.startCap.rotation = lineRotation;
+                    strut.startCap.rotation = lineRotation;
             }
-
-            return false;
         }
     }
 }
