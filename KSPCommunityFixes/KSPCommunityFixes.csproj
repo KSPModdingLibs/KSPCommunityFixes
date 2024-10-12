@@ -139,6 +139,7 @@
     <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
     <Compile Include="BugFixes\RespawnDeadKerbals.cs" />
     <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
+    <Compile Include="BugFixes\TimeWarpBodyCollision.cs" />
     <Compile Include="BugFixes\TimeWarpOrbitShift.cs" />
     <Compile Include="BugFixes\UpgradeBugs.cs" />
     <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />
