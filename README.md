@@ -87,6 +87,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
 - [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) [KSP 1.12.3 - 1.12.5]<br/>Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
 - [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5]<br/>Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
+- **DragCubeLoadException** [KSP 1.8.0 - 1.12.5]<br/>Fix loading of drag cubes without a name failing with an IndexOutOfRangeException
 
 #### Quality of Life tweaks 
 
@@ -111,6 +112,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 #### Performance tweaks 
 
 - **SceneLoadSpeedBoost** [KSP 1.8.0 - 1.12.5]<br/>Reduce scene switches loading time with large/modded saves by caching the current save in memory instead of loading it from disk.
+- [**ForceSyncSceneSwitch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/250) [KSP 1.12.0 - 1.12.5]<br/>Forces all scene transitions to happen synchronously. Mainly benefits highly modded installs by reducing asset cleanup run count from 3 to 1. 
 - **OnDemandPartBuoyancy** [KSP 1.8.0 - 1.12.5]<br/>Prevent the part buoyancy integrator from running when not needed. Improves performance for large part count vessels while in the SOI of a body that has an ocean (Kerbin, Eve, Laythe...)
 - [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format, also implements loading of additional DDS formats (see **BetterDDSSupport** patch in the API/modding tools section).
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.5]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
@@ -151,7 +153,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - `R16G16B16A16` : 4 channels (RGBA) uncompressed 64 bpp
   - `R16_FLOAT` / `R32_FLOAT` : single channel (R) uncompressed 16/32 bpp 
   - `R16G16_FLOAT` / `R32G32_FLOAT` : 2 channels (RG) uncompressed 32/64 bpp
-  - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp 
+  - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp
+- **KSPFieldEnumDesc** [KSP 1.12.2 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field.
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
@@ -193,6 +196,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ##### vNext
 - New KSP performance patch : [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5] : Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
+- New KSP performance patch : [**ForceSyncSceneSwitch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/250) [KSP 1.12.0 - 1.12.5] : Forces all scene transitions to happen synchronously. Benefits scene transition time by reducing asset cleanup run count from 3 to 1. 
 
 ##### 1.35.2
 - **FastLoader** : Fixed a regression introduced in 1.35.1, causing PNG normal maps to be generated with empty mipmaps.

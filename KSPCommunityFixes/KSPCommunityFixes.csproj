@@ -84,6 +84,10 @@
       <Name>Harmony</Name>
       <Private>False</Private>
     </Reference>
+    <Reference Include="$(ReferencePath)\GameData\ModuleManager.*.dll">
+      <Name>ModuleManager</Name>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <!--Krafs.Publicizer items-->
   <ItemGroup>
@@ -104,6 +108,7 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\DragCubeLoadException.cs" />
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
@@ -126,8 +131,11 @@
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
+    <Compile Include="Library\Numerics.cs" />
     <Compile Include="Library\ObjectPool.cs" />
+    <Compile Include="Modding\KSPFieldEnumDesc.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
+    <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
@@ -139,6 +147,7 @@
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FasterPartFindTransform.cs" />
     <Compile Include="Performance\FastLoader.cs" />
+    <Compile Include="Performance\FlightPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
