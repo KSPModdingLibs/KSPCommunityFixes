@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using KSP.Localization;
 
@@ -11,6 +12,7 @@ namespace KSPCommunityFixes
         private static string commsGroupTitle;
         private static string commandGroupTitle;
         private static string attitudeControlGroupTitle;
+        private static string generatorGroupTitle;
 
         protected override Version VersionMin => new Version(1, 10, 1);
 
@@ -30,10 +32,18 @@ namespace KSPCommunityFixes
 
             AddPatch(PatchType.Postfix, typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart));
 
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ModuleGenerator), "OnStart"),
+                this));
+
             partGroupTitle = Localizer.Format("#autoLOC_6100048"); // Part
             commsGroupTitle = Localizer.Format("#autoLOC_453582"); // Communication
             commandGroupTitle = Localizer.Format("#autoLoc_6003031"); // Command
             attitudeControlGroupTitle = Localizer.Format("#autoLOC_6001695"); // Control
+            generatorGroupTitle = Localizer.Format("#autoLOC_235532"); // Generator
+
+
         }
 
         static void Part_Start_Postfix(Part __instance)
@@ -133,6 +143,38 @@ namespace KSPCommunityFixes
         static void ModuleControlSurface_OnStart_Postfix(ModuleControlSurface __instance)
         {
             BasePAWGroup pawGroup = new BasePAWGroup("CF_Attitude", attitudeControlGroupTitle, __instance.part.Modules.Count > 3);
+
+            foreach (BaseField baseField in __instance.Fields)
+            {
+                baseField.group = pawGroup;
+            }
+
+            foreach (BaseEvent baseEvent in __instance.Events)
+            {
+                baseEvent.group = pawGroup;
+            }
+        }
+
+        
+        static void ModuleGenerator_OnStart_Postfix(ModuleGenerator __instance)
+        {
+            // every generator in a part create different group
+            string name = "CF_Generator" + __instance.part.Modules.IndexOf(__instance);
+
+            var inputs = __instance.resHandler.inputResources;
+            var outputs = __instance.resHandler.outputResources;
+            string abbrs = "";
+
+            if (inputs.Count + outputs.Count <= 4)
+            {
+                abbrs = ": ";
+                abbrs += string.Join(" ", inputs.Select(r => r.resourceDef.abbreviation));
+                if (inputs.Count !=0 && outputs.Count != 0) 
+                    abbrs += " -> ";
+                abbrs += string.Join(" ", outputs.Select(r => r.resourceDef.abbreviation));
+            }
+
+            BasePAWGroup pawGroup = new BasePAWGroup(name, generatorGroupTitle + abbrs, __instance.part.Modules.Count > 3);
 
             foreach (BaseField baseField in __instance.Fields)
             {
