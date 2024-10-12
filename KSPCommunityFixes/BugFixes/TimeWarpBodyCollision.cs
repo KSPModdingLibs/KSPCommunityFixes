@@ -1,8 +1,4 @@
-﻿using HarmonyLib;
-using System;
-using System.Collections.Generic;
-using UnityEngine;
-using static TimeWarp;
+﻿using System;
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -10,12 +6,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TimeWarp), nameof(TimeWarp.ClampRateToOrbitTransitions)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(TimeWarp), nameof(TimeWarp.ClampRateToOrbitTransitions));
         }
 
         static bool TimeWarp_ClampRateToOrbitTransitions_Prefix(TimeWarp __instance, int rate, Orbit obt, int maxAllowedSOITransitionRate, int secondsBeforeSOItransition, out int __result)
