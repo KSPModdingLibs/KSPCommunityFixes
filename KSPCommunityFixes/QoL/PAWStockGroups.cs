@@ -32,18 +32,13 @@ namespace KSPCommunityFixes
 
             AddPatch(PatchType.Postfix, typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleGenerator), "OnStart"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(ModuleGenerator), nameof(ModuleGenerator.OnStart));
 
             partGroupTitle = Localizer.Format("#autoLOC_6100048"); // Part
             commsGroupTitle = Localizer.Format("#autoLOC_453582"); // Communication
             commandGroupTitle = Localizer.Format("#autoLoc_6003031"); // Command
             attitudeControlGroupTitle = Localizer.Format("#autoLOC_6001695"); // Control
             generatorGroupTitle = Localizer.Format("#autoLOC_235532"); // Generator
-
-
         }
 
         static void Part_Start_Postfix(Part __instance)
@@ -155,11 +150,13 @@ namespace KSPCommunityFixes
             }
         }
 
-        
         static void ModuleGenerator_OnStart_Postfix(ModuleGenerator __instance)
         {
-            // every generator in a part create different group
-            string name = "CF_Generator" + __instance.part.Modules.IndexOf(__instance);
+            // if only one generator, don't create a group
+            if (__instance.part.FindModulesImplementingReadOnly<ModuleGenerator>().Count == 1)
+                return;
+
+            string name = $"CF_Generator_{__instance.GetInstanceIDFast()}";
 
             var inputs = __instance.resHandler.inputResources;
             var outputs = __instance.resHandler.outputResources;
@@ -174,7 +171,7 @@ namespace KSPCommunityFixes
                 abbrs += string.Join(" ", outputs.Select(r => r.resourceDef.abbreviation));
             }
 
-            BasePAWGroup pawGroup = new BasePAWGroup(name, generatorGroupTitle + abbrs, __instance.part.Modules.Count > 3);
+            BasePAWGroup pawGroup = new BasePAWGroup(name, generatorGroupTitle + abbrs, false);
 
             foreach (BaseField baseField in __instance.Fields)
             {

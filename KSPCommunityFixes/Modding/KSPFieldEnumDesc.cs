@@ -1,6 +1,4 @@
-﻿using HarmonyLib;
-using System;
-using System.Collections.Generic;
+﻿using System;
 
 namespace KSPCommunityFixes.Modding
 {
@@ -8,12 +6,9 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseField), "GetStringValue"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(BaseField), nameof(BaseField.GetStringValue));
         }
 
         internal static bool BaseField_GetStringValue_Prefix(BaseField __instance, object host, bool gui, ref string __result)
