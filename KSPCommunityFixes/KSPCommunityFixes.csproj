@@ -145,6 +145,7 @@
     <Compile Include="Performance\DisableHiddenPortraits.cs" />
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
+    <Compile Include="Performance\FasterPartFindTransform.cs" />
     <Compile Include="Performance\FastLoader.cs" />
     <Compile Include="Performance\FlightPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
