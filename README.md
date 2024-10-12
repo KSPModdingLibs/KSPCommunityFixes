@@ -87,7 +87,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ZeroCostTechNode**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/180) [KSP 1.12.3 - 1.12.5]<br/>Fixes a bug where parts in tech nodes that have 0 science cost would become unusable.
 - [**ModulePartVariantsNodePersistence**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/179) [KSP 1.12.3 - 1.12.5]<br/>Fixes an issue with ModulePartVariants where attachnodes would use their default state when resuming flight on a vessel from a saved game.  This would lead to different behavior in part joints and flexibility between initial launch and loading a save.
 - [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5]<br/>Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
-- **DragCubeLoadException** [KSP 1.8.0 - 1.12.5]<br/>Fix loading of drag cubes without a name failing with an IndexOutOfRangeException
+- [**DragCubeLoadException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/232) [KSP 1.8.0 - 1.12.5]<br/>Fix loading of drag cubes without a name failing with an IndexOutOfRangeException
+- [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5]<br/>Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI.
 
 #### Quality of Life tweaks 
 
@@ -160,7 +161,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - `R16_FLOAT` / `R32_FLOAT` : single channel (R) uncompressed 16/32 bpp 
   - `R16G16_FLOAT` / `R32G32_FLOAT` : 2 channels (RG) uncompressed 32/64 bpp
   - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp
-- **KSPFieldEnumDesc** [KSP 1.12.2 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field.
+- [**KSPFieldEnumDesc**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/243) [KSP 1.12.2 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field.
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
@@ -211,9 +212,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
   - **MinorPerfTweaks** : Various small performance patches (volume normalizer, eva module checks)
   - **FlightIntegratorPerf** : General micro-optimization of `FlightIntegrator` and `VesselPrecalculate`, components in charge of most of heavy lifting for newtonian physics as well as atmospheric and thermal physics.
   - **FloatingOriginPerf** : General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
-- New KSP bufix : **DragCubeLoadException** [KSP 1.8.0 - 1.12.5] : Fix loading of drag cubes without a name failing with an IndexOutOfRangeException (contributed by @Nazfib).
-- New modding API improvement : **KSPFieldEnumDesc** [KSP 1.12.2 - 1.12.5] : Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field (contributed by @siimav).
-- **PAWStockGroups** : Added PAW groups for generators, making the UI less confusing when multiple generators are present (contributed by @yalov).
+- New KSP bufix : [**DragCubeLoadException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/232) [KSP 1.8.0 - 1.12.5] : Fix loading of drag cubes without a name failing with an IndexOutOfRangeException (contributed by @Nazfib).
+- New KSP bufix : [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5] : Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI (contributed by @JonnyOThan).
+- New modding API improvement : [**KSPFieldEnumDesc**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/243) [KSP 1.12.2 - 1.12.5] : Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field (contributed by @siimav).
+- **PAWStockGroups** : [Added PAW groups for generators](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/235), making the UI less confusing when multiple generators are present (contributed by @yalov).
 
 **Internal changes**
 - Patching now always run as the first ModuleManagerPostLoad callback, ensuring other callbacks can benefit from the patches (contributed by @al2me6).
