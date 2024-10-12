@@ -10,17 +10,11 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(HighLogic), "LoadScene"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(HighLogic), nameof(HighLogic.LoadScene));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightDriver), "Start"),
-                this));
+            AddPatch(PatchType.Prefix, typeof(FlightDriver), nameof(FlightDriver.Start));
         }
 
         private static void HighLogic_LoadScene_Postfix(GameScenes scene)

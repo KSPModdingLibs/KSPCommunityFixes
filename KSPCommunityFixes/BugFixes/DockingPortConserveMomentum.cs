@@ -10,7 +10,7 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             // We need to patch a closure, which doesn't have a stable method name.
             // So we patch everything that *might* be the closure we are looking for,
@@ -22,11 +22,7 @@ namespace KSPCommunityFixes.BugFixes
             {
                 if (methodName.StartsWith("<SetupFSM>") && !methodName.Contains("_Patch"))
                 {
-                    patches.Add(new PatchInfo(
-                    PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ModuleDockingNode), methodName),
-                    this,
-                    "ModuleDockingNode_SetupFSMClosure_Transpiler"));
+                    AddPatch(PatchType.Transpiler, typeof(ModuleDockingNode), methodName, "ModuleDockingNode_SetupFSMClosure_Transpiler");
                 }
             }
         }

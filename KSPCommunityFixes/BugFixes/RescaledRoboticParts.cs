@@ -15,12 +15,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.SetChildParentTransform)),
-                this));
+            AddPatch(PatchType.Transpiler, typeof(BaseServo), nameof(BaseServo.SetChildParentTransform));
         }
 
         private static IEnumerable<CodeInstruction> BaseServo_SetChildParentTransform_Transpiler(IEnumerable<CodeInstruction> instructions)

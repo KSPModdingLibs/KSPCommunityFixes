@@ -13,12 +13,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FlagDecalBackground), nameof(FlagDecalBackground.EnableCurrentFlagMesh)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(FlagDecalBackground), nameof(FlagDecalBackground.EnableCurrentFlagMesh));
         }
 
         static void FlagDecalBackground_EnableCurrentFlagMesh_Postfix(FlagDecalBackground __instance)

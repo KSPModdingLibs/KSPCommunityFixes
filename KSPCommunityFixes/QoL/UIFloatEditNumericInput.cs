@@ -14,22 +14,13 @@ namespace KSPCommunityFixes
         private static UIPartActionNumericFloatEdit prefab;
         private static readonly Type UI_FloatEdit_Type = typeof(UI_FloatEdit);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.Awake)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(UIPartActionController), nameof(UIPartActionController.Awake));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetFieldControl)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionController), nameof(UIPartActionController.GetFieldControl));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionController), nameof(UIPartActionController.GetControl)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionController), nameof(UIPartActionController.GetControl));
         }
 
         static void UIPartActionController_Awake_Postfix(UIPartActionController __instance)

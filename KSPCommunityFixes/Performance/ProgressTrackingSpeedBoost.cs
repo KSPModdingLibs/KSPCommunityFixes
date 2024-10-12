@@ -6,18 +6,12 @@ namespace KSPCommunityFixes.Performance
 {
     public class ProgressTrackingSpeedBoost : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ProgressTracking), nameof(ProgressTracking.Update)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ProgressTracking), nameof(ProgressTracking.Update));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.DeclaredConstructor(typeof(KSPAchievements.CelestialBodySubtree), new Type[] { typeof(CelestialBody) }),
-                this,
-                nameof(CelestialBodySubtree_Constructor_Postfix)));
+            AddPatch(PatchType.Postfix, AccessTools.DeclaredConstructor(typeof(KSPAchievements.CelestialBodySubtree), new Type[] { typeof(CelestialBody) }),
+                nameof(CelestialBodySubtree_Constructor_Postfix));
         }
 
         static bool ProgressTracking_Update_Prefix(ProgressTracking __instance)

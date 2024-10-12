@@ -14,12 +14,9 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds));
         }
 
         static readonly List<Renderer> partRenderersBuffer = new List<Renderer>();

@@ -30,7 +30,7 @@ namespace KSPCommunityFixes.Performance
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("MEMORY_LEAKS_DEBUGGING");
             if (settingsNode != null)
@@ -48,141 +48,58 @@ namespace KSPCommunityFixes.Performance
 #endif
 
             // removing PartSet finalizers
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartSet), nameof(PartSet.HookEvents)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(PartSet), nameof(PartSet.HookEvents));
 
             // Specific GameEvents leaks
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CommNetVessel), nameof(CommNetVessel.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageGroup), nameof(StageGroup.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(CommNetVessel), nameof(CommNetVessel.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(StageGroup), nameof(StageGroup.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnDestroy));
+            AddPatch(PatchType.Prefix, typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake));
 
             // protopartsnapshot leaks a reference to a copy of the root part because of how it's created
 
-            patches.Add(new PatchInfo(PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load)),
-                this));
-            patches.Add(new PatchInfo(PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load));
+            AddPatch(PatchType.Postfix, typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart));
 
             // Parts and vessels don't unhook themselves from things when they're destroyed or unloaded
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
-                this));
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.ReleaseAutoStruts)),
-                this));
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.ReleaseAutoStruts));
+            AddPatch(PatchType.Postfix, typeof(Vessel), nameof(Vessel.Unload));
 
             // Kerbals
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Kerbal), nameof(Kerbal.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(InternalSeat), nameof(InternalSeat.DespawnCrew)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Kerbal), nameof(Kerbal.OnDestroy));
+            AddPatch(PatchType.Prefix, typeof(InternalSeat), nameof(InternalSeat.DespawnCrew));
 
             // EffectList dictionary enumerator leaks
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EffectList), nameof(EffectList.Initialize)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EffectList), nameof(EffectList.OnSave)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(EffectList), nameof(EffectList.Initialize));
+            AddPatch(PatchType.Postfix, typeof(EffectList), nameof(EffectList.OnSave));
 
             // Pooled Audio onRelease delegate leak
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset));
 
             // various static fields keeping deep reference stacks around...
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(CraftSearch), nameof(CraftSearch.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EngineersReport), nameof(EngineersReport.OnAppDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.OnDestroy)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(CraftSearch), nameof(CraftSearch.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(EngineersReport), nameof(EngineersReport.OnAppDestroy));
+            AddPatch(PatchType.Postfix, typeof(FlightIntegrator), nameof(FlightIntegrator.OnDestroy));
 
             // Various singleton MonoBehaviours are scene-specific. They are using a static accessor that isn't nulled
             // when the instance is destroyed, causing anything still referenced to never be GCed.
             // There are way too many of them t fix them all, but we try to patch the worst offenders here.
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(InventoryPanelController), nameof(InventoryPanelController.OnDestroy)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(InventoryPanelController), nameof(InventoryPanelController.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(EVAConstructionModeController), nameof(EVAConstructionModeController.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy));
+            AddPatch(PatchType.Postfix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EVAConstructionModeController), nameof(EVAConstructionModeController.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication)),
-                this,
-                "ApplicationLauncher_RemoveApplication_Postfix"));
+            AddPatch(PatchType.Postfix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication), nameof(ApplicationLauncher_RemoveApplication_Postfix));
 
             // KSC Vessel Markers inherit from this class. they don't get cleaned up properly
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate));
 
             // general cleanup on scene switches
 
@@ -193,15 +110,9 @@ namespace KSPCommunityFixes.Performance
             // fix some previously silently failing code that was refering to dead instances, 
             // and is throwing because we actually remove references to those dead instances
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionControllerInventory), nameof(UIPartActionControllerInventory.UpdateCursorOverPAWs)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionControllerInventory), nameof(UIPartActionControllerInventory.UpdateCursorOverPAWs));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Update)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionInventory), nameof(UIPartActionInventory.Update));
         }
 
         private enum KSPScene

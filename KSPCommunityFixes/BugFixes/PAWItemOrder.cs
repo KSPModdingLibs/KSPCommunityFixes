@@ -17,28 +17,19 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] {typeof(Transform), typeof(BasePAWGroup)}),
-                this, nameof(UIPartActionWindow_AddGroup_1_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionWindow), "AddGroup", new Type[] {typeof(Transform), typeof(BasePAWGroup)}, nameof(UIPartActionWindow_AddGroup_1_Prefix));
 
             if (KSPCommunityFixes.KspVersion >= new Version(1, 11, 0))
             {
-                patches.Add(new PatchInfo(
-                    PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(UIPartActionWindow), "AddGroup", new Type[] { typeof(Transform), typeof(string), typeof(bool) }),
-                    this, nameof(UIPartActionWindow_AddGroup_2_Prefix)));
+                AddPatch(PatchType.Prefix, typeof(UIPartActionWindow), "AddGroup", new Type[] { typeof(Transform), typeof(string), typeof(bool) }, nameof(UIPartActionWindow_AddGroup_2_Prefix));
             }
 
 #if DEBUG
             if (KSPCommunityFixes.KspVersion >= new Version(1, 12, 2))
             {
-                patches.Add(new PatchInfo(
-                    PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList)),
-                    this));
+                AddPatch(PatchType.Prefix, typeof(UIPartActionWindow), nameof(UIPartActionWindow.CreatePartList));
             }
 #endif
         }

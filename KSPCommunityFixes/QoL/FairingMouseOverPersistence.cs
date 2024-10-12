@@ -8,17 +8,11 @@ namespace KSPCommunityFixes.QoL
     {
         protected override Version VersionMin => new Version(1, 10, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnSave)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnSave));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnLoad)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnLoad));
         }
 
         private static void ModuleProceduralFairing_OnSave_Prefix(ModuleProceduralFairing __instance, ConfigNode node)

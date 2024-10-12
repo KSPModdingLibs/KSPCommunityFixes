@@ -10,17 +10,11 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                this));
+            AddPatch(PatchType.Transpiler, typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart));
 
             GameEvents.OnPartLoaderLoaded.Add(OnPartLoaderLoaded);
         }

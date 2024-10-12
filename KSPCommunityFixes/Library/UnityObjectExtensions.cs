@@ -132,6 +132,22 @@ namespace KSPCommunityFixes
 
             return unityObject;
         }
+
+        private static readonly int _instanceIDOffset = UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject();
+
+        /// <summary>
+        /// Faster version of <see cref="UnityEngine.Object.GetInstanceID"/>
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe int GetInstanceIDFast(this UnityEngine.Object unityObject)
+        {
+            long ptrVal = (long)(void*)unityObject.m_CachedPtr;
+
+            if (ptrVal == 0L)
+                return 0;
+
+            return *(int*)(void*)(ptrVal + _instanceIDOffset);
+        }
     }
 #pragma warning restore IDE0041 // Use 'is null' check
 }

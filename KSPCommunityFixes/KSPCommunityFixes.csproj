@@ -96,12 +96,30 @@
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
+    <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject" />
     <Publicize Include="UnityEngine.IMGUIModule" />
+    <Publicize Include="UnityEngine.CoreModule:Unity.Collections.NativeArray`1.m_Buffer" />
     <Publicize Include="mscorlib:System.IO.MonoIO" />
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
     <Publicize Include="mscorlib:System.String.m_firstChar" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.ILGeneratorShimExt" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelInfo" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelledExceptionHandler" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+ExceptionHandlerChain" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelInfos" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelsToMark" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlersToMark" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._Variables" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlers" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator.labelCounter" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ILOffset" />
+    <Publicize Include="mscorlib:System.Reflection.Emit.Label.label" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.position" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.is_pinned" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.type" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
@@ -129,7 +147,9 @@
     <Compile Include="BugFixes\StrategyDuration.cs" />
     <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
+    <Compile Include="Library\Collections\FastStack.cs" />
     <Compile Include="Library\Extensions.cs" />
+    <Compile Include="Library\KSPObjectsExtensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
     <Compile Include="Library\Numerics.cs" />
     <Compile Include="Library\ObjectPool.cs" />
@@ -139,6 +159,9 @@
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
+    <Compile Include="Performance\FloatingOriginPerf.cs" />
+    <Compile Include="Performance\PartSystemsFastUpdate.cs" />
+    <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
@@ -147,7 +170,7 @@
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FasterPartFindTransform.cs" />
     <Compile Include="Performance\FastLoader.cs" />
-    <Compile Include="Performance\FlightPerf.cs" />
+    <Compile Include="Performance\FlightIntegratorPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
@@ -180,6 +203,8 @@
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
     <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\ConfigNodePerf.cs" />
+    <Compile Include="Performance\MinorPerfTweaks.cs" />
+    <Compile Include="Performance\ModuleDockingNodeFindOtherNodesFaster.cs" />
     <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />

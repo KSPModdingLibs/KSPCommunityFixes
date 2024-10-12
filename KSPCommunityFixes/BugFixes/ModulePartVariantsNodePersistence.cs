@@ -23,7 +23,7 @@ namespace KSPCommunityFixes.BugFixes
 
     internal class ModulePartVariantsNodePersistence : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             Type[] ApplyVariant_parameterTypes = new Type[]
             {
@@ -35,15 +35,9 @@ namespace KSPCommunityFixes.BugFixes
                 typeof(int)
             };
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.ApplyVariant), ApplyVariant_parameterTypes),
-                this));
+            AddPatch(PatchType.Transpiler, typeof(ModulePartVariants), nameof(ModulePartVariants.ApplyVariant), ApplyVariant_parameterTypes);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModulePartVariants), nameof(ModulePartVariants.UpdatePartPosition)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(ModulePartVariants), nameof(ModulePartVariants.UpdatePartPosition));
         }
 
         static IEnumerable<CodeInstruction> ModulePartVariants_ApplyVariant_Transpiler(IEnumerable<CodeInstruction> instructions)

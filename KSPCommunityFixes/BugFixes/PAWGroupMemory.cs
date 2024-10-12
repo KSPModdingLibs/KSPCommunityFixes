@@ -12,22 +12,13 @@ namespace KSPCommunityFixes
 
         private static Dictionary<string, bool> collapseState;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Initialize)),
-                this));
+            AddPatch(PatchType.Transpiler, typeof(UIPartActionGroup), nameof(UIPartActionGroup.Initialize));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Collapse)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(UIPartActionGroup), nameof(UIPartActionGroup.Collapse));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionGroup), nameof(UIPartActionGroup.Expand)),
-                this));
+            AddPatch(PatchType.Postfix, typeof(UIPartActionGroup), nameof(UIPartActionGroup.Expand));
 
             collapseState = new Dictionary<string, bool>();
 

@@ -2348,7 +2348,6 @@ namespace KSPCommunityFixes.Performance
             private string stackTrace;
             private string loader;
             private string origin;
-            private IEnumerator rootEnumerator;
 
             public LoaderExceptionInfo(Exception e, IEnumerator rootEnumerator)
             {

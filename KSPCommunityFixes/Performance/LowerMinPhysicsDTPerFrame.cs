@@ -25,17 +25,11 @@ namespace KSPCommunityFixes.Performance
 
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(SettingsScreen), nameof(SettingsScreen.Awake)),
-                    this));
+            AddPatch(PatchType.Prefix, typeof(SettingsScreen), nameof(SettingsScreen.Awake));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ReflectedSettingsWindow), nameof(SetupReflectionValues)),
-                    this));
+            AddPatch(PatchType.Prefix, typeof(ReflectedSettingsWindow), nameof(SetupReflectionValues));
         }
 
         static void SettingsScreen_Awake_Prefix(SettingsScreen __instance)

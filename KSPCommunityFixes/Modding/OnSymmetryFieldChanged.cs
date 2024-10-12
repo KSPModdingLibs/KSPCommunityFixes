@@ -8,12 +8,9 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionFieldItem), nameof(UIPartActionFieldItem.SetSymCounterpartValue)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(UIPartActionFieldItem), nameof(UIPartActionFieldItem.SetSymCounterpartValue));
         }
 
         static bool UIPartActionFieldItem_SetSymCounterpartValue_Prefix(UIPartActionFieldItem __instance, object value, out bool __result)

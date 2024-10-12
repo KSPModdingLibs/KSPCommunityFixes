@@ -14,17 +14,11 @@ namespace KSPCommunityFixes.Performance
 
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(
-                new PatchInfo(PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage)),
-                    this));
+            AddPatch(PatchType.Transpiler, typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage));
 
-            patches.Add(
-                new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS)),
-                    this));
+            AddPatch(PatchType.Prefix, typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS));
 
             KSPCommunityFixes.Instance.StartCoroutine(ResetSyncOnFixedEnd());
         }
@@ -70,8 +64,8 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
-            int trackingTransformId = __instance.trackingTransformLocal.GetInstanceID();
-            int vesselId = __instance.vessel.GetInstanceID();
+            int trackingTransformId = __instance.trackingTransformLocal.GetInstanceIDFast();
+            int vesselId = __instance.vessel.GetInstanceIDFast();
             if (lastTrackingTransformId == trackingTransformId && lastVesselId == vesselId)
             {
                 if (!lastHasLoS)

@@ -10,12 +10,11 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 10, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.PropertySetter(typeof(ModuleSpaceObjectInfo), nameof(ModuleSpaceObjectInfo.currentMassVal)),
-                this, nameof(ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix)));
+            AddPatch(PatchType.Prefix, 
+                AccessTools.PropertySetter(typeof(ModuleSpaceObjectInfo), nameof(ModuleSpaceObjectInfo.currentMassVal)), 
+                nameof(ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix));
         }
 
         static bool ModuleSpaceObjectInfo_currentMassVal_Setter_Prefix(ModuleSpaceObjectInfo __instance, double value)

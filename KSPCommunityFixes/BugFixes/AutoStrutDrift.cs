@@ -11,12 +11,9 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), "SecureAutoStrut", new Type[]{typeof(Part), typeof(AttachNode), typeof(AttachNode), typeof(bool)}),
-                this));
+            AddPatch(PatchType.Postfix, typeof(Part), "SecureAutoStrut", new Type[]{typeof(Part), typeof(AttachNode), typeof(AttachNode), typeof(bool)});
         }
 
         static void Part_SecureAutoStrut_Postfix(Part __instance, Part anchor, ref PartJoint __result)

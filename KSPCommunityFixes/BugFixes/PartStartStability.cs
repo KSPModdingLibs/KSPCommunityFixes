@@ -54,7 +54,7 @@ namespace KSPCommunityFixes
         private static FieldInfo current;
         private static MethodBase waitForFixedUpdateCtor;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             Type partType = typeof(Part);
 
@@ -84,16 +84,9 @@ namespace KSPCommunityFixes
 
             waitForFixedUpdateCtor = AccessTools.Constructor(typeof(WaitForFixedUpdate));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(partStartEnumerator, "MoveNext"),
-                this,
-                nameof(Part_StartEnumerator_MoveNext_Transpiler)));
+            AddPatch(PatchType.Transpiler, partStartEnumerator, "MoveNext", nameof(Part_StartEnumerator_MoveNext_Transpiler));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.Update)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.Update));
         }
 
         static IEnumerable<CodeInstruction> Part_StartEnumerator_MoveNext_Transpiler(IEnumerable<CodeInstruction> instructions)
