@@ -201,7 +201,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
-##### vNext
+##### 1.36.0
 **User facing changes**
 - New KSP performance patch : [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5] : Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
 - New KSP performance patch : [**ForceSyncSceneSwitch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/250) [KSP 1.12.0 - 1.12.5] : Forces all scene transitions to happen synchronously. Benefits scene transition time by reducing asset cleanup run count from 3 to 1 (contributed by @siimav).
@@ -221,7 +221,6 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - Patching now always run as the first ModuleManagerPostLoad callback, ensuring other callbacks can benefit from the patches (contributed by @al2me6).
 - Small internal refactor of the patching infrastructure for less verbose patch declaration.
 - Introduced a new "override" patch type, basically an automatic transpiler allowing to replace a method body with another. This has a little less overhead than a prefix doing the same thing, and allow for other patches (including non-KSPCF ones) to prefix the patched method as usual.
-**Internal changes**
 
 ##### 1.35.2
 - **FastLoader** : Fixed a regression introduced in 1.35.1, causing PNG normal maps to be generated with empty mipmaps.
