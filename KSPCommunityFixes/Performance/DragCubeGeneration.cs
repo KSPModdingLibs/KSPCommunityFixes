@@ -72,9 +72,13 @@ namespace KSPCommunityFixes.Performance
 
             AddPatch(PatchType.Prefix, typeof(DragCubeSystem), nameof(DragCubeSystem.RenderProceduralDragCube));
 
-            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
+            AddPatch(PatchType.Transpiler, 
+                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) })), 
+                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
-            AddPatch(PatchType.Transpiler, typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] {typeof(Part), typeof(ConfigNode)}, nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
+            AddPatch(PatchType.Transpiler,
+                AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part), typeof(ConfigNode) })),
+                nameof(DragCubeSystem_SetupDragCubeCoroutine_MoveNextTranspiler));
 
             AddPatch(PatchType.Prefix, typeof(ScreenPhysics), nameof(ScreenPhysics.Start));
         }
