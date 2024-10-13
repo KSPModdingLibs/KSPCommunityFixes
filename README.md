@@ -89,6 +89,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**PartBoundsIgnoreDisabledTransforms**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/208) [KSP 1.12.3 - 1.12.5]<br/>Fix disabled renderers by mesh switchers (B9PartSwitch...) still being considered for part bounds evaluation, resulting in various issues like parts not being occluded from drag in cargo bays, wrong vessel size being reported, etc...
 - [**DragCubeLoadException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/232) [KSP 1.8.0 - 1.12.5]<br/>Fix loading of drag cubes without a name failing with an IndexOutOfRangeException
 - [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5]<br/>Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI.
+- [**ModuleActiveRadiatorNoParentException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/249) [KSP 1.12.3 - 1.12.5]<br/>Fix exception spam when a radiator set to `parentCoolingOnly` is detached from the vessel
 
 #### Quality of Life tweaks 
 
@@ -216,6 +217,7 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 - New KSP bufix : [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5] : Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI (contributed by @JonnyOThan).
 - New modding API improvement : [**KSPFieldEnumDesc**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/243) [KSP 1.12.2 - 1.12.5] : Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field (contributed by @siimav).
 - **PAWStockGroups** : [Added PAW groups for generators](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/235), making the UI less confusing when multiple generators are present (contributed by @yalov).
+- New KSP bugfix : [**ModuleActiveRadiatorNoParentException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/249) [KSP 1.12.3 - 1.12.5] : Fix exception spam when a radiator set to `parentCoolingOnly` is detached from the vessel (reported by @BrettRyland).
 
 **Internal changes**
 - Patching now always run as the first ModuleManagerPostLoad callback, ensuring other callbacks can benefit from the patches (contributed by @al2me6).
