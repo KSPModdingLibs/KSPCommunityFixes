@@ -111,6 +111,7 @@
     <Compile Include="BugFixes\DragCubeLoadException.cs" />
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
+    <Compile Include="BugFixes\ModuleActiveRadiatorNoParentException.cs" />
     <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
     <Compile Include="BugFixes\PartBoundsIgnoreDisabledTransforms.cs" />
     <Compile Include="BugFixes\PropellantFlowDescription.cs" />
