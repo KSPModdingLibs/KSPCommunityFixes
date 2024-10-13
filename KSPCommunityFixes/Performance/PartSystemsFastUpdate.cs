@@ -1,10 +1,12 @@
 ﻿using CompoundParts;
 using Highlighting;
+using KSP.UI;
 using KSP.UI.Screens.Flight;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using static Highlighting.Highlighter;
+using Renderer = UnityEngine.Renderer;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -14,13 +16,216 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
+            AddPatch(PatchType.Override, typeof(Part), nameof(Part.Update));
+
             AddPatch(PatchType.Override, typeof(TemperatureGaugeSystem), nameof(TemperatureGaugeSystem.Update));
 
             AddPatch(PatchType.Override, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
 
             AddPatch(PatchType.Override, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
+        }
 
-            // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
+        private static void Part_Update_Override(Part p)
+        {
+            if (FlightDriver.Pause || p.state == PartStates.DEAD || p.state == PartStates.PLACEMENT || p.state == PartStates.CARGO)
+                return;
+
+
+            if (HighLogic.LoadedSceneIsEditor && EditorLogic.fetch.IsNotNullOrDestroyed())
+            {
+                p.onEditorUpdate();
+                p.updateMirroring();
+            }
+
+            p.UpdateMouseOver();
+
+            if (!HighLogic.LoadedSceneIsFlight || !p.started || !FlightGlobals.ready)
+                return;
+
+            PhysicsGlobals physicsGlobals = PhysicsGlobals.instance;
+            if (physicsGlobals.IsNullOrDestroyed())
+            {
+                PhysicsGlobals.instance = UnityEngine.Object.FindObjectOfType<PhysicsGlobals>();
+                physicsGlobals = PhysicsGlobals.instance;
+            }
+
+            if (p.temperatureRenderer != null)
+                Part_UpdatePartTemperatureRenderer(p, physicsGlobals);
+
+            if (p.overrideSkillUpdate || p.CrewCapacity > 0)
+                Part_UpdatePartValues(p);
+
+            p.onPartUpdate();
+
+            if (p.state == PartStates.ACTIVE)
+                p.onActiveUpdate();
+
+            p.ModulesOnUpdate();
+            p.InternalOnUpdate();
+            Part_UpdateAeroDisplay(p, physicsGlobals);
+
+            if (p.protoModuleCrew != null)
+            {
+                int i = 0;
+                for (int count = p.protoModuleCrew.Count; i < count; i++)
+                    p.protoModuleCrew[i].ActiveUpdate(p);
+            }
+        }
+
+        private static void Part_UpdatePartTemperatureRenderer(Part p, PhysicsGlobals physicsGlobals)
+        {
+            MaterialColorUpdater mcu = p.temperatureRenderer;
+
+            if (mcu.renderers == null || mcu.renderers.Count == 0)
+                return;
+
+            float skinTemp = (float)p.skinTemperature;
+
+            float normalizedTemp;
+            if (skinTemp <= physicsGlobals.blackBodyRadiationMin)
+            {
+                // when skin temp is below min temp, nothing to show (color.alpha = 0), so don't do anything if
+                // current color alpha is 0 already.
+                if (mcu.setColor.a == 0f)
+                    return;
+
+                normalizedTemp = 0f;
+            }
+            else if (skinTemp >= physicsGlobals.blackBodyRadiationMin)
+            {
+                normalizedTemp = 1f;
+            }
+            else
+            {
+                normalizedTemp = 
+                    (skinTemp - physicsGlobals.blackBodyRadiationMin) 
+                    / (physicsGlobals.blackBodyRadiationMax - physicsGlobals.blackBodyRadiationMin);
+            }
+
+            mcu.setColor = physicsGlobals.blackBodyRadiation.Evaluate(normalizedTemp);
+            mcu.setColor.a *= physicsGlobals.blackBodyRadiationAlphaMult * p.blackBodyRadiationAlphaMult;
+            mcu.mpb.SetColor(mcu.propertyID, mcu.setColor);
+
+            for (int i = mcu.renderers.Count; i-- > 0;)
+            {
+                Renderer renderer = mcu.renderers[i];
+                if (renderer.IsNullOrDestroyed())
+                    mcu.renderers.RemoveAt(i);
+                else
+                    renderer.SetPropertyBlock(mcu.mpb);
+            }
+        }
+
+        private static void Part_UpdatePartValues(Part p)
+        {
+            PartValues partValues = p.partValues;
+            EventValueComparisonUpdate(partValues.MaxThrottle);
+            EventValueComparisonUpdate(partValues.HeatProduction);
+            EventValueComparisonUpdate(partValues.FuelUsage);
+            EventValueComparisonUpdate(partValues.EnginePower);
+            EventValueComparisonUpdate(partValues.SteeringRadius);
+            EventValueComparisonUpdate(partValues.AutopilotSkill);
+            EventValueComparisonUpdate(partValues.AutopilotKerbalSkill);
+            EventValueComparisonUpdate(partValues.AutopilotSASSkill);
+            EventValueComparisonUpdate(partValues.RepairSkill);
+            EventValueComparisonUpdate(partValues.FailureRepairSkill);
+            EventValueComparisonUpdate(partValues.ScienceSkill);
+            EventValueComparisonUpdate(partValues.CommsRange);
+            EventValueOperationUpdate(partValues.ScienceReturnSum);
+            EventValueComparisonUpdate(partValues.ScienceReturnMax);
+            EventValueComparisonUpdate(partValues.EVAChuteSkill);
+        }
+
+        private static void EventValueComparisonUpdate<T>(EventValueComparison<T> valueComparer)
+        {
+            T newValue = valueComparer.defaultValue;
+            for (int i = valueComparer.events.Count; i-- > 0;)
+            {
+                EventValueComparison<T>.EvtDelegate valueGetter = valueComparer.events[i];
+
+                if (valueGetter.originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
+                {
+                    Debug.Log($"EventManager: Removing event '{valueComparer.eventName}' for object of type '{valueGetter.originatorType}' as object is null.");
+                    valueComparer.events.RemoveAt(i);
+                    continue;
+                }
+
+                T suscriberValue = valueGetter.evt();
+                if (valueComparer.comparer(suscriberValue, newValue))
+                    newValue = suscriberValue;
+            }
+
+            valueComparer.value = newValue;
+        }
+
+        private static void EventValueOperationUpdate<T>(EventValueOperation<T> valueOperation)
+        {
+            T newValue = valueOperation.defaultValue;
+            for (int i = valueOperation.events.Count; i-- > 0;)
+            {
+                EventValueOperation<T>.EvtDelegate valueGetter = valueOperation.events[i];
+
+                if (valueGetter.originator is UnityEngine.Object unityObject && unityObject.IsDestroyed())
+                {
+                    Debug.Log($"EventManager: Removing event '{valueOperation.eventName}' for object of type '{valueGetter.originatorType}' as object is null.");
+                    valueOperation.events.RemoveAt(i);
+                    continue;
+                }
+
+                T suscriberValue = valueGetter.evt();
+                newValue = valueOperation.operation(suscriberValue, newValue);
+            }
+
+            valueOperation.value = newValue;
+        }
+
+        private static void Part_UpdateAeroDisplay(Part p, PhysicsGlobals physicsGlobals)
+        {
+            bool shouldBeActive = physicsGlobals.aeroForceDisplay && p.staticPressureAtm > 0.0 && p.rb.IsNotNullOrDestroyed();
+            if (shouldBeActive)
+            {
+                if (p.dragArrowPtr.IsNullOrDestroyed())
+                {
+                    p.dragArrowPtr = ArrowPointer.Create(p.transform, p.CoPOffset, p.dragVectorDirLocal, p.dragScalar * PhysicsGlobals.AeroForceDisplayScale, Color.red, worldSpace: false);
+                }
+                else
+                {
+                    p.dragArrowPtr.Offset = p.CoPOffset;
+                    p.dragArrowPtr.Direction = p.dragVectorDirLocal;
+                    p.dragArrowPtr.Length = p.dragScalar * PhysicsGlobals.AeroForceDisplayScale;
+                }
+
+                if (p.bodyLiftArrowPtr.IsNullOrDestroyed())
+                {
+                    p.bodyLiftArrowPtr = ArrowPointer.Create(p.transform, p.bodyLiftLocalPosition, p.bodyLiftLocalVector, PhysicsGlobals.AeroForceDisplayScale, Color.cyan, worldSpace: false);
+                }
+                else
+                {
+                    float magnitude = p.bodyLiftLocalVector.magnitude;
+                    Vector3 direction = p.bodyLiftLocalVector;
+                    p.bodyLiftArrowPtr.Direction = direction;
+                    p.bodyLiftArrowPtr.Length = magnitude * PhysicsGlobals.AeroForceDisplayScale;
+                }
+            }
+            else if (p.aeroDisplayWasActive)
+            {
+                if (p.dragArrowPtr.IsNotNullOrDestroyed())
+                {
+                    UnityEngine.Object.Destroy(p.dragArrowPtr.gameObject);
+                    p.dragArrowPtr = null;
+                }
+
+                if (p.bodyLiftArrowPtr.IsNotNullOrDestroyed())
+                {
+                    UnityEngine.Object.Destroy(p.bodyLiftArrowPtr.gameObject);
+                    p.bodyLiftArrowPtr = null;
+                }
+            }
+
+            if (shouldBeActive != p.aeroDisplayWasActive)
+                p.RefreshHighlighter();
+
+            p.aeroDisplayWasActive = shouldBeActive;
         }
 
         private static void TemperatureGaugeSystem_Update_Override(TemperatureGaugeSystem tgs)

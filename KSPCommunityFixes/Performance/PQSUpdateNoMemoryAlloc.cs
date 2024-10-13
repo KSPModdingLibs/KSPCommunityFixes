@@ -1,6 +1,7 @@
 ﻿using System;
 using HarmonyLib;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 
 namespace KSPCommunityFixes.Performance
@@ -13,10 +14,10 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(PQS), nameof(PQS.BuildTangents));
+            AddPatch(PatchType.Override, typeof(PQS), nameof(PQS.BuildTangents));
         }
 
-        static bool PQS_BuildTangents_Prefix(PQ quad)
+        private static void PQS_BuildTangents_Override(PQ quad)
         {
             Vector3[] normals = quad.mesh.normals;
             for (int i = 0; i < PQS.cacheVertCount; i++)
@@ -27,13 +28,21 @@ namespace KSPCommunityFixes.Performance
                 Vector3 normal = normals[i];
                 Vector3 tangent = Vector3.zero;
                 Vector3.OrthoNormalize(ref normal, ref tangent);
-                PQS.cacheTangents[i].x = tangent.x;
-                PQS.cacheTangents[i].y = tangent.y;
-                PQS.cacheTangents[i].z = tangent.z;
-                PQS.cacheTangents[i].w = Vector3.Dot(Vector3.Cross(normal, tangent), PQS.tan2[i]) < 0f ? -1f : 1f;
+                ref Vector4 result = ref PQS.cacheTangents[i];
+                result.x = tangent.x;
+                result.y = tangent.y;
+                result.z = tangent.z;
+                result.w = Vector3.Dot(Vector3.Cross(normal, tangent), PQS.tan2[i]) < 0f ? -1f : 1f;
             }
             quad.mesh.tangents = PQS.cacheTangents;
-            return false;
+        }
+
+        private static float GetTimeStamp()
+        {
+            if (Stopwatch.IsHighResolution)
+                return Stopwatch.GetTimestamp() / (float)Stopwatch.Frequency;
+
+            return Time.realtimeSinceStartup;
         }
     }
 }
