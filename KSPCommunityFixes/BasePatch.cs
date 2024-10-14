@@ -1,4 +1,5 @@
-﻿// #define DEBUG_OVERRIDE
+﻿//#define FORCE_OVERRIDE
+//#define DEBUG_OVERRIDE
 
 using HarmonyLib;
 using Mono.Cecil.Cil;
@@ -100,6 +101,7 @@ namespace KSPCommunityFixes
 
             
             patch.LoadData();
+            patch.OnPatchApplied();
         }
 
         protected enum PatchType
@@ -288,12 +290,15 @@ namespace KSPCommunityFixes
         protected virtual bool IgnoreConfig => false;
 
         /// <summary>
-        /// Called after a the patch has been applied during loading
+        /// Called after a the patch has been applied during loading, if the patch has an associated cfg.
         /// Get custom data that was saved using SaveData()
         /// </summary>
-        protected virtual void OnLoadData(ConfigNode node)
-        {
-        }
+        protected virtual void OnLoadData(ConfigNode node) { }
+
+        /// <summary>
+        /// Called after the patch has been applied and OnLoadData has been called
+        /// </summary>
+        protected virtual void OnPatchApplied() { }
 
         /// <summary>
         /// Call this to save custom patch-specific data that will be reloaded on the next KSP launch (see OnLoadData())
@@ -323,8 +328,8 @@ namespace KSPCommunityFixes
             if (!overrides.TryGetValue(__originalMethod, out PatchInfo patch))
                 throw new Exception($"Could not find override method for patched method {__originalMethod.FullDescription()}");
 
-            // When we want to be able to debug the override method, we generate transpiler that is calling it
-#if !DEBUG_OVERRIDE
+            // When we want to be able to debug the override method, we generate a transpiler calling it :
+#if !FORCE_OVERRIDE
             if (patch.debugOverride)
             {
                 int instanceArg = __originalMethod.IsStatic ? 0 : 1;
@@ -353,12 +358,12 @@ namespace KSPCommunityFixes
             // Otherwise, we want to return all instructions of the override method.
             // We call an Harmony library method (GetOriginalInstructions) that return the IL and a matching ILGenerator for
             // our override. This is the same method Harmony use internally to weave patches together.
-            // But the difficulty here is that we need correctly defined variables, labels and exception handlers in the
-            // IlGenerator instance Harmony will use (and that is passed as an argument), so we need to copy all that stuff from
-            // the IlGenerator for our override method to the ILGenertor instance that Harmony will actually use. This gets
-            // quite complicated because the ILGenerator isn't actually an ILGenerator from reflection, but a runtime generated
-            // replacement from MonoMod. Long story short, copying all the stuff require accessing all that internal MonoMod
-            // generator stuff, which we publicize for convenience.
+            // But the difficulty here is that we need correctly defined variables and labels in the IlGenerator instance
+            // Harmony will use (and that is passed as an argument), so we need to copy all that stuff from the IlGenerator
+            // for our override method to the ILGenertor instance that Harmony will actually use.
+            // This gets quite complicated because the ILGenerator isn't actually an ILGenerator from reflection, but a runtime
+            // generated replacement from MonoMod. Long story short, copying all the stuff require accessing all that internal
+            // MonoMod generator stuff, which we publicize for convenience.
             // This however mean that this is very likely to break on updating MonoMod/Harmony, and as a matter of fact, will
             // definitely break if we start using Harmony 2.3+, which is based on a new major version of MonoMod where all this
             // stuff has been heavily refactored.
@@ -369,21 +374,12 @@ namespace KSPCommunityFixes
             CecilILGenerator overrideCecilGen = overrideGen.GetProxiedShim<CecilILGenerator>();
             CecilILGenerator originalCecilGen = originalGen.GetProxiedShim<CecilILGenerator>();
 
-            Dictionary<int, int> modifiedOverrideLabelIndices = new Dictionary<int, int>(overrideCecilGen.labelCounter);
+            int[] modifiedOverrideLabelIndices = new int[overrideCecilGen.labelCounter];
             foreach (KeyValuePair<Label, LabelInfo> item in overrideCecilGen._LabelInfos)
             {
-                Label label = item.Key;
-                int currentIndex = label.label;
-                while (patchCecilGen._LabelInfos.ContainsKey(label) || overrideCecilGen._LabelInfos.ContainsKey(label))
-                    label.label++;
-
-                if (currentIndex != label.label)
-                    modifiedOverrideLabelIndices.Add(currentIndex, label.label);
-
-                patchCecilGen._LabelInfos.Add(label, item.Value);
+                Label newLabel = patchGen.DefineLabel();
+                modifiedOverrideLabelIndices[item.Key.label] = newLabel.label;
             }
-
-            patchCecilGen.labelCounter = patchCecilGen._LabelInfos.Count;
 
             int originalVariableCount = originalCecilGen._Variables.Count;
             int variableOffset = patchCecilGen._Variables.Count;
@@ -425,20 +421,14 @@ namespace KSPCommunityFixes
                 for (int j = instruction.labels.Count; j-- > 0;)
                 {
                     Label jumpLocation = instruction.labels[j];
-                    if (modifiedOverrideLabelIndices.TryGetValue(jumpLocation.label, out int newIndex))
-                    {
-                        jumpLocation.label = newIndex;
-                        instruction.labels[j] = jumpLocation;
-                    }
+                    jumpLocation.label = modifiedOverrideLabelIndices[jumpLocation.label];
+                    instruction.labels[j] = jumpLocation;
                 }
 
                 if (instruction.operand is Label jumpTo)
                 {
-                    if (modifiedOverrideLabelIndices.TryGetValue(jumpTo.label, out int newIndex))
-                    {
-                        jumpTo.label = newIndex;
-                        instruction.operand = jumpTo;
-                    }
+                    jumpTo.label = modifiedOverrideLabelIndices[jumpTo.label];
+                    instruction.operand = jumpTo;
                 }
 
                 OpCode opCode = instruction.opcode;
@@ -488,8 +478,7 @@ namespace KSPCommunityFixes
                     else
                         currentVariableIdx = (int)instruction.operand;
 
-                    if (!modifiedOverrideVariableIndexes.TryGetValue(currentVariableIdx, out int newIndex))
-                        newIndex = currentVariableIdx;
+                    int newIndex = modifiedOverrideVariableIndexes.GetValueOrDefault(currentVariableIdx, currentVariableIdx);
 
                     if (newIndex > byte.MaxValue)
                     {
@@ -550,7 +539,7 @@ namespace KSPCommunityFixes
             else if (varIndex < byte.MaxValue)
             {
                 instruction.opcode = OpCodes.Stloc_S;
-                instruction.operand = varIndex;
+                instruction.operand = (byte)varIndex;
             }
             else
             {
@@ -580,7 +569,7 @@ namespace KSPCommunityFixes
             else if (varIndex < byte.MaxValue)
             {
                 instruction.opcode = OpCodes.Ldloc_S;
-                instruction.operand = varIndex;
+                instruction.operand = (byte)varIndex;
             }
             else
             {
@@ -600,6 +589,12 @@ namespace KSPCommunityFixes
             AddPatch(PatchType.Prefix, typeof(TranspilerTest), nameof(Method1));
             AddPatch(PatchType.Postfix, typeof(TranspilerTest), nameof(Method1));
             AddPatch(PatchType.Override, typeof(TranspilerTest), nameof(Method1));
+        }
+
+        protected override void OnPatchApplied()
+        {
+            ResultVar result = Method1();
+            Debug.Log($"Method1 call result : {result.result}");
         }
 
         private InstanceField testVarInstance = new InstanceField() {result = "instanceFieldValue"};
