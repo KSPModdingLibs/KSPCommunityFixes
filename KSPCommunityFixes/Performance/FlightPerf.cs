@@ -16,10 +16,10 @@ namespace KSPCommunityFixes.Performance
     {
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
-            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
-            AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
-            AddPatch(PatchType.Override, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionSolar));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateOcclusionBody));
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
+            AddPatch(PatchType.Prefix, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
 
             // other offenders, in aero situations :
 
