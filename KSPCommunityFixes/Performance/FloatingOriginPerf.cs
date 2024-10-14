@@ -83,6 +83,9 @@ namespace KSPCommunityFixes.Performance
                         {
                             ParticleSystem particleSystem = fXGroup.fxEmittersNewSystem[l];
 
+                            if (particleSystem.IsNullOrDestroyed())
+                                continue;
+
                             int particleCount = particleSystem.particleCount;
                             if (particleCount == 0 || particleSystem.main.simulationSpace != ParticleSystemSimulationSpace.World)
                                 continue;
