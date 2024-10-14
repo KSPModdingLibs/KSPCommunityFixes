@@ -18,14 +18,12 @@ namespace KSPCommunityFixes.QoL
 
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             if (KSPCommunityFixes.SettingsNode.TryGetValue(SETTINGS_TOGGLE_VALUE_NAME, ref isMHDisabledFromConfig) && isMHDisabledFromConfig)
                 isMHEnabled = false;
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ExpansionsLoader), nameof(ExpansionsLoader.InitializeExpansion))));
+            AddPatch(PatchType.Prefix, typeof(ExpansionsLoader), nameof(ExpansionsLoader.InitializeExpansion));
         }
 
         protected override void OnLoadData(ConfigNode node)

@@ -9,11 +9,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Planetarium), nameof(Planetarium.GetUniversalTime))));
+            AddPatch(PatchType.Prefix, typeof(Planetarium), nameof(Planetarium.GetUniversalTime));
         }
 
         static bool Planetarium_GetUniversalTime_Prefix(ref double __result)

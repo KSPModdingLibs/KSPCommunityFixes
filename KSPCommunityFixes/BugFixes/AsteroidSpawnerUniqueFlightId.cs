@@ -19,11 +19,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScenarioDiscoverableObjects), nameof(ScenarioDiscoverableObjects.SpawnAsteroid))));
+            AddPatch(PatchType.Prefix, typeof(ScenarioDiscoverableObjects), nameof(ScenarioDiscoverableObjects.SpawnAsteroid));
         }
 
         static bool ScenarioDiscoverableObjects_SpawnAsteroid_Prefix(ScenarioDiscoverableObjects __instance)
@@ -52,11 +50,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 10, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                    PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ScenarioDiscoverableObjects), nameof(ScenarioDiscoverableObjects.SpawnComet), new Type[] {typeof(CometOrbitType) })));
+            AddPatch(PatchType.Prefix, typeof(ScenarioDiscoverableObjects), nameof(ScenarioDiscoverableObjects.SpawnComet), new Type[] {typeof(CometOrbitType) });
         }
 
         static bool ScenarioDiscoverableObjects_SpawnComet_Prefix(ScenarioDiscoverableObjects __instance, CometOrbitType cometType)

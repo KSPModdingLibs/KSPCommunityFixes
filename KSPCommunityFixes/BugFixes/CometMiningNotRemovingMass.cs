@@ -10,11 +10,9 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 12, 2);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleComet), nameof(ModuleComet.GetModuleMass))));
+            AddPatch(PatchType.Prefix, typeof(ModuleComet), nameof(ModuleComet.GetModuleMass));
         }
 
         static bool ModuleComet_GetModuleMass_Prefix(ModuleComet __instance, float defaultMass, out float __result)

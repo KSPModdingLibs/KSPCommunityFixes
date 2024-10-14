@@ -11,11 +11,9 @@ namespace KSPCommunityFixes.Performance
         // 
         protected override Version VersionMin => new Version(1, 11, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PQS), nameof(PQS.BuildTangents))));
+            AddPatch(PatchType.Prefix, typeof(PQS), nameof(PQS.BuildTangents));
         }
 
         static bool PQS_BuildTangents_Prefix(PQ quad)

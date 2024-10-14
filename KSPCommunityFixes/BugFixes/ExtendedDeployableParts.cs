@@ -19,15 +19,11 @@ namespace KSPCommunityFixes.BugFixes
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.startFSM))));
+            AddPatch(PatchType.Transpiler, typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.startFSM));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployablePart.OnStart))));
+            AddPatch(PatchType.Transpiler, typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployablePart.OnStart));
         }
 
         static IEnumerable<CodeInstruction> ModuleDeployablePart_startFSM_Transpiler(IEnumerable<CodeInstruction> instructions)

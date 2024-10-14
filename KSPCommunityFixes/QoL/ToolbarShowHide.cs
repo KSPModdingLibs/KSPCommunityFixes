@@ -12,40 +12,23 @@ namespace KSPCommunityFixes.QoL
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.SpawnSimpleLayout))));
+            AddPatch(PatchType.Postfix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.SpawnSimpleLayout));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.OnDestroy))));
+            AddPatch(PatchType.Postfix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.OnDestroy));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.StartupSequence))));
+            AddPatch(PatchType.Postfix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.StartupSequence));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.Show))));
+            AddPatch(PatchType.Prefix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.Show));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.Hide))));
+            AddPatch(PatchType.Prefix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.Hide));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItShow))));
+            AddPatch(PatchType.Prefix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItShow));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), Type.EmptyTypes)));
+            AddPatch(PatchType.Prefix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), Type.EmptyTypes);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), new Type[] { typeof(GameEvents.VesselSpawnInfo) }),
-                nameof(ApplicationLauncher_ShouldItHideVesselSpawn_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(ApplicationLauncher), nameof(ApplicationLauncher.ShouldItHide), new Type[] { typeof(GameEvents.VesselSpawnInfo) }, nameof(ApplicationLauncher_ShouldItHideVesselSpawn_Prefix));
 
             defaultLayerId = SortingLayer.NameToID("Default");
             appsLayerId = SortingLayer.NameToID("Apps");

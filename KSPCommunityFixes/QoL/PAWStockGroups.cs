@@ -16,35 +16,21 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 10, 1);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Start))));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.Start));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDataTransmitter), nameof(ModuleDataTransmitter.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleDataTransmitter), nameof(ModuleDataTransmitter.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleCommand), nameof(ModuleCommand.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleCommand), nameof(ModuleCommand.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleReactionWheel), nameof(ModuleReactionWheel.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleReactionWheel), nameof(ModuleReactionWheel.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleRCS), nameof(ModuleRCS.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleRCS), nameof(ModuleRCS.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleGimbal), nameof(ModuleGimbal.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleGimbal), nameof(ModuleGimbal.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart))));
+            AddPatch(PatchType.Postfix, typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,

@@ -9,7 +9,7 @@ namespace KSPCommunityFixes.Performance
         private static double packedInterval = 0.5;
         private static double unpackedInterval = 5.0;
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("COMMNET_THROTTLING_SETTINGS");
 
@@ -19,9 +19,7 @@ namespace KSPCommunityFixes.Performance
                 settingsNode.TryGetValue("unpackedInterval", ref unpackedInterval);
             }
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update))));
+            AddPatch(PatchType.Prefix, typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update));
         }
 
         static bool CommNetNetwork_Update_Prefix(CommNet.CommNetNetwork __instance)

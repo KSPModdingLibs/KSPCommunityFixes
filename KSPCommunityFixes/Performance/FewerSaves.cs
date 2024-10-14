@@ -12,27 +12,17 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ACSceneSpawner), nameof(ACSceneSpawner.onACDespawn))));
+            AddPatch(PatchType.Prefix, typeof(ACSceneSpawner), nameof(ACSceneSpawner.onACDespawn));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AdministrationSceneSpawner), nameof(AdministrationSceneSpawner.onAdminDespawn))));
+            AddPatch(PatchType.Prefix, typeof(AdministrationSceneSpawner), nameof(AdministrationSceneSpawner.onAdminDespawn));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MCSceneSpawner), nameof(MCSceneSpawner.OnMCDespawn))));
+            AddPatch(PatchType.Prefix, typeof(MCSceneSpawner), nameof(MCSceneSpawner.OnMCDespawn));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(RDSceneSpawner), nameof(RDSceneSpawner.onRDDespawn))));
+            AddPatch(PatchType.Prefix, typeof(RDSceneSpawner), nameof(RDSceneSpawner.onRDDespawn));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(SpaceTracking), "OnVesselDeleteConfirm")));
+            AddPatch(PatchType.Transpiler, typeof(SpaceTracking), "OnVesselDeleteConfirm");
         }
 
         static bool ACSceneSpawner_onACDespawn_Prefix(ACSceneSpawner __instance)

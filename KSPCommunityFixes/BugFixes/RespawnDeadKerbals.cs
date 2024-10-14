@@ -10,12 +10,11 @@ namespace KSPCommunityFixes.BugFixes
     class RespawnDeadKerbals : BasePatch
     {
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
+            AddPatch(PatchType.Postfix,
                 AccessTools.Constructor(typeof(Game), new Type[] { typeof(ConfigNode) }),
-                nameof(Game_Constructor_Postfix)));
+                nameof(Game_Constructor_Postfix));
         }
 
         static void Game_Constructor_Postfix(Game __instance)

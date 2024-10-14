@@ -10,7 +10,7 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             // replace the orginial delegate, no need for harmony patching here
             ProtoCrewMember.MaxSustainedG = MaxSustainedG;

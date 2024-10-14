@@ -8,15 +8,11 @@ namespace KSPCommunityFixes.BugFixes
     {
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription))));
+            AddPatch(PatchType.Prefix, typeof(Propellant), nameof(Propellant.GetFlowModeDescription));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Propellant), nameof(Propellant.GetFlowModeDescription))));
+            AddPatch(PatchType.Postfix, typeof(Propellant), nameof(Propellant.GetFlowModeDescription));
         }
 
         // doing this this way rather than via __state

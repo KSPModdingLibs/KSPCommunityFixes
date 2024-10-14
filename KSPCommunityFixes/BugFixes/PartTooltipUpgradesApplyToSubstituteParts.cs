@@ -27,23 +27,15 @@ namespace KSPCommunityFixes
             return base.CanApplyPatch(out reason);
         }
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) })));
+            AddPatch(PatchType.Transpiler, typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) })));
+            AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.UpdateVariantText))));
+            AddPatch(PatchType.Transpiler, typeof(PartListTooltip), nameof(PartListTooltip.UpdateVariantText));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.GetUpgradedPrimaryInfo))));
+            AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.GetUpgradedPrimaryInfo));
         }
 
         // We're not using UpgradesAvailable / FindUpgrades

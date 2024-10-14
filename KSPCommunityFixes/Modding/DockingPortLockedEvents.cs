@@ -8,17 +8,12 @@ namespace KSPCommunityFixes.Modding
     {
         protected override Version VersionMin => new Version(1, 12, 2);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             // Priority.First because we have an overriding prefix in the DockingPortRotationDriftAndFixes patch
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked"),
-                null, Priority.First));
+            AddPatch(PatchType.Prefix, typeof(ModuleDockingNode), "ModifyLocked", null, Priority.First);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), "ModifyLocked")));
+            AddPatch(PatchType.Postfix, typeof(ModuleDockingNode), "ModifyLocked");
         }
 
         static void ModuleDockingNode_ModifyLocked_Prefix(ModuleDockingNode __instance)

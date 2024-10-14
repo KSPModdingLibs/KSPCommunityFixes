@@ -13,57 +13,31 @@ namespace KSPCommunityFixes
     {
         protected override Version VersionMin => new Version(1, 12, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Constructor(typeof(PartModule)),
-                nameof(PartModule_ctor_Postfix)));
+            AddPatch(PatchType.Postfix, AccessTools.Constructor(typeof(PartModule)), nameof(PartModule_ctor_Postfix));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.SetupUpgradeInfo))));
+            AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.SetupUpgradeInfo));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) })));
+            AddPatch(PatchType.Postfix, typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.DisplayExtendedInfo))));
+            AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.DisplayExtendedInfo));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartListTooltip), nameof(PartListTooltip.CreateExtendedInfo))));
+            AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.CreateExtendedInfo));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartModule), nameof(PartModule.UpgradesAvailable), new Type[] { typeof(Part), typeof(ConfigNode) })));
+            AddPatch(PatchType.Prefix, typeof(PartModule), nameof(PartModule.UpgradesAvailable), new Type[] { typeof(Part), typeof(ConfigNode) });
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PartModule), nameof(PartModule.FindUpgrades))));
+            AddPatch(PatchType.Transpiler, typeof(PartModule), nameof(PartModule.FindUpgrades));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.OnPodSpawn))));
+            AddPatch(PatchType.Prefix, typeof(EditorLogic), nameof(EditorLogic.OnPodSpawn));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart))));
+            AddPatch(PatchType.Prefix, typeof(EditorLogic), nameof(EditorLogic.SpawnPart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EditorLogic), nameof(EditorLogic.SpawnPart))));
+            AddPatch(PatchType.Postfix, typeof(EditorLogic), nameof(EditorLogic.SpawnPart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.GetModuleCosts))));
+            AddPatch(PatchType.Postfix, typeof(Part), nameof(Part.GetModuleCosts));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartUpgradeHandler.Upgrade), nameof(PartUpgradeHandler.Upgrade.GetUsedByStrings)),
-                nameof(GetUsedBy_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(PartUpgradeHandler.Upgrade), nameof(PartUpgradeHandler.Upgrade.GetUsedByStrings), nameof(GetUsedBy_Prefix));
         }
 
         static void PartModule_ctor_Postfix(PartModule __instance)

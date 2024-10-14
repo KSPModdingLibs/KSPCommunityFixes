@@ -34,17 +34,13 @@ namespace KSPCommunityFixes
 
         protected override Version VersionMin => new Version(1, 8, 0);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
             GameEvents.onGUIApplicationLauncherReady.Add(OnGUIApplicationLauncherReady);
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MapView), nameof(MapView.enterMapView))));
+            AddPatch(PatchType.Prefix, typeof(MapView), nameof(MapView.enterMapView));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(MapView), nameof(MapView.exitMapView))));
+            AddPatch(PatchType.Postfix, typeof(MapView), nameof(MapView.exitMapView));
         }
 
         public static float altimeterPosition = -1f;

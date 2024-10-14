@@ -45,6 +45,8 @@ namespace KSPCommunityFixes
         private static readonly Version versionMinDefault = new Version(1, 12, 0);
         private static readonly Version versionMaxDefault = new Version(1, 12, 99);
 
+        private List<PatchInfo> patches = new List<PatchInfo>(4);
+
         public static void Patch(Type patchType)
         {
             BasePatch patch = (BasePatch)Activator.CreateInstance(patchType);
@@ -83,7 +85,7 @@ namespace KSPCommunityFixes
 
             if (!patchApplied)
             {
-                Debug.LogError($"[KSPCommunityFixes] Patch {patchType.Name} applied, error applying patch");
+                Debug.LogError($"[KSPCommunityFixes] Patch {patchType.Name} not applied, error applying patch");
                 KSPCommunityFixes.enabledPatches.Remove(patchType.Name);
                 return;
             }
@@ -97,7 +99,7 @@ namespace KSPCommunityFixes
             patch.LoadData();
         }
 
-        protected enum PatchMethodType
+        protected enum PatchType
         {
             Prefix,
             Postfix,
@@ -118,7 +120,7 @@ namespace KSPCommunityFixes
 
         protected class PatchInfo
         {
-            public PatchMethodType patchType;
+            public PatchType patchType;
             public MethodBase patchedMethod;
             public string patchMethodName;
             public MethodInfo patchMethod;
@@ -132,7 +134,7 @@ namespace KSPCommunityFixes
             /// <param name="patchedMethod">Method to be patched</param>
             /// <param name="patchClass">Class where the patch method is implemented. Usually "this"</param>
             /// <param name="patchMethodName">if null, will default to a method with the name "ClassToPatch_MethodToPatch_PatchType"</param>
-            public PatchInfo(PatchMethodType patchType, MethodBase patchedMethod, string patchMethodName = null, int patchPriority = Priority.Normal)
+            public PatchInfo(PatchType patchType, MethodBase patchedMethod, string patchMethodName = null, int patchPriority = Priority.Normal)
             {
                 this.patchType = patchType;
                 this.patchedMethod = patchedMethod;
@@ -146,7 +148,7 @@ namespace KSPCommunityFixes
         /// Add PatchInfo entries to the patches list to appply harmony patches
         /// </summary>
         /// <param name="patches"></param>
-        protected abstract void ApplyPatches(List<PatchInfo> patches);
+        protected abstract void ApplyPatches();
 
         /// <summary>
         /// Override this to define the min KSP version for witch this patch applies. Defaults to KSP 1.12.0
@@ -158,12 +160,26 @@ namespace KSPCommunityFixes
         /// </summary>
         protected virtual Version VersionMax => versionMaxDefault;
 
+        protected void AddPatch(PatchType patchType, MethodBase patchedMethod, string patchMethodName = null, int patchPriority = Priority.Normal)
+        {
+            patches.Add(new PatchInfo(patchType, patchedMethod, patchMethodName, patchPriority));
+        }
+
+        protected void AddPatch(PatchType patchType, Type patchedMethodType, string patchedMethodName, string patchMethodName = null, int patchPriority = Priority.Normal)
+        {
+            patches.Add(new PatchInfo(patchType, AccessTools.Method(patchedMethodType, patchedMethodName), patchMethodName, patchPriority));
+        }
+
+        protected void AddPatch(PatchType patchType, Type patchedMethodType, string patchedMethodName, Type[] patchedMethodArgs, string patchMethodName = null, int patchPriority = Priority.Normal)
+        {
+            patches.Add(new PatchInfo(patchType, AccessTools.Method(patchedMethodType, patchedMethodName, patchedMethodArgs), patchMethodName, patchPriority));
+        }
+
         public bool IsVersionValid => KSPCommunityFixes.KspVersion >= VersionMin && KSPCommunityFixes.KspVersion <= VersionMax;
 
         private bool ApplyHarmonyPatch()
         {
-            List<PatchInfo> patches = new List<PatchInfo>();
-            ApplyPatches(patches);
+            ApplyPatches();
 
             bool error = false;
             for (int i = 0; i < patches.Count; i++)
@@ -189,7 +205,7 @@ namespace KSPCommunityFixes
                     continue;
                 }
 
-                if (patch.patchType == PatchMethodType.Override)
+                if (patch.patchType == PatchType.Override)
                 {
 #if DEBUG
                     patch.debugOverride = Attribute.GetCustomAttributes(patch.patchMethod, typeof(TranspileInDebugAttribute), false).Length == 0;
@@ -211,22 +227,22 @@ namespace KSPCommunityFixes
             {
                 switch (patch.patchType)
                 {
-                    case PatchMethodType.Prefix:
+                    case PatchType.Prefix:
                         KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, new HarmonyMethod(patch.patchMethod, patch.patchPriority));
                         break;
-                    case PatchMethodType.Postfix:
+                    case PatchType.Postfix:
                         KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority));
                         break;
-                    case PatchMethodType.Transpiler:
+                    case PatchType.Transpiler:
                         KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority));
                         break;
-                    case PatchMethodType.Finalizer:
+                    case PatchType.Finalizer:
                         KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, null, new HarmonyMethod(patch.patchMethod, patch.patchPriority));
                         break;
-                    case PatchMethodType.ReversePatch:
+                    case PatchType.ReversePatch:
                         KSPCommunityFixes.Harmony.CreateReversePatcher(patch.patchedMethod, new HarmonyMethod(patch.patchMethod, patch.patchPriority));
                         break;
-                    case PatchMethodType.Override:
+                    case PatchType.Override:
                         KSPCommunityFixes.Harmony.Patch(patch.patchedMethod, null, null, new HarmonyMethod(overrideTranspiler, patch.patchPriority));
                         break;
                 }
@@ -297,7 +313,7 @@ namespace KSPCommunityFixes
         private static readonly MethodInfo overrideTranspiler = AccessTools.Method(typeof(BasePatch), nameof(OverrideTranspiler));
 
         /// <summary> key : patched method, value : replacement method </summary>
-        private static Dictionary<MethodBase, PatchInfo> overrides = new Dictionary<MethodBase, PatchInfo>();
+        private static readonly Dictionary<MethodBase, PatchInfo> overrides = new Dictionary<MethodBase, PatchInfo>();
 
         private static IEnumerable<CodeInstruction> OverrideTranspiler(IEnumerable<CodeInstruction> _, ILGenerator patchGen, MethodBase __originalMethod)
         {
@@ -339,7 +355,7 @@ namespace KSPCommunityFixes
             // replacement from MonoMod. Long story short, copying all the stuff require accessing all that internal MonoMod
             // generator stuff, which we publicize for convenience.
             // This however mean that this is very likely to break on updating MonoMod/Harmony, and as a matter of fact, will
-            // definitely break if we start using Harmony 2.3+, which is based on new major version of MonoMod where all this
+            // definitely break if we start using Harmony 2.3+, which is based on a new major version of MonoMod where all this
             // stuff has been heavily refactored.
             List<CodeInstruction> il = PatchProcessor.GetOriginalInstructions(patch.patchMethod, out ILGenerator overrideGen);
 

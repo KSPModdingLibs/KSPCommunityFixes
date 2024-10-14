@@ -13,15 +13,11 @@ namespace KSPCommunityFixes.BugFixes
 
     internal class ZeroCostTechNodes : BasePatch
     {
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(RDTech), nameof(RDTech.Start))));
+            AddPatch(PatchType.Postfix, typeof(RDTech), nameof(RDTech.Start));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(RDTech), nameof(RDTech.Load))));
+            AddPatch(PatchType.Transpiler, typeof(RDTech), nameof(RDTech.Load));
         }
 
         static void RDTech_Start_Postfix(RDTech __instance)
