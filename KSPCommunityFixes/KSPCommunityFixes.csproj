@@ -160,6 +160,7 @@
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
+    <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
     <Compile Include="Performance\CommNetThrottling.cs" />
     <Compile Include="Performance\ContractProgressEnumCache.cs" />
