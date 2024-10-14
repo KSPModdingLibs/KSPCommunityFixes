@@ -19,8 +19,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(RetractableLadder), nameof(RetractableLadder.OnStart)),
-                this));
+                AccessTools.Method(typeof(RetractableLadder), nameof(RetractableLadder.OnStart))));
         }
 
         static IEnumerable<CodeInstruction> RetractableLadder_OnStart_Transpiler(IEnumerable<CodeInstruction> instructions)

@@ -12,28 +12,23 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.updateSituation)),
-                this));
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.updateSituation))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.Die)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.Die))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Die)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.Die))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.decouple)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.decouple))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.decouple)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.decouple))));
         }
 
         static bool Vessel_updateSituation_Prefix(Vessel __instance)

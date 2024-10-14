@@ -51,102 +51,87 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(PartSet), nameof(PartSet.HookEvents)),
-                this));
+                AccessTools.Method(typeof(PartSet), nameof(PartSet.HookEvents))));
 
             // Specific GameEvents leaks
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CommNetVessel), nameof(CommNetVessel.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(CommNetVessel), nameof(CommNetVessel.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageGroup), nameof(StageGroup.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(StageGroup), nameof(StageGroup.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(ModuleProceduralFairing), nameof(ModuleProceduralFairing.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake)),
-                this));
+                AccessTools.Method(typeof(ModuleScienceExperiment), nameof(ModuleScienceExperiment.OnAwake))));
 
             // protopartsnapshot leaks a reference to a copy of the root part because of how it's created
 
-            patches.Add(new PatchInfo(PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load)),
-                this));
-            patches.Add(new PatchInfo(PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart)),
-                this));
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.Load))));
+
+            patches.Add(new PatchInfo(
+                PatchMethodType.Postfix,
+                AccessTools.Method(typeof(ProtoPartSnapshot), nameof(ProtoPartSnapshot.ConfigurePart))));
 
             // Parts and vessels don't unhook themselves from things when they're destroyed or unloaded
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.OnDestroy))));
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.ReleaseAutoStruts)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.ReleaseAutoStruts))));
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload)),
-                this));
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.Unload))));
 
             // Kerbals
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Kerbal), nameof(Kerbal.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(Kerbal), nameof(Kerbal.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(InternalSeat), nameof(InternalSeat.DespawnCrew)),
-                this));
+                AccessTools.Method(typeof(InternalSeat), nameof(InternalSeat.DespawnCrew))));
 
             // EffectList dictionary enumerator leaks
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EffectList), nameof(EffectList.Initialize)),
-                this));
+                AccessTools.Method(typeof(EffectList), nameof(EffectList.Initialize))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EffectList), nameof(EffectList.OnSave)),
-                this));
+                AccessTools.Method(typeof(EffectList), nameof(EffectList.OnSave))));
 
             // Pooled Audio onRelease delegate leak
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset)),
-                this));
+                AccessTools.Method(typeof(AudioMultiPooledFX.PooledAudioSource), nameof(AudioMultiPooledFX.PooledAudioSource.Reset))));
 
             // various static fields keeping deep reference stacks around...
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(CraftSearch), nameof(CraftSearch.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(CraftSearch), nameof(CraftSearch.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EngineersReport), nameof(EngineersReport.OnAppDestroy)),
-                this));
+                AccessTools.Method(typeof(EngineersReport), nameof(EngineersReport.OnAppDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(FlightIntegrator), nameof(FlightIntegrator.OnDestroy))));
 
             // Various singleton MonoBehaviours are scene-specific. They are using a static accessor that isn't nulled
             // when the instance is destroyed, causing anything still referenced to never be GCed.
@@ -154,35 +139,29 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(InventoryPanelController), nameof(InventoryPanelController.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(InventoryPanelController), nameof(InventoryPanelController.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(EVAConstructionModeController), nameof(EVAConstructionModeController.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(EVAConstructionModeController), nameof(EVAConstructionModeController.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(FuelFlowOverlay), nameof(FuelFlowOverlay.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication)),
-                this));
+                AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveApplication))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Method(typeof(ApplicationLauncher), nameof(ApplicationLauncher.RemoveModApplication)),
-                this,
-                "ApplicationLauncher_RemoveApplication_Postfix"));
+                nameof(ApplicationLauncher_RemoveApplication_Postfix)));
 
             // KSC Vessel Markers inherit from this class. they don't get cleaned up properly
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate)),
-                this));
+                AccessTools.Method(typeof(AnchoredDialog), nameof(AnchoredDialog.Terminate))));
 
             // general cleanup on scene switches
 
@@ -195,13 +174,11 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionControllerInventory), nameof(UIPartActionControllerInventory.UpdateCursorOverPAWs)),
-                this));
+                AccessTools.Method(typeof(UIPartActionControllerInventory), nameof(UIPartActionControllerInventory.UpdateCursorOverPAWs))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Update)),
-                this));
+                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Update))));
         }
 
         private enum KSPScene

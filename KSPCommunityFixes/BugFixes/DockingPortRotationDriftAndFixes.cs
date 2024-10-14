@@ -15,73 +15,61 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnLoad))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnSave)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnSave))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnStart)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnStartFinished)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnStartFinished))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.PropertyGetter(typeof(ModuleDockingNode), nameof(ModuleDockingNode.RotationJoint)),
-                this, nameof(ModuleDockingNode_RotationJoint_Prefix)));
+                AccessTools.PropertyGetter(typeof(ModuleDockingNode), nameof(ModuleDockingNode.RotationJoint)), 
+                nameof(ModuleDockingNode_RotationJoint_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
                 AccessTools.PropertyGetter(typeof(ModuleDockingNode), nameof(ModuleDockingNode.VisualTargetAngle)),
-                this, nameof(ModuleDockingNode_VisualTargetAngle_Prefix)));
+                nameof(ModuleDockingNode_VisualTargetAngle_Prefix)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnPartUnpack)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.OnPartUnpack))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.UpdatePAWUI)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.UpdatePAWUI))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.UpdateAlignmentRotation)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.UpdateAlignmentRotation))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.ApplyCoordsUpdate)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.ApplyCoordsUpdate))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.SetJointHighLowLimits)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.SetJointHighLowLimits))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.ModifyLocked)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.ModifyLocked))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.IsJointUnlocked)),
-                this));
+                AccessTools.Method(typeof(ModuleDockingNode), nameof(ModuleDockingNode.IsJointUnlocked))));
 
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }

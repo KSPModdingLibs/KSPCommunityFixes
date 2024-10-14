@@ -14,13 +14,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                this));
+                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart)),
-                this));
+                AccessTools.Method(typeof(ModuleWheelBase), nameof(ModuleWheelBase.OnStart))));
 
             GameEvents.OnPartLoaderLoaded.Add(OnPartLoaderLoaded);
         }

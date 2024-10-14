@@ -19,8 +19,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.SetHierarchyRoot))));
         }
 
         // skip the portion of that method that alter surface nodes position/orientation on re-rooting, 

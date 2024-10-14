@@ -21,8 +21,7 @@ namespace KSPCommunityFixes.Performance
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update)),
-                this));
+                AccessTools.Method(typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update))));
         }
 
         static bool CommNetNetwork_Update_Prefix(CommNet.CommNetNetwork __instance)

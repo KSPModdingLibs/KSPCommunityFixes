@@ -20,13 +20,11 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), nameof(Part.Awake)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.Awake))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.ModulesOnStartFinished)),
-                this));
+                AccessTools.Method(typeof(Part), nameof(Part.ModulesOnStartFinished))));
 
             kspActionAutostrutOff = new KSPAction(Localizer.Format("#autoLOC_6001318"), KSPActionGroup.None, true); // Autostrut: Disabled
             kspActionAutostrutRoot = new KSPAction(Localizer.Format("#autoLOC_6001320"), KSPActionGroup.None, true); // Autostrut: Root Part

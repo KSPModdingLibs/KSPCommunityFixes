@@ -22,19 +22,16 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress)),
-                this));
+                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress))));
 
 #if PROFILE_GETANYBODYPROGRESS
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress)),
-                this));
+                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress)),
-                this));
+                AccessTools.Method(typeof(ProgressUtilities), nameof(ProgressUtilities.GetAnyBodyProgress))));
 #endif
         }
 

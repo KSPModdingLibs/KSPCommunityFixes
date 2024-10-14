@@ -14,38 +14,31 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageGroup), "Awake"),
-                this));
+                AccessTools.Method(typeof(StageGroup), "Awake")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(StageManager), "Awake"),
-                this));
+                AccessTools.Method(typeof(StageManager), "Awake")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(StageGroup), "ToggleInfoPanel", new Type[] { typeof(bool) }),
-                this));
+                AccessTools.Method(typeof(StageGroup), "ToggleInfoPanel", new Type[] { typeof(bool) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied"),
-                this));
+                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied"),
-                this));
+                AccessTools.Method(typeof(NavBallBurnVector), "onGameSettingsApplied")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate"),
-                this));
+                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate")));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate"),
-                this));
+                AccessTools.Method(typeof(NavBallBurnVector), "LateUpdate")));
         }
 
         static void StageGroup_Awake_Postfix(StageGroup __instance)

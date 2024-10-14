@@ -13,8 +13,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(DoubleCurve), nameof(DoubleCurve.RecomputeTangents)),
-                this));
+                AccessTools.Method(typeof(DoubleCurve), nameof(DoubleCurve.RecomputeTangents))));
         }
 
         static IEnumerable<CodeInstruction> DoubleCurve_RecomputeTangents_Transpiler(IEnumerable<CodeInstruction> instructions)

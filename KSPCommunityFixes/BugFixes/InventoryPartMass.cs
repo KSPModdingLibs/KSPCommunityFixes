@@ -17,8 +17,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateCapacityValues)),
-                this));
+                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateCapacityValues))));
 
             var EditorPartIcon_Create_ArgTypes = new Type[]
             {
@@ -38,13 +37,11 @@ namespace KSPCommunityFixes.BugFixes
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(KSP.UI.Screens.EditorPartIcon), nameof(KSP.UI.Screens.EditorPartIcon.Create), EditorPartIcon_Create_ArgTypes),
-                this));
+                AccessTools.Method(typeof(KSP.UI.Screens.EditorPartIcon), nameof(KSP.UI.Screens.EditorPartIcon.Create), EditorPartIcon_Create_ArgTypes)));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(InventoryPartListTooltip), nameof(InventoryPartListTooltip.CreateInfoWidgets)),
-                this));
+                AccessTools.Method(typeof(InventoryPartListTooltip), nameof(InventoryPartListTooltip.CreateInfoWidgets))));
 
             // Making packedVolume persistent helps track what cargo modules *should* be if they were changed from the prefab before being added to the inventory
             StaticHelpers.EditPartModuleKSPFieldAttributes(typeof(ModuleCargoPart), nameof(ModuleCargoPart.packedVolume), field => field.isPersistant = true);

@@ -18,13 +18,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PQS), nameof(PQS.StartSphere)),
-                this));
+                AccessTools.Method(typeof(PQS), nameof(PQS.StartSphere))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PQS), nameof(PQS.ResetAndWait)),
-                this));
+                AccessTools.Method(typeof(PQS), nameof(PQS.ResetAndWait))));
         }
 
         // StartCoroutine(UpdateSphere());

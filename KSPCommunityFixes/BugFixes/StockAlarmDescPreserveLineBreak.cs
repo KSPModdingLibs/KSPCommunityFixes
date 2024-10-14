@@ -12,8 +12,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AlarmTypeBase), nameof(AlarmTypeBase.OnSave)),
-                this));
+                AccessTools.Method(typeof(AlarmTypeBase), nameof(AlarmTypeBase.OnSave))));
         }
 
         static void AlarmTypeBase_OnSave_Prefix(AlarmTypeBase __instance)

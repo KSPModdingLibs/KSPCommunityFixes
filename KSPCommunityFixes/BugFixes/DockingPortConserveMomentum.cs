@@ -25,7 +25,6 @@ namespace KSPCommunityFixes.BugFixes
                     patches.Add(new PatchInfo(
                     PatchMethodType.Transpiler,
                     AccessTools.Method(typeof(ModuleDockingNode), methodName),
-                    this,
                     "ModuleDockingNode_SetupFSMClosure_Transpiler"));
                 }
             }

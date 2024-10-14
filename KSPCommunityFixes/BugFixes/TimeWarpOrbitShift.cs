@@ -27,8 +27,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(TimeWarp), nameof(TimeWarp.setRate)),
-                this));
+                AccessTools.Method(typeof(TimeWarp), nameof(TimeWarp.setRate))));
         }
 
         static void TimeWarp_setRate_Prefix(TimeWarp __instance, int rateIdx)

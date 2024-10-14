@@ -13,13 +13,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnStart)),
-                this));
+                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(ModuleParachute), nameof(ModuleParachute.OnDestroy))));
         }
 
         private static void ModuleParachute_OnStart_Postfix(ModuleParachute __instance, StartState state)

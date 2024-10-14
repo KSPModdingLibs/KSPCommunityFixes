@@ -27,33 +27,27 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnStart)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnDestroy)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnDestroy))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.RecurseCoordUpdate)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.RecurseCoordUpdate))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnSave)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnSave))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.ModifyLocked)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.ModifyLocked))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.OnPartPack))));
 
             GameEvents.onGameSceneLoadRequested.Add(OnSceneSwitch);
         }

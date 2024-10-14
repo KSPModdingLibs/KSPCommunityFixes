@@ -15,8 +15,7 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Part), "SecureAutoStrut", new Type[]{typeof(Part), typeof(AttachNode), typeof(AttachNode), typeof(bool)}),
-                this));
+                AccessTools.Method(typeof(Part), "SecureAutoStrut", new Type[]{typeof(Part), typeof(AttachNode), typeof(AttachNode), typeof(bool)})));
         }
 
         static void Part_SecureAutoStrut_Postfix(Part __instance, Part anchor, ref PartJoint __result)

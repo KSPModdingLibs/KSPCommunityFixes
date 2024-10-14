@@ -24,13 +24,11 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(GamePersistence), "SaveGame", new Type[] { typeof(Game), typeof(string), typeof(string), typeof(SaveMode) }),
-                this));
+                AccessTools.Method(typeof(GamePersistence), "SaveGame", new Type[] { typeof(Game), typeof(string), typeof(string), typeof(SaveMode) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(GamePersistence), "LoadGame", new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) }),
-                this));
+                AccessTools.Method(typeof(GamePersistence), "LoadGame", new Type[] { typeof(string), typeof(string), typeof(bool), typeof(bool) })));
 
             //patches.Add(new PatchInfo(
             //    PatchMethodType.Prefix,

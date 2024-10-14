@@ -13,8 +13,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Planetarium), nameof(Planetarium.GetUniversalTime)),
-                this));
+                AccessTools.Method(typeof(Planetarium), nameof(Planetarium.GetUniversalTime))));
         }
 
         static bool Planetarium_GetUniversalTime_Prefix(ref double __result)

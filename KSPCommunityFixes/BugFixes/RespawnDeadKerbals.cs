@@ -15,7 +15,6 @@ namespace KSPCommunityFixes.BugFixes
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
                 AccessTools.Constructor(typeof(Game), new Type[] { typeof(ConfigNode) }),
-                this,
                 nameof(Game_Constructor_Postfix)));
         }
 

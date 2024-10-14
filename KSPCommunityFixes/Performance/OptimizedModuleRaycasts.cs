@@ -18,13 +18,11 @@ namespace KSPCommunityFixes.Performance
         {
             patches.Add(
                 new PatchInfo(PatchMethodType.Transpiler,
-                    AccessTools.Method(typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage)),
-                    this));
+                    AccessTools.Method(typeof(ModuleEngines), nameof(ModuleEngines.EngineExhaustDamage))));
 
             patches.Add(
                 new PatchInfo(PatchMethodType.Prefix,
-                    AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS)),
-                    this));
+                    AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployableSolarPanel.CalculateTrackingLOS))));
 
             KSPCommunityFixes.Instance.StartCoroutine(ResetSyncOnFixedEnd());
         }

@@ -19,8 +19,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.SetChildParentTransform)),
-                this));
+                AccessTools.Method(typeof(BaseServo), nameof(BaseServo.SetChildParentTransform))));
         }
 
         private static IEnumerable<CodeInstruction> BaseServo_SetChildParentTransform_Transpiler(IEnumerable<CodeInstruction> instructions)

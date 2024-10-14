@@ -14,8 +14,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ModuleComet), nameof(ModuleComet.GetModuleMass)),
-                this));
+                AccessTools.Method(typeof(ModuleComet), nameof(ModuleComet.GetModuleMass))));
         }
 
         static bool ModuleComet_GetModuleMass_Prefix(ModuleComet __instance, float defaultMass, out float __result)

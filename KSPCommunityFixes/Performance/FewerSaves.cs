@@ -16,28 +16,23 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ACSceneSpawner), nameof(ACSceneSpawner.onACDespawn)),
-                this));
+                AccessTools.Method(typeof(ACSceneSpawner), nameof(ACSceneSpawner.onACDespawn))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(AdministrationSceneSpawner), nameof(AdministrationSceneSpawner.onAdminDespawn)),
-                this));
+                AccessTools.Method(typeof(AdministrationSceneSpawner), nameof(AdministrationSceneSpawner.onAdminDespawn))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(MCSceneSpawner), nameof(MCSceneSpawner.OnMCDespawn)),
-                this));
+                AccessTools.Method(typeof(MCSceneSpawner), nameof(MCSceneSpawner.OnMCDespawn))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(RDSceneSpawner), nameof(RDSceneSpawner.onRDDespawn)),
-                this));
+                AccessTools.Method(typeof(RDSceneSpawner), nameof(RDSceneSpawner.onRDDespawn))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(SpaceTracking), "OnVesselDeleteConfirm"),
-                this));
+                AccessTools.Method(typeof(SpaceTracking), "OnVesselDeleteConfirm")));
         }
 
         static bool ACSceneSpawner_onACDespawn_Prefix(ACSceneSpawner __instance)

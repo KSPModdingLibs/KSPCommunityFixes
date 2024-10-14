@@ -35,8 +35,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(Vessel), nameof(Vessel.GoOnRails)),
-                this));
+                AccessTools.Method(typeof(Vessel), nameof(Vessel.GoOnRails))));
         }
 
         static void Vessel_GoOnRails_Postfix(Vessel __instance)

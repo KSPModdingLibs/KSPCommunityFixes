@@ -16,8 +16,7 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix, 
-                AccessTools.Method(typeof(MissionControl), "UpdateInfoPanelContract"), 
-                this));
+                AccessTools.Method(typeof(MissionControl), "UpdateInfoPanelContract")));
         }
 
         private static void MissionControl_UpdateInfoPanelContract_Postfix(MissionControl __instance, Contract contract)

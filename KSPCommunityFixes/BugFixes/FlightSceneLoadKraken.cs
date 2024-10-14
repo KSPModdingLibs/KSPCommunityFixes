@@ -14,13 +14,11 @@ namespace KSPCommunityFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(HighLogic), "LoadScene"),
-                this));
+                AccessTools.Method(typeof(HighLogic), nameof(HighLogic.LoadScene))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(FlightDriver), "Start"),
-                this));
+                AccessTools.Method(typeof(FlightDriver), nameof(FlightDriver.Start))));
         }
 
         private static void HighLogic_LoadScene_Postfix(GameScenes scene)

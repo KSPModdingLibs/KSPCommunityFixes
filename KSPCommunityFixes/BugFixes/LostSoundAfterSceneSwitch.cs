@@ -15,13 +15,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(FlightCamera), nameof(FlightCamera.EnableCamera)),
-                this));
+                AccessTools.Method(typeof(FlightCamera), nameof(FlightCamera.EnableCamera))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(FlightCamera), nameof(FlightCamera.DisableCamera), new[] {typeof(bool)}),
-                this));
+                AccessTools.Method(typeof(FlightCamera), nameof(FlightCamera.DisableCamera), new[] {typeof(bool)})));
         }
 
         static IEnumerable<CodeInstruction> FlightCamera_EnableCamera_Transpiler(IEnumerable<CodeInstruction> instructions)

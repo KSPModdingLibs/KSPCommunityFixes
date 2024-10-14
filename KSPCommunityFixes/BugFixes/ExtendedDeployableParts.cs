@@ -23,13 +23,11 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.startFSM)),
-                this));
+                AccessTools.Method(typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.startFSM))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployablePart.OnStart)),
-                this));
+                AccessTools.Method(typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployablePart.OnStart))));
         }
 
         static IEnumerable<CodeInstruction> ModuleDeployablePart_startFSM_Transpiler(IEnumerable<CodeInstruction> instructions)

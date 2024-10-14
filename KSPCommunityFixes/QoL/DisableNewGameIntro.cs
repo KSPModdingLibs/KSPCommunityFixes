@@ -12,8 +12,7 @@ namespace KSPCommunityFixes.QoL
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Prefix,
-                AccessTools.Method(typeof(ScenarioNewGameIntro), nameof(ScenarioNewGameIntro.OnAwake)),
-                this));
+                AccessTools.Method(typeof(ScenarioNewGameIntro), nameof(ScenarioNewGameIntro.OnAwake))));
         }
 
         static void ScenarioNewGameIntro_OnAwake_Prefix(ScenarioNewGameIntro __instance)

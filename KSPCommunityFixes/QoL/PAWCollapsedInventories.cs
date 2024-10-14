@@ -18,28 +18,23 @@ namespace KSPCommunityFixes.UI
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleInventoryPart), "OnStart"),
-                this));
+                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.OnStart))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleInventoryPart), "UpdateMassVolumeDisplay"),
-                this));
+                AccessTools.Method(typeof(ModuleInventoryPart), nameof(ModuleInventoryPart.UpdateMassVolumeDisplay))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionInventory), "Setup"),
-                this));
+                AccessTools.Method(typeof(UIPartActionInventory), nameof(UIPartActionInventory.Setup))));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(UIPartActionWindow), "AddCrewInventory", new[] { typeof(ProtoCrewMember) }),
-                this));
+                AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) })));
 
             patches.Add(new PatchInfo(
                 PatchMethodType.Postfix,
-                AccessTools.Method(typeof(UIPartActionWindow), "AddCrewInventory", new[] { typeof(ProtoCrewMember) }),
-                this));
+                AccessTools.Method(typeof(UIPartActionWindow), nameof(UIPartActionWindow.AddCrewInventory), new[] { typeof(ProtoCrewMember) })));
         }
 
         static string GetGroupName(ModuleInventoryPart inventory)

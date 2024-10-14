@@ -14,8 +14,7 @@ namespace KSPCommunityFixes.BugFixes
         {
             patches.Add(new PatchInfo(
                 PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(PQSLandControl), nameof(PQSLandControl.OnVertexBuildHeight)),
-                this));
+                AccessTools.Method(typeof(PQSLandControl), nameof(PQSLandControl.OnVertexBuildHeight))));
         }
 
         static IEnumerable<CodeInstruction> PQSLandControl_OnVertexBuildHeight_Transpiler(IEnumerable<CodeInstruction> instructions)
