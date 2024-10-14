@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -150,11 +150,13 @@ namespace KSPCommunityFixes
             }
         }
 
-        
         static void ModuleGenerator_OnStart_Postfix(ModuleGenerator __instance)
         {
-            // every generator in a part create different group
-            string name = "CF_Generator" + __instance.part.Modules.IndexOf(__instance);
+            // if only one generator, don't create a group
+            if (__instance.part.FindModulesImplementingReadOnly<ModuleGenerator>().Count == 1)
+                return;
+
+            string name = $"CF_Generator_{__instance.GetInstanceIDFast()}";
 
             var inputs = __instance.resHandler.inputResources;
             var outputs = __instance.resHandler.outputResources;
@@ -169,7 +171,7 @@ namespace KSPCommunityFixes
                 abbrs += string.Join(" ", outputs.Select(r => r.resourceDef.abbreviation));
             }
 
-            BasePAWGroup pawGroup = new BasePAWGroup(name, generatorGroupTitle + abbrs, __instance.part.Modules.Count > 3);
+            BasePAWGroup pawGroup = new BasePAWGroup(name, generatorGroupTitle + abbrs, false);
 
             foreach (BaseField baseField in __instance.Fields)
             {
