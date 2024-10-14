@@ -113,6 +113,11 @@
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlers" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator.labelCounter" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ILOffset" />
+    <Publicize Include="mscorlib:System.Reflection.Emit.Label.label" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.position" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.is_pinned" />
+    <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.type" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
