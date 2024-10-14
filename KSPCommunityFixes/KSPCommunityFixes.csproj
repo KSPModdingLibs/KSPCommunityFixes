@@ -148,6 +148,7 @@
     <Compile Include="BugFixes\StrategyDuration.cs" />
     <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
+    <Compile Include="Library\Collections\FastStack.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\KSPObjectsExtensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
