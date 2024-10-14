@@ -9,7 +9,6 @@
 // Uncomment to enable verification that kspcf results are matching stock, and stopwatch based perf comparison. Very logspammy.
 // #define FPFT_DEBUG_PROFILE
 
-using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -20,38 +19,22 @@ namespace KSPCommunityFixes.Performance
     {
         protected override Version VersionMin => new Version(1, 12, 3);
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
 #if !FPFT_DEBUG_PROFILE
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindHeirarchyTransform)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindHeirarchyTransform));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindHeirarchyTransforms)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindHeirarchyTransforms));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindModelTransform)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindModelTransform));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindModelTransforms)),
-                this));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindModelTransforms));
 #else
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindModelTransform)),
-                this, nameof(Part_FindModelTransform_Prefix_Debug)));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindHeirarchyTransform), 
+                nameof(Part_FindModelTransform_Prefix_Debug));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(Part), nameof(Part.FindModelTransforms)),
-                this, nameof(Part_FindModelTransforms_Prefix_Debug)));
+            AddPatch(PatchType.Prefix, typeof(Part), nameof(Part.FindHeirarchyTransforms), 
+                nameof(Part_FindModelTransforms_Prefix_Debug));
 #endif
         }
 

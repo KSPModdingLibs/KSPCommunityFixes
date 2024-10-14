@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -32,18 +32,13 @@ namespace KSPCommunityFixes
 
             AddPatch(PatchType.Postfix, typeof(ModuleControlSurface), nameof(ModuleControlSurface.OnStart));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Postfix,
-                AccessTools.Method(typeof(ModuleGenerator), "OnStart"),
-                this));
+            AddPatch(PatchType.Postfix, typeof(ModuleGenerator), nameof(ModuleGenerator.OnStart));
 
             partGroupTitle = Localizer.Format("#autoLOC_6100048"); // Part
             commsGroupTitle = Localizer.Format("#autoLOC_453582"); // Communication
             commandGroupTitle = Localizer.Format("#autoLoc_6003031"); // Command
             attitudeControlGroupTitle = Localizer.Format("#autoLOC_6001695"); // Control
             generatorGroupTitle = Localizer.Format("#autoLOC_235532"); // Generator
-
-
         }
 
         static void Part_Start_Postfix(Part __instance)

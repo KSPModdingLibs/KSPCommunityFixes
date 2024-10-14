@@ -17,13 +17,9 @@ class DragCubeLoadException : BasePatch
 
     protected override Version VersionMin => new Version(1, 8, 0);
 
-    protected override void ApplyPatches(List<PatchInfo> patches)
+    protected override void ApplyPatches()
     {
-        patches.Add(
-            new PatchInfo(
-                PatchMethodType.Transpiler,
-                AccessTools.Method(typeof(DragCube), nameof(DragCube.Load)),
-                this));
+        AddPatch(PatchType.Transpiler, typeof(DragCube), nameof(DragCube.Load));
     }
 
     static IEnumerable<CodeInstruction> DragCube_Load_Transpiler(IEnumerable<CodeInstruction> instructions)
