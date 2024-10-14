@@ -137,6 +137,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**OptimizedModuleRaycasts**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/216) [KSP 1.12.3 - 1.12.5]<br/>Improve engine exhaust damage and solar panel line of sight raycasts performance by avoiding extra physics state synchronization and caching solar panels scaled space raycasts results.
 - [**ModuleDockingNodeFindOtherNodesFaster**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Faster lookup of other docking nodes.
 - [**CollisionEnhancerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of the `CollisionEnhancer` component (responsible for part to terrain collision detection).
+- [**PartSystemsFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of various flight scene auxiliary subsystems : temperature gauges, highlighter, strut position tracking...
 - [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5]<br/>Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
 
 #### API and modding tools
