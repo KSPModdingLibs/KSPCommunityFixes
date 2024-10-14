@@ -42,7 +42,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 __result = !resourceHarvester.cachedWasNotAsteroid;
@@ -63,7 +63,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 // if the cache says there's no asteroid on board, we're done
@@ -88,7 +88,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 __result = !resourceHarvester.cachedWasNotComet;
@@ -109,7 +109,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementing<ModuleResourceHarvester>();
+            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
             if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
             {
                 // if the cache says there's no Comet on board, we're done

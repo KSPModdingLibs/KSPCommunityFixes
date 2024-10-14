@@ -100,7 +100,7 @@ namespace KSPCommunityFixes.Performance
 
             foreach (Vessel vessel in FlightGlobals.VesselsLoaded)
             {
-                int vesselId = vessel.GetInstanceID();
+                int vesselId = vessel.GetInstanceIDFast();
                 for (int i = vessel.parts.Count; i-- > 0;)
                 {
                     Part part = vessel.parts[i];
@@ -139,7 +139,7 @@ namespace KSPCommunityFixes.Performance
                 this.partPersistentId = partPersistentId;
                 this.sameVesselCollision = sameVesselCollision;
                 this.vesselId = vesselId;
-                rigidBodyId = collider.attachedRigidbody.IsNullOrDestroyed() ? 0 : collider.attachedRigidbody.GetInstanceID();
+                rigidBodyId = collider.attachedRigidbody.IsNullOrDestroyed() ? 0 : collider.attachedRigidbody.GetInstanceIDFast();
             }
         }
 

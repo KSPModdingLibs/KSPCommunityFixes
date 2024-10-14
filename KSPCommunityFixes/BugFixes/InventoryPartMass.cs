@@ -85,7 +85,7 @@ namespace KSPCommunityFixes.BugFixes
             }
 
             // otherwise we have to fall back to the prefab volume (this is stock behavior)
-            ModuleCargoPart moduleCargoPart = partSnapshot.partPrefab.FindModuleImplementing<ModuleCargoPart>();
+            ModuleCargoPart moduleCargoPart = partSnapshot.partPrefab.FindModuleImplementingFast<ModuleCargoPart>();
             if (moduleCargoPart != null)
             {
                 return moduleCargoPart.packedVolume;

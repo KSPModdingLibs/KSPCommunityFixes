@@ -172,7 +172,7 @@ namespace KSPCommunityFixes
             if (__instance.upgradeState == PartModule.PartUpgradeState.AVAILABLE)
             {
                 // Handle PartStatsUpgradeModule differently
-                var statsUpgradeModule = __instance.partRef.FindModuleImplementing<PartStatsUpgradeModule>();
+                var statsUpgradeModule = __instance.partRef.FindModuleImplementingFast<PartStatsUpgradeModule>();
                 if (statsUpgradeModule != null)
                 {
                     foreach (string upgradeName in statsUpgradeModule.upgradesApplied)
@@ -344,7 +344,7 @@ namespace KSPCommunityFixes
             __instance.rootPart.persistentId = FlightGlobals.CheckPartpersistentId(__instance.rootPart.persistentId, __instance.rootPart, false, true);
             if (__instance.rootPart.variants != null && pod.variant != null && pod.variant.Name != null)
                 __instance.rootPart.variants.SetVariant(pod.variant.Name);
-            ModuleInventoryPart moduleInventoryPart = __instance.rootPart.FindModuleImplementing<ModuleInventoryPart>();
+            ModuleInventoryPart moduleInventoryPart = __instance.rootPart.FindModuleImplementingFast<ModuleInventoryPart>();
             if (moduleInventoryPart != null)
                 moduleInventoryPart.SetInventoryDefaults();
 
