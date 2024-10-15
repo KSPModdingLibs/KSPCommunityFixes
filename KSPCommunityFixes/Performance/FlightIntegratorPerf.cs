@@ -2,30 +2,16 @@
 // Warning : very log-spammy and performance destroying, don't leave this enabled if you don't need to.
 // #define DEBUG_FLIGHTINTEGRATOR
 
-// More debug cross checks focused on drag stuff
+// More debug cross checks focused on drag cube stuff
 // #define DEBUG_DRAGCUBEUPDATE
 
-/* Perf comparison (patch disabled vs enabled)
-| FPS                                     | Mean  | Mean (P) | Diff | Worst 1% | Worst 1% (P) | Diff |
-| --------------------------------------- | ----- | -------- | ---- | -------- | ------------ | ---- |
-| Acapello (150 parts) - Launchpad        | 238,7 | 247,8    | 4%   | 162,1    | 175,6        | 8%   |
-| Acapello (150 parts) - Atmo flight      | 237,1 | 250      | 5%   | 140,7    | 153,5        | 9%   |
-| Acapello (150 parts) - Orbit            | 287,3 | 312,9    | 9%   | 129,5    | 181,5        | 40%  |
-| SSTO (500 parts) - Launchpad            | 98,7  | 116,2    | 18%  | 73,1     | 96,1         | 31%  |
-| SSTO (500 parts) - Atmo flight          | 85,1  | 100,4    | 18%  | 54,8     | 68,8         | 26%  |
-| SSTO (500 parts) - Orbit                | 118,4 | 153      | 29%  | 70       | 85,9         | 23%  |
-| Big launcher (1000 parts) - Launchpad   | 62,2  | 88,4     | 42%  | 39,2     | 70,5         | 80%  |
-| Big launcher (1000 parts) - Atmo flight | 28,2  | 59,4     | 111% | 18,9     | 35           | 85%  |
-| Big launcher (1000 parts) - Orbit       | 56,3  | 90,4     | 61%  | 27,9     | 39,9         | 43%  |
-*/
+// More debug cross checks focused on aero stuff
+// #define DEBUG_UPDATEAERO
 
-using HarmonyLib;
 using KSPCommunityFixes.Library;
-using KSPCommunityFixes.Library.Collections;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Unity.Collections;
 using UnityEngine;
 using static DragCubeList;
 using Debug = UnityEngine.Debug;
@@ -41,7 +27,13 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(VesselPrecalculate), nameof(VesselPrecalculate.CalculatePhysicsStats));
 
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.Integrate));
+
+#if !DEBUG_UPDATEAERO
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateAerodynamics));
+#else
+            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateAerodynamics), nameof(FlightIntegrator_UpdateAerodynamics_DebugPrefix));
+            AddPatch(PatchType.Postfix, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateAerodynamics), nameof(FlightIntegrator_UpdateAerodynamics_DebugPostfix));
+#endif
 
             AddPatch(PatchType.Override, typeof(FlightIntegrator), nameof(FlightIntegrator.UpdateMassStats));
 
@@ -128,8 +120,8 @@ namespace KSPCommunityFixes.Performance
 
                     if (vessel.angularVelocityD == Vector3d.zero && vessel.packed)
                     {
-                        vessel.MOI.Zero();
-                        vessel.angularMomentum.Zero();
+                        vessel.MOI.MutateZero();
+                        vessel.angularMomentum.MutateZero();
                     }
                     else
                     {
@@ -170,7 +162,7 @@ namespace KSPCommunityFixes.Performance
                 }
 
 #if DEBUG_FLIGHTINTEGRATOR
-                VerifyPhysicsStats(__instance);
+                VerifyPhysicsStats(vp);
 #endif
             }
 
@@ -208,14 +200,14 @@ namespace KSPCommunityFixes.Performance
                 }
                 else
                 {
-                    vessel.rb_velocity.Zero();
-                    vessel.rb_velocityD.Zero();
-                    vessel.velocityD.Zero();
-                    vessel.angularVelocity.Zero();
-                    vessel.angularVelocityD.Zero();
+                    vessel.rb_velocity.MutateZero();
+                    vessel.rb_velocityD.MutateZero();
+                    vessel.velocityD.MutateZero();
+                    vessel.angularVelocity.MutateZero();
+                    vessel.angularVelocityD.MutateZero();
                 }
-                vessel.MOI.Zero();
-                vessel.angularMomentum.Zero();
+                vessel.MOI.MutateZero();
+                vessel.angularMomentum.MutateZero();
             }
             vp.firstStatsRunComplete = true;
         }
@@ -546,34 +538,38 @@ namespace KSPCommunityFixes.Performance
                 part.submergedDynamicPressurekPa = 0.0;
                 part.dynamicPressurekPa = 0.0;
 
+
                 if (part.angularDragByFI)
                 {
+#if !DEBUG_UPDATEAERO
                     if (hasRb)
-
                         part.rb.angularDrag = 0f;
 
                     if (hasServoRb)
                         part.servoRb.angularDrag = 0f;
+#else
+                    kspcf_rb_AngularDrag = 0f;
+#endif
                 }
 
                 part.dragVector = partOrParentRb.velocity + fiData.krakensbaneFrameVelocityF;
                 part.dragVectorSqrMag = part.dragVector.sqrMagnitude;
+                part.dragScalar = 0f;
 
-                bool hasVelocity = false;
+                bool hasVelocity;
                 if (part.dragVectorSqrMag != 0f)
                 {
                     hasVelocity = true;
                     part.dragVectorMag = Mathf.Sqrt(part.dragVectorSqrMag);
                     part.dragVectorDir = part.dragVector / part.dragVectorMag;
                     part.dragVectorDirLocal = -part.partTransform.InverseTransformDirection(part.dragVectorDir);
-                    part.dragScalar = 0f;
                 }
                 else
                 {
+                    hasVelocity = false;
                     part.dragVectorMag = 0f;
-                    part.dragVectorDir.Zero();
-                    part.dragVectorDirLocal.Zero();
-                    part.dragScalar = 0f;
+                    part.dragVectorDir.MutateZero();
+                    part.dragVectorDirLocal.MutateZero();
                 }
 
                 double submergedPortion = part.submergedPortion;
@@ -640,17 +636,24 @@ namespace KSPCommunityFixes.Performance
                             if (pressure < 0.0)
                                 pressure = 0.0;
 
+
+#if !DEBUG_UPDATEAERO
                             float rbAngularDrag = part.angularDrag * (float)pressure * fi.cacheAngularDragMultiplier;
                             part.rb.angularDrag = rbAngularDrag;
                             if (hasServoRb)
                                 part.servoRb.angularDrag = rbAngularDrag;
+#else
+                            kspcf_rb_AngularDrag = part.angularDrag * (float)pressure * fi.cacheAngularDragMultiplier;
+#endif
                         }
 
                         double dragValue = fi.CalculateDragValue(part) * fi.pseudoReDragMult;
                         if (!double.IsNaN(dragValue) && dragValue != 0.0)
                         {
                             part.dragScalar = (float)(part.dynamicPressurekPa * dragValue * emergedPortion) * fi.cacheDragMultiplier;
+#if !DEBUG_UPDATEAERO
                             fi.ApplyAeroDrag(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force); // TODO: inline to avoid the "is part ? is parent ?" check
+#endif
                         }
                         else
                         {
@@ -668,13 +671,62 @@ namespace KSPCommunityFixes.Performance
                             part.bodyLiftScalar = (float)bodyLiftScalar;
                             if (part.bodyLiftScalar != 0f && part.DragCubes.LiftForce != Vector3.zero && !part.DragCubes.LiftForce.IsInvalid())
                             {
+#if !DEBUG_UPDATEAERO
                                 fi.ApplyAeroLift(part, partOrParentRb, fi.cacheDragUsesAcceleration ? ForceMode.Acceleration : ForceMode.Force); // TODO: inline to avoid the "is part ? is parent ?" check
+#endif
                             }
                         }
                     }
                 }
             }
         }
+
+#if DEBUG_UPDATEAERO
+        private static float kspcf_rb_AngularDrag;
+        private static float kspcf_dynamicPressurekPa;
+        private static Vector3 kspcf_dragVectorDir;
+        private static float kspcf_dragScalar;
+        private static Vector3 kspcf_liftForce;
+        private static float kspcf_liftScalar;
+
+        private static void FlightIntegrator_UpdateAerodynamics_DebugPrefix(FlightIntegrator __instance, Part part)
+        {
+            FlightIntegrator_UpdateAerodynamics_Override(__instance, part);
+            kspcf_dynamicPressurekPa = (float)part.dynamicPressurekPa; // comparing as float since this is computed from floats
+            kspcf_dragVectorDir = part.dragVectorDir;
+            kspcf_dragScalar = part.dragScalar;
+            kspcf_liftForce = part.DragCubes.LiftForce;
+            kspcf_liftScalar = part.bodyLiftScalar;
+        }
+
+        private static void FlightIntegrator_UpdateAerodynamics_DebugPostfix(Part part)
+        {
+            float stock_rb_angularDrag = part.rb.IsNotNullOrDestroyed() ? part.rb.angularDrag : 0f;
+            float stock_dynamicPressurekPa = (float)part.dynamicPressurekPa; // comparing as float since this is computed from floats
+            Vector3 stock_dragVectorDir = part.dragVectorDir;
+            float stock_dragScalar = part.dragScalar;
+            Vector3 stock_liftForce = part.DragCubes.LiftForce;
+            float stock_liftScalar = part.bodyLiftScalar;
+
+            if (!Numerics.AlmostEqual(stock_rb_angularDrag, kspcf_rb_AngularDrag, 20))
+                Debug.Log($"[FIAeroDebug] Mismatching RB angularDrag : {Math.Abs(stock_rb_angularDrag - kspcf_rb_AngularDrag)}");
+
+            if (!Numerics.AlmostEqual(stock_dynamicPressurekPa, kspcf_dynamicPressurekPa, 20))
+                Debug.Log($"[FIAeroDebug] Mismatching dynamicPressurekPa : {Math.Abs(stock_dynamicPressurekPa - kspcf_dynamicPressurekPa)}");
+
+            if (stock_dragVectorDir != kspcf_dragVectorDir)
+                Debug.Log($"[FIAeroDebug] Mismatching dragVectorDir : {(stock_dragVectorDir - kspcf_dragVectorDir).magnitude}");
+
+            if (!Numerics.AlmostEqual(stock_dragScalar, kspcf_dragScalar, 20))
+                Debug.Log($"[FIAeroDebug] Mismatching dragScalar : {Math.Abs(stock_dragScalar - kspcf_dragScalar)}");
+
+            if (stock_liftForce != kspcf_liftForce)
+                Debug.Log($"[FIAeroDebug] Mismatching liftForce : {(stock_liftForce - kspcf_liftForce).magnitude}");
+
+            if (!Numerics.AlmostEqual(stock_liftScalar, kspcf_liftScalar, 20))
+                Debug.Log($"[FIAeroDebug] Mismatching liftScalar : {Math.Abs(stock_liftScalar - kspcf_liftScalar)}");
+        }
+#endif
 
         /// <summary>
         /// Replacement for DragCubes.SetDrag() and DragCubes.DragCubeAddSurfaceDragDirection()
@@ -823,7 +875,7 @@ namespace KSPCommunityFixes.Performance
 #endif
         }
 
-        #endregion
+#endregion
 
         #region UpdateMassStats
 
