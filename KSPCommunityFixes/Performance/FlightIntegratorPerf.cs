@@ -2,6 +2,9 @@
 // Warning : very log-spammy and performance destroying, don't leave this enabled if you don't need to.
 // #define DEBUG_FLIGHTINTEGRATOR
 
+// More debug cross checks focused on drag stuff
+// #define DEBUG_DRAGCUBEUPDATE
+
 /* Perf comparison (patch disabled vs enabled)
 | FPS                                     | Mean  | Mean (P) | Diff | Worst 1% | Worst 1% (P) | Diff |
 | --------------------------------------- | ----- | -------- | ---- | -------- | ------------ | ---- |
@@ -434,6 +437,8 @@ namespace KSPCommunityFixes.Performance
             public bool hasVesselPreIntegrationAccel;
             public Vector3 krakensbaneFrameVelocityF;
 
+            public float mach;
+
             public double dragMult;
             public double dragTail;
             public double dragTip;
@@ -457,7 +462,7 @@ namespace KSPCommunityFixes.Performance
                 hasVesselPreIntegrationAccel = !vesselPreIntegrationAccelF.IsZero();
                 krakensbaneFrameVelocityF = Krakensbane.GetFrameVelocity();
 
-                float mach = (float)fi.mach;
+                mach = (float)fi.mach;
 
                 dragMult = PhysicsGlobals.Instance.dragCurveMultiplier.Evaluate(mach);
                 dragTail = PhysicsGlobals.Instance.dragCurveTail.Evaluate(mach);
@@ -710,7 +715,7 @@ namespace KSPCommunityFixes.Performance
 
                 double areaOccludedByDrag = areaOccluded * drag;
                 area += areaOccludedByDrag;
-                double dragCd = areaOccludedByDrag;
+                double dragCd = weightedDrag;
 
                 if (dragCd < 1.0)
                     dragCd = Math.Pow(dragCubes.DragCurveCd.Evaluate((float)weightedDrag), fiData.dragCdPower);
@@ -727,7 +732,7 @@ namespace KSPCommunityFixes.Performance
                     double bodyLift = dragCubes.BodyLiftCurve.liftCurve.Evaluate((float)dot);
                     double weightedBodylift = dot * areaOccluded * weightedDrag * bodyLift * -1.0;
 
-                    if (!double.IsNaN(weightedBodylift) && weightedBodylift > 0.0)
+                    if (!double.IsNaN(weightedBodylift))
                     {
                         liftForceX += faceDir.x * weightedBodylift;
                         liftForceY += faceDir.y * weightedBodylift;
@@ -757,6 +762,7 @@ namespace KSPCommunityFixes.Performance
                 areaDrag = 0.0;
             }
 
+#if !DEBUG_DRAGCUBEUPDATE
             dragCubes.cubeData = new CubeData()
             {
                 dragVector = direction,
@@ -769,6 +775,52 @@ namespace KSPCommunityFixes.Performance
                 dragCoeff = (float)dragCoeff,
                 taperDot = (float)taperDot
             };
+#else
+            CubeData kspcfData = new CubeData()
+            {
+                dragVector = direction,
+                liftForce = new Vector3((float)liftForceX, (float)liftForceY, (float)liftForceZ),
+                area = (float)area,
+                areaDrag = (float)areaDrag,
+                depth = (float)depth,
+                crossSectionalArea = (float)crossSectionalArea,
+                exposedArea = (float)exposedArea,
+                dragCoeff = (float)dragCoeff,
+                taperDot = (float)taperDot
+            };
+
+            CubeData stockData = new CubeData(dragCubes.cubeData);
+            dragCubes.AddSurfaceDragDirection(direction, fiData.mach, ref stockData);
+
+            if (kspcfData.dragVector != stockData.dragVector)
+                Debug.Log($"mismatching dragVector {(kspcfData.dragVector - stockData.dragVector).magnitude}");
+
+            if (kspcfData.liftForce != stockData.liftForce)
+                Debug.Log($"mismatching liftForce {(kspcfData.liftForce - stockData.liftForce).magnitude}");
+
+            if (Math.Abs(kspcfData.area - stockData.area) > 1e-4f)
+                Debug.Log($"mismatching area {Math.Abs(kspcfData.area - stockData.area)}");
+
+            if (Math.Abs(kspcfData.areaDrag - stockData.areaDrag) > 1e-5f)
+                Debug.Log($"mismatching areaDrag {Math.Abs(kspcfData.areaDrag - stockData.areaDrag)}");
+
+            if (Math.Abs(kspcfData.depth - stockData.depth) > 1e-5f)
+                Debug.Log($"mismatching depth {Math.Abs(kspcfData.depth - stockData.depth)}");
+
+            if (Math.Abs(kspcfData.crossSectionalArea - stockData.crossSectionalArea) > 1e-5f)
+                Debug.Log($"mismatching crossSectionalArea {Math.Abs(kspcfData.crossSectionalArea - stockData.crossSectionalArea)}");
+
+            if (Math.Abs(kspcfData.exposedArea - stockData.exposedArea) > 1e-4f)
+                Debug.Log($"mismatching exposedArea {Math.Abs(kspcfData.exposedArea - stockData.exposedArea)}");
+
+            if (Math.Abs(kspcfData.dragCoeff - stockData.dragCoeff) > 1e-5f)
+                Debug.Log($"mismatching dragCoeff {Math.Abs(kspcfData.dragCoeff - stockData.dragCoeff)}");
+
+            if (Math.Abs(kspcfData.taperDot - stockData.taperDot) > 1e-5f)
+                Debug.Log($"mismatching taperDot {Math.Abs(kspcfData.taperDot - stockData.taperDot)}");
+
+            dragCubes.cubeData = kspcfData;
+#endif
         }
 
         #endregion
