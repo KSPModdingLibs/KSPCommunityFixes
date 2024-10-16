@@ -1,27 +1,15 @@
-﻿using System;
+﻿using HarmonyLib;
+using KSPCommunityFixes.Library;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using HarmonyLib;
-using KSP.UI.Screens;
-using KSP.UI.Screens.Settings;
-using KSPCommunityFixes.Library;
-using TMPro.Examples;
 using UnityEngine;
-using UnityEngine.UIElements;
-using VehiclePhysics;
 using static System.Number;
-using static GameDatabase;
-using static Highlighting.Highlighter.RendererCache;
-using static iT;
-using static ProceduralSpaceObject;
 using UObject = UnityEngine.Object;
 
 namespace KSPCommunityFixes.Performance
@@ -46,58 +34,11 @@ namespace KSPCommunityFixes.Performance
                 PatchMethodType.Prefix,
                 AccessTools.Method(typeof(PartLoader), nameof(PartLoader.ApplyPartValue)),
                 this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(BaseFieldList), nameof(BaseFieldList.CreateList)),
-                this));
-
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Postfix,
-            //    AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CreatePartIcon)),
-            //    this));
-
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Prefix,
-            //    AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetModelPrefab)),
-            //    this));
-
-            //// texture getting patches would also benefit to model loading, but we need to run earlier...
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Prefix,
-            //    AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetTextureInfo)),
-            //    this));
-
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Prefix,
-            //    AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetTexture)),
-            //    this));
-
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Prefix,
-            //    AccessTools.Method(typeof(PartModule), nameof(PartModule.ModularSetup)),
-            //    this));
-
-            //patches.Add(new PatchInfo(
-            //    PatchMethodType.Postfix,
-            //    AccessTools.Method(typeof(PartModule), nameof(PartModule.ModularSetup)),
-            //    this));
         }
 
         static bool FlightGlobals_fetch_Prefix(out FlightGlobals __result)
         {
-            if (KSPCFFastLoader.PartCompilationInProgress)
-            {
-                __result = null;
-                return false;
-            }
-
-            if (FlightGlobals._fetch.IsNullOrDestroyed())
-            {
-                FlightGlobals._fetch = UObject.FindObjectOfType<FlightGlobals>();
-            }
-
-            __result = FlightGlobals._fetch;
+            __result = FlightGlobals._fetch.IsNullOrDestroyed() ? null : FlightGlobals._fetch;
             return false;
         }
 
@@ -142,78 +83,22 @@ namespace KSPCommunityFixes.Performance
             return shader_ScreenSpaceMask;
         }
 
-        //static void PartLoader_CreatePartIcon_Prefix()
-        //{
-        //    watch.Start();
-        //}
-
-        //static void PartLoader_CreatePartIcon_Postfix()
-        //{
-        //    watch.Stop();
-        //}
-
-        private static HashSet<Type> OnIconCreatePartModules;
-
-        private static bool HasOnIconCreateModule(Part part)
-        {
-            if (OnIconCreatePartModules == null)
-            {
-                OnIconCreatePartModules = new HashSet<Type>();
-
-                foreach (Type type in AccessTools.AllTypes())
-                {
-                    if (type.IsSubclassOf(typeof(PartModule)))
-                    {
-                        if (type.GetMethod(nameof(PartModule.OnIconCreate), BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly) != null)
-                        {
-                            OnIconCreatePartModules.Add(type);
-                        }
-                    }
-                }
-            }
-
-            if (OnIconCreatePartModules.Count == 0)
-                return false;
-
-            List<PartModule> modules = part.modules.modules;
-            for (int i = modules.Count; i-- > 0;)
-            {
-                if (OnIconCreatePartModules.Contains(modules[i].GetType()))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         static bool PartLoader_CreatePartIcon_Prefix(GameObject newPart, out float iconScale, out GameObject __result)
         {
             watch.Start();
-            newPart.SetActive(false);
-            GameObject partObject = UObject.Instantiate(newPart);
-            newPart.SetActive(true);
-            //partObject.SetActive(true);
-            Part part = partObject.GetComponent<Part>();
+            GameObject iconPartObject = UObject.Instantiate(newPart);
+            iconPartObject.SetActive(true);
+            Part iconPart = iconPartObject.GetComponent<Part>();
 
-            // only activate the part if a module requires it.
-            // probably not a good idea in the end :
-            // - some model setup might happen in Awake(), and we would miss those
-            // - the perf gains are not as good as I hoped.
-            if (HasOnIconCreateModule(part))
-            {
-                partObject.SetActive(true);
-            }
-
-            if (part.IsNotNullOrDestroyed())
+            if (iconPart.IsNotNullOrDestroyed())
             {
                 int i = 0;
-                for (int count = part.Modules.Count; i < count; i++)
-                    part.Modules[i].OnIconCreate();
+                for (int count = iconPart.Modules.Count; i < count; i++)
+                    iconPart.Modules[i].OnIconCreate();
             }
 
             Bounds partBounds = default;
-            partObject.GetComponentsInChildren(false, componentBuffer);
+            iconPartObject.GetComponentsInChildren(false, componentBuffer);
             try
             {
                 for (int i = componentBuffer.Count; i-- > 0;)
@@ -265,7 +150,7 @@ namespace KSPCommunityFixes.Performance
                 for (int i = colliderObjectsToDestroy.Count; i-- > 0;)
                     UObject.DestroyImmediate(colliderObjectsToDestroy[i]);
 
-                partObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                iconPartObject.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
 
                 bool first = true;
                 for (int i = iconRenderers.Count; i-- > 0;)
@@ -301,9 +186,9 @@ namespace KSPCommunityFixes.Performance
                         {
                             Color originalColor = iconMaterial.color;
                             iconMaterial.SetColor(PropertyIDs._Color, new Color(
-                                Mathf.Clamp(originalColor.r, 0.5f, 1f), 
-                                Mathf.Clamp(originalColor.g, 0.5f, 1f), 
-                                Mathf.Clamp(originalColor.b, 0.5f, 1f)));
+                                originalColor.r < 0.5f ? 0.5f : originalColor.r,
+                                originalColor.g < 0.5f ? 0.5f : originalColor.g,
+                                originalColor.b < 0.5f ? 0.5f : originalColor.b));
                         }
                         else
                         {
@@ -344,14 +229,13 @@ namespace KSPCommunityFixes.Performance
             iconScale = iconScale > z ? iconScale : z;
             iconScale = 1f / iconScale;
 
-            GameObject iconObject = new GameObject();
-            iconObject.name = partObject.name + " icon";
-            partObject.transform.parent = iconObject.transform;
-            partObject.transform.localScale = Vector3.one * iconScale;
-            partObject.transform.localPosition = partBounds.center * (0f - iconScale);
+            GameObject iconObject = new GameObject(iconPartObject.name + " icon");
+            iconPartObject.transform.parent = iconObject.transform;
+            iconPartObject.transform.localScale = Vector3.one * iconScale;
+            iconPartObject.transform.localPosition = partBounds.center * (0f - iconScale);
             iconObject.transform.parent = PartLoader.Instance.transform;
             iconObject.SetActive(false);
-            partObject.SetActive(true);
+            iconPartObject.SetActive(true);
 
             __result = iconObject;
             watch.Stop();
@@ -785,7 +669,10 @@ namespace KSPCommunityFixes.Performance
             __result = false;
             return false;
         }
+    }
 
+    public static class UnsafeStringParsing
+    {
         static unsafe Vector2 ParseVector2(string value)
         {
             UnsafeString str = new UnsafeString(value);
@@ -853,7 +740,7 @@ namespace KSPCommunityFixes.Performance
             char* ptr = str.ptr;
             if (!ParseNumber(ref ptr, options, ref number, null, numfmt, parseDecimal) || (ptr - str.ptr < str.length && !TrailingZeros(str, (int)(ptr - str.ptr))))
                 return false;
-            
+
             return true;
         }
 
@@ -864,32 +751,6 @@ namespace KSPCommunityFixes.Performance
                     return false;
 
             return true;
-        }
-
-        static bool BaseFieldList_CreateList_Prefix(BaseFieldList __instance, object instance)
-        {
-            // base code from BaseFieldList<BaseField, KSPField>
-            BaseFieldList<BaseField, KSPField>.ReflectedData reflectedAttributes = BaseFieldList<BaseField, KSPField>.GetReflectedAttributes(instance.GetType(), __instance.ignoreUIControlWhenCreatingReflectedData);
-
-            __instance._fields.Capacity = reflectedAttributes.fields.Count;
-            int i = 0;
-            for (int count = reflectedAttributes.fields.Count; i < count; i++)
-            {
-                BaseField val = new BaseField(reflectedAttributes.fieldAttributes[i], (FieldInfo)reflectedAttributes.fields[i], instance);
-                val.SetOriginalValue();
-                __instance._fields.Add(val);
-            }
-
-            // override from BaseFieldList : BaseFieldList<BaseField, KSPField>
-            // ReflectedData reflectedAttributes = BaseFieldList<BaseField, KSPField>.GetReflectedAttributes(instance.GetType(), __instance.ignoreUIControlWhenCreatingReflectedData);
-            int j = 0;
-            for (int count = reflectedAttributes.controls.Count; j < count; j++)
-            {
-                BaseField item = new BaseField(reflectedAttributes.controlAttributes[j], (FieldInfo)reflectedAttributes.fields[j], instance);
-                __instance._fields.Add(item);
-            }
-
-            return false;
         }
     }
 

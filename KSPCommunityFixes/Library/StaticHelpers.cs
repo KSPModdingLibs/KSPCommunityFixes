@@ -93,36 +93,5 @@ namespace KSPCommunityFixes
         /// </summary>
         /// <param name="value">The value.</param>
         public static bool IsPowerOfTwo(uint value) => (value & (value - 1)) == 0 && value != 0;
-
-        public static Matrix4x4D ToMatrix4x4D(ref this Matrix4x4 m)
-        {
-            return new Matrix4x4D(
-                m.m00, m.m01, m.m02, m.m03,
-                m.m10, m.m11, m.m12, m.m13,
-                m.m20, m.m21, m.m22, m.m23,
-                m.m30, m.m31, m.m32, m.m33);
-        }
-
-        public static Vector3d MultiplyVector(ref this Matrix4x4D m, Vector3d vector)
-        {
-            return new Vector3d(
-                m.m00 * vector.x + m.m01 * vector.y + m.m02 * vector.z,
-                m.m10 * vector.x + m.m11 * vector.y + m.m12 * vector.z,
-                m.m20 * vector.x + m.m21 * vector.y + m.m22 * vector.z);
-        }
-
-        /// <summary>
-        /// 3 times faster than using the + operator
-        /// </summary>
-        /// <param name="v"></param>
-        /// <param name="other"></param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Add(ref this Vector3d v, Vector3d other)
-        {
-            v.x += other.x;
-            v.y += other.y;
-            v.z += other.z;
-        }
-
     }
 }
