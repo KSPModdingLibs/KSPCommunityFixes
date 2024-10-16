@@ -1101,9 +1101,6 @@ namespace KSPCommunityFixes.Library
         {
             int valIdx = Advance(4);
             return *(Color32*)(dataPtr + valIdx);
-
-            Advance(4);
-            return new Color32(data[index - 4], data[index - 3], data[index - 2], data[index - 1]);
         }
 
         private static unsafe BoneWeight ReadBoneWeight()

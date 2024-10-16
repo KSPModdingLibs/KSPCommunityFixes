@@ -79,15 +79,16 @@ namespace KSPCommunityFixes.Performance
                 $"- Configs reload done in {wSecondConfigLoad.Elapsed.TotalSeconds:F3}s\n" +
                 $"- Configs translated in {wConfigTranslate.Elapsed.TotalSeconds:F3}s\n" +
                 $"- {KSPCFFastLoader.loadedAssetCount} assets loaded in {wAssetsLoading.Elapsed.TotalSeconds:F3}s :\n" +
-                $"  - {KSPCFFastLoader.audioFilesLoaded} audio assets ({StaticHelpers.HumanReadableBytes(audioBytesLoaded)}) in {wAudioLoading.Elapsed.TotalSeconds:F3}s\n" +
+                $"  - {KSPCFFastLoader.audioFilesLoaded} audio assets ({StaticHelpers.HumanReadableBytes(audioBytesLoaded)}) in {wAudioLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(audioBytesLoaded / wAudioLoading.Elapsed.TotalSeconds))}/s\n" +
                 $"  - {texturesLoaded} texture assets ({StaticHelpers.HumanReadableBytes(texturesBytesLoaded)}) in {wTextureLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(texturesBytesLoaded / wTextureLoading.Elapsed.TotalSeconds))}/s\n" +
-                $"  - {modelsLoaded} model assets ({StaticHelpers.HumanReadableBytes(modelsBytesLoaded)}) in {wModelLoading.Elapsed.TotalSeconds:F3}s, {wModelLoading.Elapsed.TotalMilliseconds / modelsLoaded:F3} ms/model\n" +
+                $"  - {modelsLoaded} model assets ({StaticHelpers.HumanReadableBytes(modelsBytesLoaded)}) in {wModelLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(modelsBytesLoaded / wModelLoading.Elapsed.TotalSeconds))}/s\n" +
                 $"- Asset bundles loaded in {wAssetBundleLoading.Elapsed.TotalSeconds:F3}s\n" +
                 $"- GameDatabase (configs, resources, traits, upgrades...) loaded in {wGamedatabaseLoading.Elapsed.TotalSeconds:F3}s\n" +
                 $"- Built-in parts copied in {wBuiltInPartsCopy.Elapsed.TotalSeconds:F3}s\n" +
                 $"- Part and internal configs extracted in {wPartConfigExtraction.Elapsed.TotalSeconds:F3}s\n" +
                 $"- {totalPartsLoaded} parts and {totalModulesLoaded} modules compiled in {wPartCompilationLoading.Elapsed.TotalSeconds:F3}s\n" +
-                $"  ({totalModulesLoaded / (float)totalPartsLoaded:F1} modules/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalPartsLoaded:F3} ms/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalModulesLoaded:F3} ms/module)\n" +
+                $"  - {totalModulesLoaded / (float)totalPartsLoaded:F1} modules/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalPartsLoaded:F3} ms/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalModulesLoaded:F3} ms/module\n" +
+                $"  - PartIcon compilation : {PartParsingPerf.iconCompilationWatch.Elapsed.TotalSeconds:F3}s\n" +
                 $"- {totalInternalsLoaded} internal spaces and {totalInternalPropsLoaded} props compiled in {wInternalCompilationLoading.Elapsed.TotalSeconds:F3}s\n";
 
             if (ExpansionsLoader.expansionsInfo.Count > 0)
@@ -98,7 +99,6 @@ namespace KSPCommunityFixes.Performance
 
             Debug.Log(log);
             Debug.Log($"Texture queries : {KSPCFFastLoader.txcallCount}, slow path : {KSPCFFastLoader.txMissCount} ({KSPCFFastLoader.txMissCount / (float)KSPCFFastLoader.txcallCount:P2})");
-            Debug.Log($"PartIcon compilation : {GeneralPerfFixes.watch.Elapsed.TotalMilliseconds:F3}");
             Destroy(gameObject);
         }
     }
@@ -896,7 +896,6 @@ namespace KSPCommunityFixes.Performance
         static int loadedBytes;
         static object lockObject = new object();
 
-
         /// <summary>
         /// Textures / models loader coroutine implementing threaded disk reads and framerate decoupling
         /// </summary>
@@ -1017,8 +1016,6 @@ namespace KSPCommunityFixes.Performance
                 }
             }
         }
-
-
 
         /// <summary>
         /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
@@ -1672,87 +1669,6 @@ namespace KSPCommunityFixes.Performance
                 return new TextureInfo(file, texture, isNormalMap, !isNormalMap, false);
             }
 
-            /*
-            private static void InitPartReader()
-            {
-                if (PartReader.matDummies == null)
-                    PartReader.matDummies = new List<PartReader.MaterialDummy>();
-                else
-                    PartReader.matDummies.Clear();
-
-                if (PartReader.boneDummies == null)
-                    PartReader.boneDummies = new List<PartReader.BonesDummy>();
-                else
-                    PartReader.boneDummies.Clear();
-
-                if (PartReader.textureDummies == null)
-                    PartReader.textureDummies = new PartReader.TextureDummyList();
-                else
-                    PartReader.textureDummies.Clear();
-            }
-
-            private static void CleanPartReader()
-            {
-                PartReader.matDummies.Clear();
-                PartReader.boneDummies.Clear();
-                PartReader.textureDummies.Clear();
-            }
-
-            private GameObject LoadMU()
-            {
-                InitPartReader();
-                PartReader.file = file;
-                memoryStream = new MemoryStream(buffer, 0, dataLength);
-                binaryReader = new BinaryReader(memoryStream);
-                PartToolsLib.FileType fileType = (PartToolsLib.FileType)binaryReader.ReadInt32();
-                PartReader.fileVersion = binaryReader.ReadInt32();
-                _ = binaryReader.ReadString() + string.Empty;
-                if (fileType != PartToolsLib.FileType.ModelBinary)
-                {
-                    SetError($"'{file.url}.mu' is an incorrect type.");
-                    return null;
-                }
-                GameObject gameObject = null;
-                try
-                {
-                    gameObject = PartReader.ReadChild(binaryReader, null);
-                    if (PartReader.boneDummies.Count > 0)
-                    {
-                        int i = 0;
-                        for (int count = PartReader.boneDummies.Count; i < count; i++)
-                        {
-                            Transform[] array = new Transform[PartReader.boneDummies[i].bones.Count];
-                            int j = 0;
-                            for (int count2 = PartReader.boneDummies[i].bones.Count; j < count2; j++)
-                            {
-                                array[j] = PartReader.FindChildByName(gameObject.transform, PartReader.boneDummies[i].bones[j]);
-                            }
-                            PartReader.boneDummies[i].smr.bones = array;
-                        }
-                    }
-                    if (PartReader.shaderFallback)
-                    {
-                        Renderer[] componentsInChildren = gameObject.GetComponentsInChildren<Renderer>();
-                        int k = 0;
-                        for (int num = componentsInChildren.Length; k < num; k++)
-                        {
-                            Renderer renderer = componentsInChildren[k];
-                            int l = 0;
-                            for (int num2 = renderer.sharedMaterials.Length; l < num2; l++)
-                            {
-                                renderer.sharedMaterials[l].shader = Shader.Find("KSP/Diffuse");
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    CleanPartReader();
-                }
-                return gameObject;
-            }
-            */
-            
             private GameObject LoadMU()
             {
                 return MuParser.Parse(file.parent.url, buffer, dataLength);

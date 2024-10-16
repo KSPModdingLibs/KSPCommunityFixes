@@ -1,45 +1,23 @@
-﻿using HarmonyLib;
-using KSPCommunityFixes.Library;
+﻿using KSPCommunityFixes.Library;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using UnityEngine;
-using static System.Number;
 using UObject = UnityEngine.Object;
 
 namespace KSPCommunityFixes.Performance
 {
-    internal class GeneralPerfFixes : BasePatch
+    internal class PartParsingPerf : BasePatch
     {
-        internal static Stopwatch watch = new Stopwatch();
+        internal static Stopwatch iconCompilationWatch = new Stopwatch();
 
-        protected override void ApplyPatches(List<PatchInfo> patches)
+        protected override void ApplyPatches()
         {
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.PropertyGetter(typeof(FlightGlobals), nameof(FlightGlobals.fetch)),
-                this, nameof(FlightGlobals_fetch_Prefix)));
+            AddPatch(PatchType.Prefix, typeof(PartLoader), nameof(PartLoader.CreatePartIcon));
 
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CreatePartIcon)),
-                this));
-
-            patches.Add(new PatchInfo(
-                PatchMethodType.Prefix,
-                AccessTools.Method(typeof(PartLoader), nameof(PartLoader.ApplyPartValue)),
-                this));
-        }
-
-        static bool FlightGlobals_fetch_Prefix(out FlightGlobals __result)
-        {
-            __result = FlightGlobals._fetch.IsNullOrDestroyed() ? null : FlightGlobals._fetch;
-            return false;
+            AddPatch(PatchType.Prefix, typeof(PartLoader), nameof(PartLoader.ApplyPartValue));
         }
 
         static List<Component> componentBuffer = new List<Component>();
@@ -83,9 +61,9 @@ namespace KSPCommunityFixes.Performance
             return shader_ScreenSpaceMask;
         }
 
-        static bool PartLoader_CreatePartIcon_Prefix(GameObject newPart, out float iconScale, out GameObject __result)
+        private static bool PartLoader_CreatePartIcon_Prefix(GameObject newPart, out float iconScale, out GameObject __result)
         {
-            watch.Start();
+            iconCompilationWatch.Start();
             GameObject iconPartObject = UObject.Instantiate(newPart);
             iconPartObject.SetActive(true);
             Part iconPart = iconPartObject.GetComponent<Part>();
@@ -236,15 +214,16 @@ namespace KSPCommunityFixes.Performance
             iconObject.transform.parent = PartLoader.Instance.transform;
             iconObject.SetActive(false);
             iconPartObject.SetActive(true);
-
             __result = iconObject;
-            watch.Stop();
+            iconCompilationWatch.Stop();
             return false;
         }
 
-        private static Dictionary<string, PartFieldSetter> partFieldsSetters = new Dictionary<string, PartFieldSetter>();
-        private static Dictionary<string, PartFieldSetter> compoundPartFieldsSetters = new Dictionary<string, PartFieldSetter>();
-        private static Dictionary<Type, Dictionary<string, PartFieldSetter>> derivedPartSetters;
+
+
+        private static Dictionary<string, PartFieldSetter> partFieldsSetters = new Dictionary<string, PartFieldSetter>(300);
+        private static Dictionary<string, PartFieldSetter> compoundPartFieldsSetters = new Dictionary<string, PartFieldSetter>(300);
+        private static Dictionary<Type, Dictionary<string, PartFieldSetter>> unknownPartFieldsSetters = new Dictionary<Type, Dictionary<string, PartFieldSetter>>();
 
         private abstract class PartFieldSetter
         {
@@ -512,7 +491,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        public static Action<object, T> CreateInstanceSetter<T>(FieldInfo field)
+        private static Action<object, T> CreateInstanceSetter<T>(FieldInfo field)
         {
             string methodName = field.ReflectedType.FullName + ".set_" + field.Name;
             DynamicMethod setterMethod = new DynamicMethod(methodName, null, new Type[2] { typeof(object), typeof(T) }, true);
@@ -524,7 +503,7 @@ namespace KSPCommunityFixes.Performance
             return (Action<object, T>)setterMethod.CreateDelegate(typeof(Action<object, T>));
         }
 
-        public static Action<object, object> CreateInstanceBoxedValueSetter(FieldInfo field)
+        private static Action<object, object> CreateInstanceBoxedValueSetter(FieldInfo field)
         {
             string methodName = field.ReflectedType.FullName + ".set_" + field.Name;
             DynamicMethod setterMethod = new DynamicMethod(methodName, null, new Type[2] { typeof(object), typeof(object) }, true);
@@ -539,9 +518,30 @@ namespace KSPCommunityFixes.Performance
 
         private static bool partFieldDictionariesAreBuilt;
 
-        public static void BuildPartFieldDictionaries()
+        private static void BuildPartFieldDictionaries()
         {
-            Type partType = typeof(Part);
+            PopulatePartFieldDictionary(typeof(Part), partFieldsSetters);
+            PopulatePartFieldDictionary(typeof(CompoundPart), compoundPartFieldsSetters);
+
+            foreach (AssemblyLoader.LoadedAssembly assembly in AssemblyLoader.loadedAssemblies.assemblies)
+            {
+                if (assembly.typesDictionary.TryGetValue(typeof(Part), out Dictionary<string, Type> partTypes))
+                {
+                    foreach (Type unknownPartType in partTypes.Values)
+                    {
+                        if (unknownPartType != typeof(Part) && unknownPartType != typeof(CompoundPart))
+                        {
+                            Dictionary<string, PartFieldSetter> unknownTypeDict = new Dictionary<string, PartFieldSetter>(300);
+                            unknownPartFieldsSetters.Add(unknownPartType, unknownTypeDict);
+                            PopulatePartFieldDictionary(unknownPartType, unknownTypeDict);
+                        }
+                    }
+                }
+            }
+        }
+            
+        private static void PopulatePartFieldDictionary(Type partType, Dictionary<string, PartFieldSetter> typeSetterDict)
+        {
             foreach (FieldInfo fieldInfo in partType.GetFields(BindingFlags.Instance | BindingFlags.Public))
             {
                 PartFieldSetter setter;
@@ -632,17 +632,8 @@ namespace KSPCommunityFixes.Performance
                     }
                 }
 
-                partFieldsSetters[fieldInfo.Name] = setter;
+                typeSetterDict[fieldInfo.Name] = setter;
             }
-
-
-            //foreach (Type type in AccessTools.AllTypes())
-            //{
-            //    if (type.IsSubclassOf(Part))
-            //    {
-                    
-            //    }
-            //}
         }
 
         static bool PartLoader_ApplyPartValue_Prefix(Part part, ConfigNode.Value nodeValue, out bool __result)
@@ -653,8 +644,17 @@ namespace KSPCommunityFixes.Performance
                 BuildPartFieldDictionaries();
             }
 
+            Type partType = part.GetType();
+            Dictionary<string, PartFieldSetter> partFieldSetterDict;
+            if (partType == typeof(Part))
+                partFieldSetterDict = partFieldsSetters;
+            else if (partType == typeof(CompoundPart))
+                partFieldSetterDict = compoundPartFieldsSetters;
+            else if (!unknownPartFieldsSetters.TryGetValue(partType, out partFieldSetterDict))
+                throw new Exception($"Unknown part type: '{partType}'");
+
             string valueName = nodeValue.name;
-            if (partFieldsSetters.TryGetValue(valueName, out PartFieldSetter setter))
+            if (partFieldSetterDict.TryGetValue(valueName, out PartFieldSetter setter))
             {
                 if (setter == null)
                 {
@@ -668,336 +668,6 @@ namespace KSPCommunityFixes.Performance
 
             __result = false;
             return false;
-        }
-    }
-
-    public static class UnsafeStringParsing
-    {
-        static unsafe Vector2 ParseVector2(string value)
-        {
-            UnsafeString str = new UnsafeString(value);
-            for (int i = str.length; i-- > 0;)
-            {
-                if (str[i] == ',')
-                {
-                    UnsafeString x = str.Substring(0, i);
-                    UnsafeString y = str.Substring(i + 1);
-                    Vector2 result = new Vector2(ParseSingle(x), ParseSingle(y));
-                    str.UnPin();
-                    return result;
-                }
-            }
-
-            InvalidFormatException();
-            return default;
-        }
-
-        private static void InvalidFormatException()
-        {
-            throw new FormatException();
-        }
-
-        internal static NumberFormatInfo numberFormatInfo = NumberFormatInfo.CurrentInfo;
-        internal static NumberStyles numberStyleFloat = NumberStyles.Float | NumberStyles.AllowThousands;
-
-        internal static unsafe float ParseSingle(UnsafeString str)
-        {
-            byte* stackBuffer = stackalloc byte[(int)(uint)NumberBuffer.NumberBufferBytes];
-            NumberBuffer number = new NumberBuffer(stackBuffer);
-            double value2 = 0.0;
-
-            if (!TryStringToNumber(str, numberStyleFloat, ref number, numberFormatInfo, parseDecimal: false))
-            {
-                UnsafeString trimmedStr = str.Trim();
-                if (trimmedStr.Equals(numberFormatInfo.PositiveInfinitySymbol))
-                {
-                    return float.PositiveInfinity;
-                }
-                if (trimmedStr.Equals(numberFormatInfo.NegativeInfinitySymbol))
-                {
-                    return float.NegativeInfinity;
-                }
-                if (trimmedStr.Equals(numberFormatInfo.NaNSymbol))
-                {
-                    return float.NaN;
-                }
-                throw new FormatException("Input string was not in a correct format.");
-            }
-            if (!NumberBufferToDouble(number.PackForNative(), ref value2))
-            {
-                throw new OverflowException("Value was either too large or too small for a Single.");
-            }
-            float num = (float)value2;
-            if (float.IsInfinity(num))
-            {
-                throw new OverflowException("Value was either too large or too small for a Single.");
-            }
-            return num;
-        }
-
-        internal static unsafe bool TryStringToNumber(UnsafeString str, NumberStyles options, ref NumberBuffer number, NumberFormatInfo numfmt, bool parseDecimal)
-        {
-            char* ptr = str.ptr;
-            if (!ParseNumber(ref ptr, options, ref number, null, numfmt, parseDecimal) || (ptr - str.ptr < str.length && !TrailingZeros(str, (int)(ptr - str.ptr))))
-                return false;
-
-            return true;
-        }
-
-        private static bool TrailingZeros(UnsafeString str, int index)
-        {
-            for (int i = index; i < str.length; i++)
-                if (str[i] != 0)
-                    return false;
-
-            return true;
-        }
-    }
-
-    public struct UnsafeString
-    {
-        public unsafe char* ptr;
-        public int length;
-        private GCHandle handle;
-
-        private unsafe UnsafeString(char* ptr, int length, GCHandle handle)
-        {
-            this.ptr = ptr;
-            this.length = length;
-            this.handle = handle;
-        }
-
-        public unsafe UnsafeString(string str)
-        {
-            handle = GCHandle.Alloc(str, GCHandleType.Pinned);
-            ptr = (char*)handle.AddrOfPinnedObject();
-            length = str.Length;
-        }
-
-        public unsafe UnsafeString(string str, int start, int length = 0)
-        {
-            handle = GCHandle.Alloc(str, GCHandleType.Pinned);
-            ptr = (char*)handle.AddrOfPinnedObject() + start;
-            this.length = length == 0 ? str.Length - start : length;
-        }
-
-        public static unsafe UnsafeString Empty => new UnsafeString((char*)0, 0, new GCHandle());
-
-        public unsafe char this[int index]
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-#if DEBUG
-                if (index < 0 || index >= length)
-                    throw new IndexOutOfRangeException();
-#endif
-                return ptr[index];
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe UnsafeString Substring(int start, int length = 0)
-        {
-            if (start + length > length)
-                ArgumentOutOfRange();
-
-            return new UnsafeString(
-                ptr + start,
-                length == 0 ? this.length - start : length,
-                handle);
-        }
-
-        private static void ArgumentOutOfRange()
-        {
-            throw new ArgumentOutOfRangeException();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe UnsafeString Trim()
-        {
-            int firstNonEmptyChar = 0;
-            while (firstNonEmptyChar < length && char.IsWhiteSpace(ptr[firstNonEmptyChar]))
-                firstNonEmptyChar++;
-
-            if (firstNonEmptyChar == length)
-                return Empty;
-
-            int lastNonEmptyChar = length - 1;
-            while (char.IsWhiteSpace(ptr[lastNonEmptyChar]))
-                lastNonEmptyChar--;
-
-            return Substring(firstNonEmptyChar, lastNonEmptyChar - firstNonEmptyChar + 1);
-        }
-
-        public void UnPin()
-        {
-            if (handle.IsAllocated)
-                handle.Free();
-        }
-
-        public override unsafe string ToString()
-        {
-            return new string(ptr, 0, length);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe bool Equals(UnsafeString value)
-        {
-            if (ptr == value.ptr && length == value.length)
-                return true;
-
-            if (length != value.length)
-                return false;
-
-            return Equals(this, value);
-        }
-
-        public static unsafe bool Equals(UnsafeString value1, UnsafeString value2)
-        {
-            int num = value1.length;
-            char* ptr1 = value1.ptr;
-            char* ptr2 = value2.ptr;
-
-            if (Environment.Is64BitProcess)
-            {
-                while (num >= 12)
-                {
-                    if (*(long*)ptr1 != *(long*)ptr2)
-                    {
-                        return false;
-                    }
-                    if (*(long*)(ptr1 + 4) != *(long*)(ptr2 + 4))
-                    {
-                        return false;
-                    }
-                    if (*(long*)(ptr1 + 8) != *(long*)(ptr2 + 8))
-                    {
-                        return false;
-                    }
-                    ptr1 += 12;
-                    ptr2 += 12;
-                    num -= 12;
-                }
-            }
-            else
-            {
-                while (num >= 10)
-                {
-                    if (*(int*)ptr1 != *(int*)ptr2)
-                    {
-                        return false;
-                    }
-                    if (*(int*)(ptr1 + 2) != *(int*)(ptr2 + 2))
-                    {
-                        return false;
-                    }
-                    if (*(int*)(ptr1 + 4) != *(int*)(ptr2 + 4))
-                    {
-                        return false;
-                    }
-                    if (*(int*)(ptr1 + 6) != *(int*)(ptr2 + 6))
-                    {
-                        return false;
-                    }
-                    if (*(int*)(ptr1 + 8) != *(int*)(ptr2 + 8))
-                    {
-                        return false;
-                    }
-                    ptr1 += 10;
-                    ptr2 += 10;
-                    num -= 10;
-                }
-            }
-            while (num > 0 && *(int*)ptr1 == *(int*)ptr2)
-            {
-                ptr1 += 2;
-                ptr2 += 2;
-                num -= 2;
-            }
-            return num <= 0;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe bool Equals(string value)
-        {
-            fixed (char* strPtr = &value.m_firstChar)
-                if (ptr == strPtr && length == value.Length)
-                    return true;
-
-            if (length != value.Length)
-                return false;
-
-            return Equals(this, value);
-        }
-
-        public static unsafe bool Equals(UnsafeString value1, string value2)
-        {
-            int num = value1.length;
-            char* ptr1 = value1.ptr;
-            fixed (char* strPtr = &value2.m_firstChar)
-            {
-                char* ptr2 = strPtr;
-                if (Environment.Is64BitProcess)
-                {
-                    while (num >= 12)
-                    {
-                        if (*(long*)ptr1 != *(long*)ptr2)
-                        {
-                            return false;
-                        }
-                        if (*(long*)(ptr1 + 4) != *(long*)(ptr2 + 4))
-                        {
-                            return false;
-                        }
-                        if (*(long*)(ptr1 + 8) != *(long*)(ptr2 + 8))
-                        {
-                            return false;
-                        }
-                        ptr1 += 12;
-                        ptr2 += 12;
-                        num -= 12;
-                    }
-                }
-                else
-                {
-                    while (num >= 10)
-                    {
-                        if (*(int*)ptr1 != *(int*)ptr2)
-                        {
-                            return false;
-                        }
-                        if (*(int*)(ptr1 + 2) != *(int*)(ptr2 + 2))
-                        {
-                            return false;
-                        }
-                        if (*(int*)(ptr1 + 4) != *(int*)(ptr2 + 4))
-                        {
-                            return false;
-                        }
-                        if (*(int*)(ptr1 + 6) != *(int*)(ptr2 + 6))
-                        {
-                            return false;
-                        }
-                        if (*(int*)(ptr1 + 8) != *(int*)(ptr2 + 8))
-                        {
-                            return false;
-                        }
-                        ptr1 += 10;
-                        ptr2 += 10;
-                        num -= 10;
-                    }
-                }
-                while (num > 0 && *(int*)ptr1 == *(int*)ptr2)
-                {
-                    ptr1 += 2;
-                    ptr2 += 2;
-                    num -= 2;
-                }
-                return num <= 0;
-            }
-
-
         }
     }
 }
