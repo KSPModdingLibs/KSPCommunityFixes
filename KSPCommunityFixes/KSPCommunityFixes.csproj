@@ -144,7 +144,6 @@
     <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
     <Compile Include="Performance\DragCubeGeneration.cs" />
     <Compile Include="Performance\FastLoader.cs" />
-    <Compile Include="Performance\FlightIntegratorPerf.cs" />
     <Compile Include="Performance\GeneralPerfFixes.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />

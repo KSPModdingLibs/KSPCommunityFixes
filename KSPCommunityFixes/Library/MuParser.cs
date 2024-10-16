@@ -10,8 +10,7 @@ using UnityEngine.Rendering;
 
 namespace KSPCommunityFixes.Library
 {
-    // For reference on my 5800X3D/DDR4, when disk reading isn't a factor and for loading 485MB
-    // worth of models :
+    // For reference on my 5800X3D/DDR4, when disk reading isn't a factor and for loading 485MB worth of models :
     // - The stock parser has a throughput of 120 MB/s
     // - The KSPCF parser has a throughput of 290 MB/s
     // Roadblocks to further optimizations :
@@ -344,7 +343,7 @@ namespace KSPCommunityFixes.Library
         private static void ReadMeshCollider(GameObject o)
         {
             MeshCollider meshCollider = o.AddComponent<MeshCollider>();
-            SkipBool(); // this is actually the "convex" property, but it is always forced to true;
+            SkipBool(); // this is actually the "convex" property, but it is always forced to true
             meshCollider.convex = true;
             meshCollider.sharedMesh = ReadMesh();
         }
