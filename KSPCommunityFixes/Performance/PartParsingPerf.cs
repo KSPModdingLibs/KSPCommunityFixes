@@ -15,9 +15,9 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(PartLoader), nameof(PartLoader.CreatePartIcon));
+            AddPatch(PatchType.Override, typeof(PartLoader), nameof(PartLoader.CreatePartIcon));
 
-            AddPatch(PatchType.Prefix, typeof(PartLoader), nameof(PartLoader.ApplyPartValue));
+            AddPatch(PatchType.Override, typeof(PartLoader), nameof(PartLoader.ApplyPartValue));
         }
 
         static List<Component> componentBuffer = new List<Component>();
@@ -61,7 +61,7 @@ namespace KSPCommunityFixes.Performance
             return shader_ScreenSpaceMask;
         }
 
-        private static bool PartLoader_CreatePartIcon_Prefix(GameObject newPart, out float iconScale, out GameObject __result)
+        private static GameObject PartLoader_CreatePartIcon_Override(PartLoader partLoader, GameObject newPart, out float iconScale)
         {
             iconCompilationWatch.Start();
             GameObject iconPartObject = UObject.Instantiate(newPart);
@@ -173,7 +173,7 @@ namespace KSPCommunityFixes.Performance
                             iconMaterial.SetColor(PropertyIDs._Color, Color.white);
                         }
 
-                        iconMaterial.SetFloat(PropertyIDs._Multiplier, PartLoader.Instance.shaderMultiplier);
+                        iconMaterial.SetFloat(PropertyIDs._Multiplier, partLoader.shaderMultiplier);
                         iconMaterial.SetFloat(PropertyIDs._MinX, 0f);
                         iconMaterial.SetFloat(PropertyIDs._MaxX, 1f);
                         iconMaterial.SetFloat(PropertyIDs._MinY, 0f);
@@ -211,15 +211,13 @@ namespace KSPCommunityFixes.Performance
             iconPartObject.transform.parent = iconObject.transform;
             iconPartObject.transform.localScale = Vector3.one * iconScale;
             iconPartObject.transform.localPosition = partBounds.center * (0f - iconScale);
-            iconObject.transform.parent = PartLoader.Instance.transform;
+            iconObject.transform.parent = partLoader.transform;
             iconObject.SetActive(false);
             iconPartObject.SetActive(true);
-            __result = iconObject;
+            //__result = iconObject;
             iconCompilationWatch.Stop();
-            return false;
+            return iconObject;
         }
-
-
 
         private static Dictionary<string, PartFieldSetter> partFieldsSetters = new Dictionary<string, PartFieldSetter>(300);
         private static Dictionary<string, PartFieldSetter> compoundPartFieldsSetters = new Dictionary<string, PartFieldSetter>(300);
@@ -636,7 +634,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        static bool PartLoader_ApplyPartValue_Prefix(Part part, ConfigNode.Value nodeValue, out bool __result)
+        static bool PartLoader_ApplyPartValue_Override(Part part, ConfigNode.Value nodeValue)
         {
             if (!partFieldDictionariesAreBuilt)
             {
@@ -657,16 +655,11 @@ namespace KSPCommunityFixes.Performance
             if (partFieldSetterDict.TryGetValue(valueName, out PartFieldSetter setter))
             {
                 if (setter == null)
-                {
-                    __result = false;
                     return false;
-                }
 
-                __result = setter.SetField(part, nodeValue.value);
-                return false;
+                return setter.SetField(part, nodeValue.value);
             }
 
-            __result = false;
             return false;
         }
     }
