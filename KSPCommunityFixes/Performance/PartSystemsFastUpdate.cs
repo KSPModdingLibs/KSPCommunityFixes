@@ -1,6 +1,7 @@
 ﻿using CompoundParts;
 using Highlighting;
 using KSP.UI.Screens.Flight;
+using KSP.UI.Util;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -19,49 +20,228 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
 
             AddPatch(PatchType.Override, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
-
-            // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
         }
 
+        // Complete reimplementation of TemperatureGaugeSystem :
+        // - Minimal update overhead when no gauges are active/shown
+        // - Vastly reduced update overhead when gauges/highlight are active/shown
+        // - Gauges are now instantiated on demand, eliminating (most of) the cost on vessel load
+        // - Gauges are now recycled when the vessel is modified / switched, instead of destroying and re-instantiating them immediately
+        // Gauges were previously always instantiated for every part on the active vessel, and this was pretty slow due to triggering
+        // a lot of internal UI/layout/graphic dirtying on every gauge instantiation. Overall, the operation can take several hundred
+        // milliseconds in not-so large part count situations, leading to very significant hiccups 
+        // TemperatureGaugeSystem.Update average frame time with a ~500 part vessel, gauges not shown : Stock 0.6%, KSPCF 0.04%
+        // TemperatureGaugeSystem.Update average frame time with a ~500 part vessel, ~16 gauges shown : Stock 1.7%, KSPCF 0.3%
+        // See https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/194
         private static void TemperatureGaugeSystem_Update_Override(TemperatureGaugeSystem tgs)
         {
             if (!FlightGlobals.ready || !HighLogic.LoadedSceneIsFlight)
                 return;
 
-            if (GameSettings.TEMPERATURE_GAUGES_MODE < 1 || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
+            if (GameSettings.TEMPERATURE_GAUGES_MODE == 0
+                || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight
+                || FlightGlobals.ActiveVessel.IsNullOrDestroyed())
             {
-                if (tgs.gaugeCount > 0)
-                    tgs.DestroyGauges();
+                if (tgs.visibleGauges.Count == 0)
+                    return;
+
+                for (int i = tgs.visibleGauges.Count; i-- > 0;)
+                {
+                    TemperatureGauge gauge = tgs.visibleGauges[i];
+                    if (gauge.gaugeActive)
+                        gauge.progressBar.gameObject.SetActive(false);
+
+                    if (gauge.highlightActive && gauge.part.IsNotNullOrDestroyed())
+                        gauge.part.SetHighlightDefault();
+
+                    gauge.part = null;
+                    gauge.gaugeActive = false;
+                    gauge.showGauge = false;
+                    gauge.highlightActive = false;
+                }
+
+                tgs.visibleGauges.Clear();
                 return;
             }
 
             Vessel activeVessel = FlightGlobals.ActiveVessel;
-            if (activeVessel.NotDestroyedRefNotEquals(tgs.activeVessel))
-                tgs.CreateGauges();
+            List<Part> parts = activeVessel.parts;
+            int partCount = parts.Count;
 
-            if (activeVessel.IsNotNullOrDestroyed() && activeVessel.parts.Count != tgs.partCount)
-                tgs.RebuildGaugeList();
-
-            if (tgs.gaugeCount == 0)
-                return;
-
+            List<TemperatureGauge> gauges = tgs.gauges;
             tgs.visibleGauges.Clear();
-            for (int i = tgs.gaugeCount; i-- > 0;)
+
+            if (tgs.activeVessel.IsNullRef())
             {
-                TemperatureGauge gauge = tgs.gauges[i];
-                gauge.GaugeUpdate();
-                if (gauge.gaugeActive)
-                    tgs.visibleGauges.Add(gauge);
+                tgs.activeVessel = activeVessel;
+                tgs.partCount = partCount;
+            }
+            else if (tgs.activeVessel.RefNotEquals(activeVessel) || tgs.partCount != partCount)
+            {
+                tgs.activeVessel = activeVessel;
+                tgs.partCount = partCount;
+
+                for (int i = gauges.Count; i-- > 0;)
+                {
+                    TemperatureGauge gauge = gauges[i];
+                    if (gauge.IsNullRef())
+                        continue;
+
+                    if (gauge.gaugeActive)
+                        gauge.progressBar.gameObject.SetActive(false);
+
+                    if (gauge.highlightActive && gauge.part.IsNotNullOrDestroyed())
+                        gauge.part.SetHighlightDefault();
+
+                    gauge.part = null;
+                    gauge.gaugeActive = false;
+                    gauge.showGauge = false;
+                    gauge.highlightActive = false;
+                }
+            }
+
+            while (gauges.Count < partCount)
+                gauges.Add(null);
+
+            while (gauges.Count > partCount)
+            {
+                int lastGaugeIdx = gauges.Count - 1;
+                TemperatureGauge gauge = gauges[lastGaugeIdx];
+                if (gauge.IsNotNullRef())
+                    UnityEngine.Object.Destroy(gauge.gameObject);
+                gauges.RemoveAt(lastGaugeIdx);
+            }
+
+            float gaugeThreshold = PhysicsGlobals.instance.temperatureGaugeThreshold;
+            float gaugeHighlightThreshold = PhysicsGlobals.instance.temperatureGaugeHighlightThreshold;
+
+            bool gaugesEnabled = (GameSettings.TEMPERATURE_GAUGES_MODE & 1) > 0;
+            bool highlightsEnabled = (GameSettings.TEMPERATURE_GAUGES_MODE & 2) > 0;
+
+            for (int i = 0; i < partCount; i++)
+            {
+                Part part = parts[i];
+
+                float skinTempFactor = (float)(part.skinTemperature / part.skinMaxTemp);
+                float tempFactor = (float)(part.temperature / part.maxTemp);
+
+                if (skinTempFactor > tempFactor)
+                    tempFactor = skinTempFactor;
+
+                TemperatureGauge gauge = gauges[i];
+
+                bool gaugeEnabled = gaugesEnabled && tempFactor > gaugeThreshold * part.gaugeThresholdMult;
+                bool highlightEnabled = highlightsEnabled && tempFactor > gaugeHighlightThreshold * part.edgeHighlightThresholdMult;
+
+                if (gaugeEnabled || highlightEnabled)
+                {
+                    if (gauge.IsNullRef())
+                    {
+                        gauge = UnityEngine.Object.Instantiate(tgs.temperatureGaugePrefab);
+                        gauge.transform.SetParent(tgs.transform, worldPositionStays: false);
+                        gauge.Setup(part, gaugeHighlightThreshold, gaugeThreshold);
+                        gauges[i] = gauge;
+                    }
+                    else if (part.RefNotEquals(gauge.part))
+                    {
+                        gauge.part = part;
+                    }
+
+                    if (gaugeEnabled)
+                    {
+                        bool showGauge = true;
+                        Vector3 partPos = part.partTransform.position;
+                        // this is the main remaining perf hog
+                        // It should be feasible to grab the camera matrix once and perform the transformation manually, but well...
+                        gauge.uiPos = RectUtil.WorldToUISpacePos(partPos, FlightCamera.fetch.mainCamera, MainCanvasUtil.MainCanvasRect, ref showGauge);
+
+                        if (showGauge)
+                        {
+                            tgs.visibleGauges.Add(gauge);
+
+                            gauge.distanceFromCamera = Vector3.SqrMagnitude(FlightCamera.fetch.mainCamera.transform.position - partPos);
+                            gauge.rTrf.localPosition = gauge.uiPos;
+
+                            const float minValueChange = 1f / 120f; // slider is ~60 pixels at 100% UI scale
+                            float valueChange = Math.Abs(gauge.progressBar.value - tempFactor);
+                            if (valueChange > minValueChange)
+                            {
+                                gauge.sliderFill.color = Color.Lerp(Color.green, Color.red, tempFactor);
+                                gauge.progressBar.value = tempFactor; // setting this is awfully slow, so only set it when the slider is visually changing...
+                            }
+                        }
+
+                        if (!gauge.gaugeActive || showGauge != gauge.showGauge)
+                        {
+                            gauge.gaugeActive = true;
+                            gauge.showGauge = showGauge;
+                            gauge.progressBar.gameObject.SetActive(showGauge);
+                        }
+                    }
+                    else if (gauge.gaugeActive)
+                    {
+                        gauge.gaugeActive = false;
+                        gauge.showGauge = false;
+                        gauge.progressBar.gameObject.SetActive(false);
+                    }
+
+                    if (highlightEnabled)
+                    {
+                        if (!gauge.highlightActive)
+                        {
+                            gauge.highlightActive = true;
+                            part.SetHighlightType(Part.HighlightType.AlwaysOn);
+                            part.SetHighlight(active: true, recursive: false);
+                        }
+
+                        gauge.edgeRatio = Mathf.InverseLerp(gauge.edgeHighlightThreshold * part.edgeHighlightThresholdMult, 1f, tempFactor);
+                        gauge.colorScale = tempFactor;
+                        part.SetHighlightColor(Color.Lerp(XKCDColors.Red * tempFactor, XKCDColors.KSPNotSoGoodOrange * tempFactor, gauge.edgeRatio));
+                    }
+                    else if (gauge.highlightActive)
+                    {
+                        gauge.highlightActive = false;
+                        if (gauge.part.IsNotNullOrDestroyed())
+                            part.SetHighlightDefault();
+                    }
+                }
+                else if (gauge.IsNotNullRef() && gauge.gaugeActive)
+                {
+                    gauge.progressBar.gameObject.SetActive(false);
+                    gauge.gaugeActive = false;
+                    gauge.showGauge = false;
+                    if (gauge.highlightActive)
+                    {
+                        gauge.highlightActive = false;
+                        if (gauge.part.IsNotNullOrDestroyed())
+                            part.SetHighlightDefault();
+                    }
+                }
             }
 
             tgs.visibleGaugeCount = tgs.visibleGauges.Count;
 
             if (tgs.visibleGaugeCount > 0)
             {
-                tgs.visibleGauges.Sort();
+                // A simple manual insertion sort is an order of magnitude faster than going through the IComparable interface
+                List<TemperatureGauge> visibleGauges = tgs.visibleGauges;
+                for (int i = 1; i < tgs.visibleGaugeCount; i++)
+                {
+                    TemperatureGauge current = visibleGauges[i];
+                    int j = i;
+                    while (j > 0 && visibleGauges[j - 1].distanceFromCamera > current.distanceFromCamera)
+                        visibleGauges[j] = visibleGauges[--j];
+
+                    visibleGauges[j] = current;
+                }
 
                 for (int i = 0; i < tgs.visibleGaugeCount; i++)
-                    tgs.visibleGauges[i].rTrf.SetSiblingIndex(i);
+                {
+                    TemperatureGauge visibleGauge = visibleGauges[i];
+                    if (visibleGauge.rTrf.GetSiblingIndex() != i)
+                        visibleGauge.rTrf.SetSiblingIndex(i);
+                }
+
             }
         }
 
