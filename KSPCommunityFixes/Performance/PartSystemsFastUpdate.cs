@@ -19,8 +19,6 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(Highlighter), nameof(Highlighter.UpdateRenderers));
 
             AddPatch(PatchType.Override, typeof(CModuleLinkedMesh), nameof(CModuleLinkedMesh.TrackAnchor));
-
-            // next thing to look into : Part.Update calling GetBlackBodyRadiation() all the time, even when no renderers in temperatureRenderer : 1% frame time with 1000 parts.
         }
 
         private static void TemperatureGaugeSystem_Update_Override(TemperatureGaugeSystem tgs)
