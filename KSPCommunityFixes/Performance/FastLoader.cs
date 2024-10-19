@@ -98,7 +98,7 @@ namespace KSPCommunityFixes.Performance
                 $"- Planetary system loaded in {wPSystemSetup.Elapsed.TotalSeconds:F3}s";
 
             Debug.Log(log);
-            Debug.Log($"Texture queries : {KSPCFFastLoader.txcallCount}, slow path : {KSPCFFastLoader.txMissCount} ({KSPCFFastLoader.txMissCount / (float)KSPCFFastLoader.txcallCount:P2})");
+            Debug.Log($"Texture queries : {GameDatabasePerf.txcallCount}, slow path : {GameDatabasePerf.txMissCount} ({GameDatabasePerf.txMissCount / (float)GameDatabasePerf.txcallCount:P2})");
             Destroy(gameObject);
         }
     }
@@ -196,27 +196,10 @@ namespace KSPCommunityFixes.Performance
             loader = this;
             IsPatchEnabled = true;
 
+            // Patch the various GameDatabase.GetModel/GetTexture methods to use the FastLoader dictionaries
+            BasePatch.Patch(typeof(GameDatabasePerf));
+
             persistentHarmony = new Harmony(PersistentHarmonyID);
-
-            MethodInfo m_GameDatabase_GetModelPrefab = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetModelPrefab));
-            MethodInfo p_GameDatabase_GetModelPrefab = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_GetModelPrefab_Prefix));
-            persistentHarmony.Patch(m_GameDatabase_GetModelPrefab, new HarmonyMethod(p_GameDatabase_GetModelPrefab));
-
-            MethodInfo m_GameDatabase_GetModelPrefabIn = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetModelPrefabIn));
-            MethodInfo p_GameDatabase_GetModelPrefabIn = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_GetModelPrefabIn_Prefix));
-            persistentHarmony.Patch(m_GameDatabase_GetModelPrefabIn, new HarmonyMethod(p_GameDatabase_GetModelPrefabIn));
-
-            MethodInfo m_GameDatabase_GetModelFile = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetModelFile), new []{typeof(GameObject)});
-            MethodInfo p_GameDatabase_GetModelFile = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_GetModelFile_Prefix));
-            persistentHarmony.Patch(m_GameDatabase_GetModelFile, new HarmonyMethod(p_GameDatabase_GetModelFile));
-
-            MethodInfo m_GameDatabase_GetTextureInfo = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetTextureInfo));
-            MethodInfo p_GameDatabase_GetTextureInfo = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_GetTextureInfo_Prefix));
-            persistentHarmony.Patch(m_GameDatabase_GetTextureInfo, new HarmonyMethod(p_GameDatabase_GetTextureInfo));
-
-            MethodInfo m_GameDatabase_GetTexture = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.GetTexture));
-            MethodInfo p_GameDatabase_GetTexture = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_GetTexture_Prefix));
-            persistentHarmony.Patch(m_GameDatabase_GetTexture, new HarmonyMethod(p_GameDatabase_GetTexture));
 
             MethodInfo m_PSystemManager_Awake = AccessTools.Method(typeof(PSystemManager), nameof(PSystemManager.Awake));
             MethodInfo p_PSystemManager_Awake = AccessTools.Method(typeof(KSPCFFastLoaderPSystemSetup), nameof(KSPCFFastLoaderPSystemSetup.PSystemManager_Awake_Prefix));
@@ -677,7 +660,12 @@ namespace KSPCommunityFixes.Performance
             yield return null;
 
             // call non-stock texture loaders
-            texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count);
+
+            // note : we could use the StringComparer.OrdinalIgnoreCase comparer as the dictionary key comparer,
+            // as this is the comparison that stock is doing. However, profiling show that casing mismatches rarely happen
+            // (never in stock, 0.22% of calls in a very heavily modded install with a bunch of part mods of varying quality)
+            // and the overhead of the OrdinalIgnoreCase comparer is offsetting the gains (but a small margin, but still). 
+            texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count); 
             unsupportedFilesCount = unsupportedTextureFiles.Count;
             loadersCount = gdb.loadersTexture.Count;
 
@@ -2562,157 +2550,7 @@ namespace KSPCommunityFixes.Performance
 
         #endregion
 
-        #region General perf patches
 
-        static bool GameDatabase_GetModelPrefab_Prefix(GameDatabase __instance, string url, out GameObject __result)
-        {
-            if (url == null)
-            {
-                __result = null;
-                return false;
-            }
-
-            if (!modelsByUrl.TryGetValue(url, out __result))
-            {
-                // We need a fallback because models are also added from asset bundles, 
-                // and because anyone could be adding models as the databaseModel list is public
-                List<GameObject> models = __instance.databaseModel;
-                for (int i = models.Count; i-- > 0;)
-                {
-                    if (models[i].name == url)
-                    {
-                        __result = models[i];
-                        modelsByUrl.Add(url, __result);
-                        break;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        static bool GameDatabase_GetModelPrefabIn_Prefix(GameDatabase __instance, string url, out GameObject __result)
-        {
-            if (url == null)
-            {
-                __result = null;
-                return false;
-            }
-
-            if (!modelsByDirectoryUrl.TryGetValue(url, out __result))
-            {
-                // We need a fallback because models are also added from asset bundles, 
-                // and because anyone could be adding models as the databaseModel list is public
-                List<GameObject> models = __instance.databaseModel;
-                for (int i = models.Count; i-- > 0;)
-                {
-                    string modelName = models[i].name;
-                    if (modelName.Substring(0, modelName.LastIndexOf('/')) == url)
-                    {
-                        __result = models[i];
-                        modelsByDirectoryUrl.Add(url, __result);
-                        break;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        static bool GameDatabase_GetModelFile_Prefix(GameDatabase __instance, GameObject modelPrefab, out UrlFile __result)
-        {
-            if (modelPrefab.IsNullRef())
-            {
-                __result = null;
-                return false;
-            }
-
-            if (!urlFilesByModel.TryGetValue(modelPrefab, out __result))
-            {
-                // We need a fallback because models are also added from asset bundles, 
-                // and because anyone could be adding models as the databaseModel list is public
-                List<GameObject> models = __instance.databaseModel;
-                for (int i = models.Count; i-- > 0;)
-                {
-                    if (models[i] == modelPrefab)
-                    {
-                        __result = __instance.databaseModelFiles[i];
-                        urlFilesByModel.Add(modelPrefab, __result);
-                        break;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        static bool GameDatabase_GetTextureInfo_Prefix(GameDatabase __instance, string url, out TextureInfo __result)
-        {
-            txcallCount++;
-            if (url == null)
-            {
-                __result = null;
-                return false;
-            }
-
-            if (__instance.flagSwaps.TryGetValue(url, out string newUrl))
-                url = newUrl;
-
-            if (!texturesByUrl.TryGetValue(url, out __result))
-            {
-                for (int i = __instance.databaseTexture.Count; i-- > 0;)
-                {
-                    if (string.Equals(url, __instance.databaseTexture[i].name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        __result = __instance.databaseTexture[i];
-                        texturesByUrl.Add(url, __result);
-                        txMissCount++;
-                        break;
-                    }
-                }
-            }
-            return false;
-        }
-
-        internal static int txcallCount;
-        internal static int txMissCount;
-
-        static bool GameDatabase_GetTexture_Prefix(GameDatabase __instance, string url, bool asNormalMap, out Texture2D __result)
-        {
-            txcallCount++;
-            if (url == null)
-            {
-                __result = null;
-                return false;
-            }
-
-            if (__instance.flagSwaps.TryGetValue(url, out string newUrl))
-                url = newUrl;
-
-            if (!texturesByUrl.TryGetValue(url, out TextureInfo textureInfo))
-            {
-                for (int i = __instance.databaseTexture.Count; i-- > 0;)
-                {
-                    if (string.Equals(url, __instance.databaseTexture[i].name, StringComparison.OrdinalIgnoreCase))
-                    {
-                        
-                        textureInfo = __instance.databaseTexture[i];
-                        texturesByUrl.Add(url, textureInfo);
-                        txMissCount++;
-                        break;
-                    }
-                }
-            }
-
-            if (textureInfo != null)
-                __result = asNormalMap ? textureInfo.normalMap : textureInfo.texture;
-            else
-                __result = null;
-
-            return false;
-        }
-
-        #endregion
     }
 
 #if DEBUG
