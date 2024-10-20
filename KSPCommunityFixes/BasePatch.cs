@@ -43,6 +43,17 @@ namespace KSPCommunityFixes
     {
     }
 
+    /// <summary>
+    /// When applied to a class derived from <see cref="BasePatch"/>, the patch won't be automatically applied.<para/>
+    /// To apply the patch, call <see cref="BasePatch.Patch"/>. Note that if that call happens before ModuleManager
+    /// has patched the configs (ie, before part compilation), <see cref="BasePatch.IgnoreConfig"/> must be overriden
+    /// to return <see langword="true"/>, or the patch won't be applied.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+    internal class ManualPatchAttribute : Attribute
+    {
+    }
+
     public abstract class BasePatch
     {
         public static readonly string pluginData = "PluginData";
@@ -64,7 +75,7 @@ namespace KSPCommunityFixes
 
             if (!patch.IgnoreConfig && !KSPCommunityFixes.enabledPatches.Contains(patchType.Name))
             {
-                Debug.Log($"[KSPCommunityFixes] Patch {patchType.Name} not applied (disabled in Settings.cfg)");
+                Debug.Log($"[KSPCommunityFixes] Patch {patchType.Name} not applied (not enabled in Settings.cfg)");
                 return;
             }
 
