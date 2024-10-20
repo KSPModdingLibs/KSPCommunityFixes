@@ -200,6 +200,12 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.36.1
+Hotfix release for [issue #273](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/273) : [**ForceSyncSceneSwitch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/250) patch incompatibility with [Universal Storage 2](https://github.com/linuxgurugamer/universal-storage-2/). The patch will now be disabled when US2 is installed. 
+
+Note that this patch [might be causing other issues](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/260), but so far we haven't been able to confirm them.
+
+
 ##### 1.36.0
 **User facing changes**
 - New KSP performance patch : [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5] : Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
