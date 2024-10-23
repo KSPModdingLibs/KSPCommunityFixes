@@ -1,5 +1,7 @@
 ﻿using HarmonyLib;
+using MonoMod.Utils;
 using System;
+using System.Collections.Generic;
 
 /*
 The purpose of this patch if to allow BaseField and associated features (PAW controls, persistence, etc) to work when
@@ -10,6 +12,10 @@ associated KSP sugar :
 - Value and symmetry events
 - Automatic persistence on the Part/PartModule hosting the BaseFieldList
 
+Potential use cases for this are either :
+- Having a part or module-level PAW item associated to and sharing the state of a common field, for example a field in a KSPAddon.
+- Extending external (typically stock) modules with additional PAW UI controls and/or persisted fields.
+
 The whole thing seems actually designed with such a scenario in mind, but for some reason some BaseField and BaseFieldList 
 methods are using the BaseFieldList.host instance instead of the BaseField.host instance (as for why BaseFieldList has a 
 "host" at all, I've no idea and this seems to be a design oversight). There is little to no consistency in which host 
@@ -17,10 +23,10 @@ reference is used, they are even sometimes mixed in the same method. For example
 in its main body, then calls BaseFieldList.SetOriginalValue() which is relying on BaseField.host.
 
 Changing every place where a `host` reference is acquired to ensure the BaseField.host reference is used allow to use a custom
-host instance, and shouldn't result in any behavior change. This being said, the stock code can theoretically allow a plugin 
+host instance, and shouldn't result in any behavior change. This being said, the stock code can technically allow a plugin 
 to instantiate a custom BaseField with a null host and have it kinda functional if that field is only used to SetValue() / 
-Getvalue() and as long as the field isn't persistent and doesn't have any associated UI_Control. This feels like an extremly
-improbable scenario, so this is probably fine.
+Getvalue(), as long as the field isn't persistent and doesn't have any associated UI_Control, so we implement a fallback
+to the stock behavior in this case.
 */
 
 namespace KSPCommunityFixes.Modding
@@ -89,9 +95,9 @@ namespace KSPCommunityFixes.Modding
                 instance._fieldInfo.SetValue(instance._host, newValue);
 
                 // Note : since BaseField.OnValueModified is a "field-like event", it is relying on a compiler-generated
-                // private backing field, and the public event "synctatic suger" member can only be invoked from the declaring
+                // private backing field, and the public event "syntactic sugar" member can only be invoked from the declaring
                 // class, so we can't directly call "__instance.OnValueModified()" here. Additionally, the compiler has the extremly
-                // bad taste to name the backing field "OnValueModified" too, resulting in an "ambiguous reference" if we try to use
+                // bad taste to name the backing field "OnValueModified" too, resulting in an ambiguous reference if we try to use
                 // it through the publicized assembly. So we have to resort to creating a FieldRef open delegate for that backing field.
                 BaseField_OnValueModified_FieldRef(instance).Invoke(newValue);
                 return true;
@@ -169,6 +175,72 @@ namespace KSPCommunityFixes.Modding
                 }
             }
             instance.SetOriginalValue();
+        }
+    }
+
+    // This is an example module we want to add fields to.
+    // Here we use the most failsafe and recommended pattern, which is to create and destroy an extension object at the 
+    // earliest and latest possible moment in the module lifecycle.
+    // In a real use case, this would have to be accomplished by harmony-patching the relevant methods.
+    // It's technically possible to use other patterns, but tracking parts/modules lifetime externally is full of difficult 
+    // to handle corner-case scenarios, and is likely to cause way more overhead, I really advise against attempting it.
+
+    // This mean that adding BaseFields to external modules is only achievable if the methods exist to be patched :
+    // - A post-instantiation method, ideally OnAwake(), but OnStart()/Start()/OnStartFinished() can work too.
+    // - OnDestroy(), so the object associated with the external module can be untracked and thus garbage collected
+    //   Without that, the pattern would result in a memory leak. In the absence of an OnDestroy() method, it's possible
+    //   to clean all extensions on scene switches, which still result in a leak, but a temporary one. If you have to
+    //   resort to this, I would advise to consider other options for achieving equivalent functionality, either using a
+    //   new, separate module, or (but that isn't very recommende deither) putting the functionality in a derived module
+    //   and MM-swapping it.
+
+    // Do note that if you want to define a [KSPField(isPersistant = true)] field and benefit from the built-in persistence,
+    // your custom BaseField must be added to the target module before PartModule.Load() is called, so the only option is
+    // to add the BaseField from OnAwake().
+    public class CustomFieldDemoModule : PartModule
+    {
+        public override void OnAwake()
+        {
+            CustomFieldDemoModuleExtension.Instantiate(this);
+        }
+
+        private void OnDestroy()
+        {
+            CustomFieldDemoModuleExtension.Destroy(this);
+        }
+    }
+
+    public class CustomFieldDemoModuleExtension
+    {
+        private static Dictionary<int, CustomFieldDemoModuleExtension> extensions = new Dictionary<int, CustomFieldDemoModuleExtension>();
+
+        public static void Instantiate(CustomFieldDemoModule target)
+        {
+            // Using the instance ID for the dictionary keys is slightly faster than using the instance itself.
+            int targetID = target.GetInstanceID();
+
+            // Using TryAdd is not necessary if you can guarantee that Instantiate() will never be called more than once for the same
+            // module, which is a relatively safe assumption if you call it from the module OnAwake() or constructor, and a very unsafe
+            // one in pretty much every other case (Start, OnStart...)
+            extensions.TryAdd(targetID, new CustomFieldDemoModuleExtension(target));
+        }
+
+        public static void Destroy(CustomFieldDemoModule target)
+        {
+            extensions.Remove(target.GetInstanceID());
+        }
+
+        public static CustomFieldDemoModuleExtension Get(CustomFieldDemoModule module)
+        {
+            if (extensions.TryGetValue(module.GetInstanceID(), out CustomFieldDemoModuleExtension extension))
+                return extension;
+
+            return null;
+        }
+
+        private CustomFieldDemoModuleExtension(CustomFieldDemoModule target)
+        {
+
         }
     }
 }
