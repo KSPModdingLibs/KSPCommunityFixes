@@ -1,7 +1,10 @@
-﻿using HarmonyLib;
-using MonoMod.Utils;
+﻿// #define EXAMPLE_BaseFieldListUseFieldHost
+
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
 
 /*
 The purpose of this patch if to allow BaseField and associated features (PAW controls, persistence, etc) to work when
@@ -178,6 +181,8 @@ namespace KSPCommunityFixes.Modding
         }
     }
 
+#if EXAMPLE_BaseFieldListUseFieldHost
+
     // This is an example module we want to add fields to.
     // Here we use the most failsafe and recommended pattern, which is to create and destroy an extension object at the 
     // earliest and latest possible moment in the module lifecycle.
@@ -191,17 +196,19 @@ namespace KSPCommunityFixes.Modding
     //   Without that, the pattern would result in a memory leak. In the absence of an OnDestroy() method, it's possible
     //   to clean all extensions on scene switches, which still result in a leak, but a temporary one. If you have to
     //   resort to this, I would advise to consider other options for achieving equivalent functionality, either using a
-    //   new, separate module, or (but that isn't very recommende deither) putting the functionality in a derived module
+    //   new, separate module, or (but that isn't very recommended either) putting the functionality in a derived module
     //   and MM-swapping it.
 
     // Do note that if you want to define a [KSPField(isPersistant = true)] field and benefit from the built-in persistence,
     // your custom BaseField must be added to the target module before PartModule.Load() is called, so the only option is
     // to add the BaseField from OnAwake().
+
     public class CustomFieldDemoModule : PartModule
     {
         public override void OnAwake()
         {
             CustomFieldDemoModuleExtension.Instantiate(this);
+            CustomFieldDemoModuleGlobalField.RegisterModule(this);
         }
 
         private void OnDestroy()
@@ -210,6 +217,8 @@ namespace KSPCommunityFixes.Modding
         }
     }
 
+    // This demonstrate adding a field to an existing module, from an object acting as an extension of the module.
+    // We set the KSPField 
     public class CustomFieldDemoModuleExtension
     {
         private static Dictionary<int, CustomFieldDemoModuleExtension> extensions = new Dictionary<int, CustomFieldDemoModuleExtension>();
@@ -238,9 +247,100 @@ namespace KSPCommunityFixes.Modding
             return null;
         }
 
+        private static FieldInfo customFieldInfo;
+        private static KSPField customKSPField;
+        private static UI_FloatRange customFieldControl;
+
+        static CustomFieldDemoModuleExtension()
+        {
+            // we need the FieldInfo for our field, might as well cache it in a static field
+            customFieldInfo = typeof(CustomFieldDemoModuleExtension).GetField(nameof(customField), BindingFlags.Instance | BindingFlags.NonPublic);
+
+            // Here we define static KSPField and UI_FloatRange attributes for our field. This can be also be done
+            // on a per-instance basis, but this is more performant. 
+            // This would be equivalent to applying the following attributes to a module field :
+
+            // [KSPField(guiActive = true, guiActiveEditor = true, guiName = "MyExtensionField", isPersistant = true)]
+            customKSPField = new KSPField();
+            customKSPField.guiActive = true;
+            customKSPField.guiActiveEditor = true;
+            customKSPField.guiName = "MyExtensionField";
+            customKSPField.isPersistant = true;
+
+            // [UI_FloatRange(minValue = 5f, maxValue = 25f, stepIncrement = 1f, affectSymCounterparts = UI_Scene.All)]
+            customFieldControl = new UI_FloatRange();
+            customFieldControl.minValue = 5f;
+            customFieldControl.maxValue = 25f;
+            customFieldControl.stepIncrement = 1f;
+            customFieldControl.affectSymCounterparts = UI_Scene.All;
+        }
+
+        private float customField;
+
         private CustomFieldDemoModuleExtension(CustomFieldDemoModule target)
         {
+            BaseField customBaseField = new BaseField(customKSPField, customFieldInfo, this);
+            customBaseField.uiControlEditor = customFieldControl;
+            customBaseField.uiControlFlight = customFieldControl;
+            target.Fields.Add(customBaseField);
+            customBaseField.OnValueModified += OnValueModified;
+        }
 
+        private void OnValueModified(object newValue)
+        {
+            UnityEngine.Debug.Log($"extension field value changed : {newValue}");
         }
     }
+
+    // This demonstrate having a field on a singleton object, and where all module instances are sharing this
+    // global field value.
+    // Note that in this use case, using persistent fields doesn't make any sense, as you would end up with 
+    // conflicting persisted values stored on different modules.
+    // Also note that in this case, there is no memory leak risk as long as the global instance doesn't keep
+    // a reference to the modules or BaseFields, so we don't need anything called from the module OnDestroy().
+    [KSPAddon(KSPAddon.Startup.FlightAndEditor, false)]
+    public class CustomFieldDemoModuleGlobalField : MonoBehaviour
+    {
+        private static CustomFieldDemoModuleGlobalField instance;
+        private static FieldInfo globalFieldInfo;
+        private static KSPField globalKSPField;
+        private static UI_FloatRange globalFieldControl;
+
+        static CustomFieldDemoModuleGlobalField()
+        {
+            globalFieldInfo = typeof(CustomFieldDemoModuleGlobalField).GetField(nameof(globalField), BindingFlags.Instance | BindingFlags.NonPublic);
+            globalKSPField = new KSPField();
+            globalKSPField.guiActive = true;
+            globalKSPField.guiActiveEditor = true;
+            globalKSPField.guiName = "MyGlobalField";
+            globalFieldControl = new UI_FloatRange();
+            globalFieldControl.minValue = 5f;
+            globalFieldControl.maxValue = 25f;
+            globalFieldControl.stepIncrement = 1f;
+            globalFieldControl.affectSymCounterparts = UI_Scene.None;
+        }
+
+        private void Awake() => instance = this;
+        private void OnDestroy() => instance = null;
+
+        public static void RegisterModule(CustomFieldDemoModule module)
+        {
+            if (instance == null)
+                return;
+
+            BaseField globalBaseField = new BaseField(globalKSPField, globalFieldInfo, instance);
+            globalBaseField.uiControlEditor = globalFieldControl;
+            globalBaseField.uiControlFlight = globalFieldControl;
+            module.Fields.Add(globalBaseField);
+            globalBaseField.OnValueModified += instance.OnValueModified;
+        }
+
+        private float globalField;
+
+        private void OnValueModified(object newValue)
+        {
+            UnityEngine.Debug.Log($"global field value changed : {newValue}");
+        }
+    }
+#endif
 }
