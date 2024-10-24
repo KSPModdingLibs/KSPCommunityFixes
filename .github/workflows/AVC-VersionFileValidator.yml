@@ -3,8 +3,12 @@ on:
   push:
     branches:
       - master
+    paths:
+      - '**.version'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '**.version'
 jobs:
   validate_version_files:
     runs-on: ubuntu-latest
