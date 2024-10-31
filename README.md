@@ -13,7 +13,11 @@ Compatible with **KSP 1.8.0** to **1.12.5** - Available on [CKAN]
 - **HarmonyKSP** : **[Download](https://github.com/KSPModdingLibs/HarmonyKSP/releases)** - [Homepage](https://github.com/KSPModdingLibs/HarmonyKSP/) - Available on [CKAN]
 - **ModuleManager** : **[Download](https://ksp.sarbian.com/jenkins/job/ModuleManager/lastSuccessfulBuild/artifact/)** - [Forum post](https://forum.kerbalspaceprogram.com/index.php?/topic/50533-18x-110x-module-manager-414-july-7th-2020-locked-inside-edition/) - Available on [CKAN]
 
+[CKAN]: https://github.com/KSP-CKAN/CKAN/blob/master/README.md
+
 **Installation**
+
+Installation with [CKAN] is recommended.  Otherwise:
 
 - Go to the **[GitHub release page](https://github.com/KSPModdingLibs/KSPCommunityFixes/releases)** and download the file named `KSPCommunityFixes_x.x.x.zip`
 - Open the downloaded *.zip archive
@@ -140,7 +144,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**MinorPerfTweaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Various small performance patches (volume normalizer, eva module checks)
 - [**FloatingOriginPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
 - [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5]<br/>Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
-- [**OptimisedVectorLines**](PR HERE) [KSP 1.12.0 - 1.12.5]<br/>Improve performance in the Map View when a large number of vessels and bodies are visible via faster drawing of orbit lines and CommNet lines.
+- [**OptimisedVectorLines**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/281) [KSP 1.12.0 - 1.12.5]<br/>Improve performance in the Map View when a large number of vessels and bodies are visible via faster drawing of orbit lines and CommNet lines.
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
 - **DockingPortLockedEvents** [KSP 1.12.2 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Fire GameEvents onRoboticPartLockChanging/onRoboticPartLockChanged respectively before/after calls to ModuleDockingNode.ModifyLocked(), following a modification of the ModuleDockingNode.nodeIsLocked field.
