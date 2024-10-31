@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props" Condition="Exists('..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -162,6 +162,7 @@
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
     <Compile Include="Performance\FloatingOriginPerf.cs" />
+    <Compile Include="Performance\OptimisedVectorLines.cs" />
     <Compile Include="Performance\PartSystemsFastUpdate.cs" />
     <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
