@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -107,15 +107,37 @@ namespace KSPCommunityFixes.Performance
         // https://github.com/Unity-Technologies/UnityCsReference/blob/2019.4/Editor/Mono/Camera/CameraProjectionCache.cs
 
         public static bool patchEnabled = true;
-        public static bool cacheDirty = true;
+        public static long lastCachedFrame;
 
-        static Matrix4x4 m_WorldToClip;
-        static Matrix4x4 m_WorldToClipInverse;
-        static Rect m_Viewport;
+        private static Matrix4x4 worldToClip;
+        private static Matrix4x4 worldToClipInverse;
 
         // todo: remove.
         static Matrix4x4 m_worldToCameraInv;
         static Matrix4x4 m_projectionInv;
+
+        // Storing viewport info instead of using Rect properties grants us a few extra frames.
+        public struct ViewportInfo
+        {
+            public float halfWidth;
+            public float halfHeight;
+            public float width;
+            public float height;
+            public float x;
+            public float y;
+
+            public ViewportInfo(Rect viewport)
+            {
+                width = viewport.width;
+                height = viewport.height;
+                halfWidth = width * 0.5f;
+                halfHeight = height * 0.5f;
+                x = viewport.x;
+                y = viewport.y;
+            }
+        }
+
+        public static ViewportInfo viewport;
 
         public static Vector3 WorldToScreenPoint(Camera camera, Vector3 worldPosition)
         {
@@ -125,15 +147,14 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.WorldToScreenPoint(worldPosition);
 
-            if (cacheDirty)
+            if (lastCachedFrame != KSPCommunityFixes.frameCount)
                 UpdateCache();
 
-            Vector3 clip = WorldToClip(m_WorldToClip, worldPosition);
+            Vector3 screen = WorldToClip(ref worldToClip, ref worldPosition);
+            screen.x = viewport.x + (1.0f + screen.x) * viewport.halfWidth;
+            screen.y = viewport.y + (1.0f + screen.y) * viewport.halfHeight;
 
-            return new Vector3(
-                m_Viewport.x + (1.0f + clip.x) * m_Viewport.width * 0.5f,
-                m_Viewport.y + (1.0f + clip.y) * m_Viewport.height * 0.5f,
-                clip.z);
+            return screen;
         }
 
         public static Vector3 WorldToViewportPoint(Camera camera, Vector3 worldPosition)
@@ -141,23 +162,23 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.WorldToViewportPoint(worldPosition);
 
-            if (cacheDirty)
+            if (lastCachedFrame != KSPCommunityFixes.frameCount)
                 UpdateCache();
 
-            Vector3 clip = WorldToClip(m_WorldToClip, worldPosition);
+            Vector3 clip = WorldToClip(ref worldToClip, ref worldPosition);
+            clip.x = (1.0f + clip.x) * 0.5f;
+            clip.y = (1.0f + clip.y) * 0.5f;
 
-            return new Vector3(
-                m_Viewport.x + (1.0f + clip.x) * 0.5f,
-                m_Viewport.y + (1.0f + clip.y) * 0.5f,
-                clip.z);
+            return clip;
         }
+
 
         public static Vector3 ScreenToWorldPoint(Camera camera, Vector3 screenPosition)
         {
             //if (!patchEnabled)
             //    return camera.ScreenToWorldPoint(screenPosition);
 
-            if (cacheDirty)
+            if (lastCachedFrame != KSPCommunityFixes.frameCount)
                 UpdateCache();
 
             // A two multiplication world to clip-space conversion, exactly in reverse.
@@ -203,7 +224,7 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.ScreenToViewportPoint(position);
 
-            if (cacheDirty)
+            if (lastCachedFrame != KSPCommunityFixes.frameCount)
                 UpdateCache();
 
             // Not used by VectorLine.
@@ -215,11 +236,11 @@ namespace KSPCommunityFixes.Performance
         {
             Camera camera = VectorLine.cam3D;
 
-            m_WorldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
-            //m_WorldToClipInverse = m_WorldToClip.inverse; // We would use this if I knew how to do ScreenToWorldPoint properly.
+            worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
+            viewport = new ViewportInfo(camera.pixelRect);
             m_Viewport = camera.pixelRect;
 
-            // Instead we use these.
+            lastCachedFrame = KSPCommunityFixes.frameCount;
             m_worldToCameraInv = camera.worldToCameraMatrix.inverse;
             m_projectionInv = camera.projectionMatrix.inverse;
 
