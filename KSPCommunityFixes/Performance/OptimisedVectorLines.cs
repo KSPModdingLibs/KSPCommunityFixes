@@ -261,22 +261,4 @@ namespace KSPCommunityFixes.Performance
             return result;
         }
     }
-
-    // todo: How to make this obey Settings.cfg?
-
-    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
-    public class VectorLineFrameCounter : MonoBehaviour
-    {
-        protected void Awake()
-        {
-            DontDestroyOnLoad(this);
-        }
-
-        protected void Update()
-        {
-            // I think this is faster than it would be to compare Time.frameCount to a cached frame count in every call to VectorLineCameraProjection.
-
-            VectorLineCameraProjection.cacheDirty = true;
-        }
-    }
 }
