@@ -201,8 +201,8 @@ namespace KSPCommunityFixes.Performance
             // Normalized device coordinates.
             Vector4 clipSpace = new Vector4()
             {
-                x = (screenPosition.x - m_Viewport.x) / m_Viewport.width * 2f - 1f,
-                y = (screenPosition.y - m_Viewport.y) / m_Viewport.height * 2f - 1f,
+                x = (screenPosition.x - viewport.x) / viewport.width * 2f - 1f,
+                y = (screenPosition.y - viewport.y) / viewport.height * 2f - 1f,
                 z = 1f,
                 w = screenPosition.z,
             };
@@ -238,16 +238,14 @@ namespace KSPCommunityFixes.Performance
 
             worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
             viewport = new ViewportInfo(camera.pixelRect);
-            m_Viewport = camera.pixelRect;
 
-            lastCachedFrame = KSPCommunityFixes.frameCount;
             m_worldToCameraInv = camera.worldToCameraMatrix.inverse;
             m_projectionInv = camera.projectionMatrix.inverse;
 
-            cacheDirty = false;
+            lastCachedFrame = KSPCommunityFixes.frameCount;
         }
 
-        private static Vector3 WorldToClip(Matrix4x4 m, Vector3 point)
+        private static Vector3 WorldToClip(ref Matrix4x4 m, ref Vector3 point)
         {
             // Skip z and use result.z as w.
 
