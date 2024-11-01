@@ -113,8 +113,8 @@ namespace KSPCommunityFixes.Performance
         private static Matrix4x4 worldToClipInverse;
 
         // todo: remove.
-        static Matrix4x4 m_worldToCameraInv;
-        static Matrix4x4 m_projectionInv;
+        static Matrix4x4 worldToCameraInv;
+        static Matrix4x4 projectionInv;
 
         // Storing viewport info instead of using Rect properties grants us a few extra frames.
         public struct ViewportInfo
@@ -138,6 +138,21 @@ namespace KSPCommunityFixes.Performance
         }
 
         public static ViewportInfo viewport;
+
+        private static void UpdateCache()
+        {
+            Camera camera = VectorLine.cam3D;
+
+            worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
+            viewport = new ViewportInfo(camera.pixelRect);
+
+            worldToCameraInv = camera.worldToCameraMatrix.inverse;
+            projectionInv = camera.projectionMatrix.inverse;
+
+            lastCachedFrame = KSPCommunityFixes.frameCount;
+        }
+
+        // World to clip functions.
 
         public static Vector3 WorldToScreenPoint(Camera camera, Vector3 worldPosition)
         {
@@ -172,6 +187,21 @@ namespace KSPCommunityFixes.Performance
             return clip;
         }
 
+        private static Vector3 WorldToClip(ref Matrix4x4 m, ref Vector3 point)
+        {
+            // Skip z and use result.z as w.
+
+            Vector3 result = default;
+            result.x = m.m00 * point.x + m.m01 * point.y + m.m02 * point.z + m.m03;
+            result.y = m.m10 * point.x + m.m11 * point.y + m.m12 * point.z + m.m13;
+            result.z = m.m30 * point.x + m.m31 * point.y + m.m32 * point.z + m.m33;
+            float num = 1f / result.z;
+            result.x *= num;
+            result.y *= num;
+            return result;
+        }
+
+        // Clip to world functions.
 
         public static Vector3 ScreenToWorldPoint(Camera camera, Vector3 screenPosition)
         {
@@ -212,9 +242,9 @@ namespace KSPCommunityFixes.Performance
             clipSpace.y *= clipSpace.w;
             clipSpace.z *= clipSpace.w;
 
-            Vector4 viewSpace = m_projectionInv * clipSpace;
+            Vector4 viewSpace = projectionInv * clipSpace;
             viewSpace.w = 1f;
-            Vector4 worldSpace = m_worldToCameraInv * viewSpace;
+            Vector4 worldSpace = worldToCameraInv * viewSpace;
 
             return worldSpace;
         }
@@ -230,33 +260,6 @@ namespace KSPCommunityFixes.Performance
             // Not used by VectorLine.
 
             return Vector3.zero;
-        }
-
-        private static void UpdateCache()
-        {
-            Camera camera = VectorLine.cam3D;
-
-            worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
-            viewport = new ViewportInfo(camera.pixelRect);
-
-            m_worldToCameraInv = camera.worldToCameraMatrix.inverse;
-            m_projectionInv = camera.projectionMatrix.inverse;
-
-            lastCachedFrame = KSPCommunityFixes.frameCount;
-        }
-
-        private static Vector3 WorldToClip(ref Matrix4x4 m, ref Vector3 point)
-        {
-            // Skip z and use result.z as w.
-
-            Vector3 result = default;
-            result.x = m.m00 * point.x + m.m01 * point.y + m.m02 * point.z + m.m03;
-            result.y = m.m10 * point.x + m.m11 * point.y + m.m12 * point.z + m.m13;
-            result.z = m.m30 * point.x + m.m31 * point.y + m.m32 * point.z + m.m33;
-            float num = 1f / result.z;
-            result.x *= num;
-            result.y *= num;
-            return result;
         }
     }
 }
