@@ -26,8 +26,8 @@ namespace KSPCommunityFixes
 
         public static long FixedUpdateCount { get; private set; }
 
-        // Frame counter that doesn't use an external call like Time.frameCount.
-        public static long frameCount;
+        // Frame counter that doesn't use a call to C++ like Time.frameCount.
+        public static long UpdateCount { get; private set; }
 
         private static string modPath;
         public static string ModPath
@@ -138,7 +138,7 @@ namespace KSPCommunityFixes
 
         void Update()
         {
-            frameCount++;
+            UpdateCount++;
         }
     }
 }

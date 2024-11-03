@@ -138,7 +138,7 @@ namespace KSPCommunityFixes.Performance
 
         private static void UpdateCache()
         {
-            lastCachedFrame = KSPCommunityFixes.frameCount;
+            lastCachedFrame = KSPCommunityFixes.UpdateCount;
             Camera camera = VectorLine.cam3D;
 
             viewport = new ViewportInfo(camera.pixelRect);
@@ -168,7 +168,7 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.WorldToScreenPoint(worldPosition);
 
-            if (lastCachedFrame != KSPCommunityFixes.frameCount)
+            if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
                 UpdateCache();
 
             double x = worldPosition.x;
@@ -189,7 +189,7 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.WorldToViewportPoint(worldPosition);
 
-            if (lastCachedFrame != KSPCommunityFixes.frameCount)
+            if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
                 UpdateCache();
 
             double x = worldPosition.x;
@@ -214,7 +214,7 @@ namespace KSPCommunityFixes.Performance
             //if (!patchEnabled)
             //    return camera.ScreenToWorldPoint(screenPosition);
 
-            if (lastCachedFrame != KSPCommunityFixes.frameCount)
+            if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
                 UpdateCache();
 
             double x = screenPosition.x;
