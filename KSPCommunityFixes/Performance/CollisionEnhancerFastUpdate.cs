@@ -1,7 +1,5 @@
-﻿using System;
-using HarmonyLib;
-using KSP.Localization;
-using System.Collections.Generic;
+﻿using KSP.Localization;
+using System;
 using UnityEngine;
 
 namespace KSPCommunityFixes.Performance
@@ -12,32 +10,36 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate));
+            AddPatch(PatchType.Override, typeof(CollisionEnhancer), nameof(CollisionEnhancer.FixedUpdate));
         }
 
-        private static bool CollisionEnhancer_FixedUpdate_Prefix(CollisionEnhancer __instance)
+        private static void CollisionEnhancer_FixedUpdate_Override(CollisionEnhancer __instance)
         {
             Part part = __instance.part;
+
+            if (part.IsNullOrDestroyed() || part.partTransform.IsNullOrDestroyed())
+                return;
+
             Vector3 position = part.partTransform.position;
 
             if (part.packed)
             {
                 __instance.lastPos = position;
                 __instance.wasPacked = true;
-                return false;
+                return;
             }
 
             if (__instance.framesToSkip > 0)
             {
                 __instance.lastPos = position;
                 __instance.framesToSkip--;
-                return false;
+                return;
             }
 
-            if (part.vessel.heightFromTerrain > 1000f)
+            if (part.vessel.IsNullOrDestroyed() || part.vessel.heightFromTerrain > 1000f)
             {
                 __instance.lastPos = position;
-                return false;
+                return;
             }
 
             if (!__instance.wasPacked)
@@ -54,7 +56,7 @@ namespace KSPCommunityFixes.Performance
                 && Physics.Linecast(__instance.lastPos, position, out RaycastHit hit, 32768, QueryTriggerInteraction.Ignore)) // linecast against the "LocalScenery" layer
             {
                 Vector3 rbVelocity = __instance.rb.velocity;
-                Debug.Log("[F: " + Time.frameCount + "]: [" + __instance.name + "] Collision Enhancer Punch Through - vel: " + rbVelocity.magnitude, __instance.gameObject);
+                Debug.Log($"[F: {Time.frameCount}]: [{__instance.name}] Collision Enhancer Punch Through - vel: {rbVelocity.magnitude}");
 
                 if (mode == CollisionEnhancerBehaviour.EXPLODE
                     && !CheatOptions.NoCrashDamage
@@ -89,8 +91,6 @@ namespace KSPCommunityFixes.Performance
             }
 
             __instance.lastPos = position;
-
-            return false;
         }
     }
 }
