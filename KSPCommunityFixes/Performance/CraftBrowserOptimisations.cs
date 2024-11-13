@@ -1,4 +1,5 @@
-﻿// Disable logging when the thumbnail is not found. Only useful for testing with Unity Explorer installed, where debug calls take many times longer.
+﻿// Disable logging when the thumbnail is not found.
+// Only useful for testing with Unity Explorer installed, where debug calls take measurably longer.
 #define DISABLE_THUMBNAIL_LOGGING
 
 using HarmonyLib;
@@ -41,10 +42,6 @@ namespace KSPCommunityFixes.Performance
 #if DISABLE_THUMBNAIL_LOGGING
             AddPatch(PatchType.Transpiler, typeof(ShipConstruction), nameof(ShipConstruction.GetThumbnail), new Type[] { typeof(string), typeof(bool), typeof(bool), typeof(FileInfo) });
 #endif
-
-            AddPatch(PatchType.Transpiler, typeof(CraftBrowserDialog), nameof(CraftBrowserDialog.BuildPlayerCraftList));
-            AddPatch(PatchType.Postfix, typeof(CraftBrowserDialog), nameof(CraftBrowserDialog.OnDisable));
-            AddPatch(PatchType.Prefix, typeof(CraftProfileInfo), nameof(CraftProfileInfo.GetSaveData));
         }
 
         // Fix a miscellanous bug where setbottomButtons ignores showMergeOption. This is useful for Halbann/LazySpawner and BD's Vessel Mover.
@@ -118,9 +115,9 @@ namespace KSPCommunityFixes.Performance
 
         static void CraftBrowserDialog_ReDisplay_Postfix(CraftBrowserDialog __instance) => PreventDelayedRebuild(__instance);
 
+        // Disable the call to Debug.LogFormat when the thumbnail is not found.
         static IEnumerable<CodeInstruction> ShipConstruction_GetThumbnail_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            // Disable the call to Debug.Log when the thumbnail is not found.
 
             MethodInfo debug = AccessTools.Method(typeof(Debug), nameof(Debug.Log), new Type[] { typeof(object) });
 
