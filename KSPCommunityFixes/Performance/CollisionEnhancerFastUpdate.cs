@@ -16,17 +16,23 @@ namespace KSPCommunityFixes.Performance
         private static void CollisionEnhancer_FixedUpdate_Override(CollisionEnhancer __instance)
         {
             Part part = __instance.part;
+            bool hasPart = part.IsNotNullOrDestroyed();
 
-            if (part.IsNullOrDestroyed() || part.partTransform.IsNullOrDestroyed())
-                return;
-
-            Vector3 position = part.partTransform.position;
-
-            if (part.packed)
+            Vector3 position;
+            if (hasPart)
             {
-                __instance.lastPos = position;
-                __instance.wasPacked = true;
-                return;
+                position = part.partTransform.position;
+
+                if (part.packed)
+                {
+                    __instance.lastPos = position;
+                    __instance.wasPacked = true;
+                    return;
+                }
+            }
+            else
+            {
+                position = __instance.transform.position;
             }
 
             if (__instance.framesToSkip > 0)
@@ -36,7 +42,7 @@ namespace KSPCommunityFixes.Performance
                 return;
             }
 
-            if (part.vessel.IsNullOrDestroyed() || part.vessel.heightFromTerrain > 1000f)
+            if (hasPart && (part.vessel.IsNullOrDestroyed() || part.vessel.heightFromTerrain > 1000f))
             {
                 __instance.lastPos = position;
                 return;
@@ -49,14 +55,15 @@ namespace KSPCommunityFixes.Performance
 
             CollisionEnhancerBehaviour mode = __instance.OnTerrainPunchThrough;
 
-            if (mode < CollisionEnhancerBehaviour.COLLIDE // only handle EXPLODE, TRANSLATE and TRANSLATE_BACK_SPLAT
+            if (mode < CollisionEnhancerBehaviour.COLLIDE // only handle EXPLODE, TRANSLATE_BACK and TRANSLATE_BACK_SPLAT
                 && !CollisionEnhancer.bypass
-                && part.State != PartStates.DEAD
+                && (!hasPart || part.State != PartStates.DEAD)
                 && (__instance.lastPos - position).sqrMagnitude > CollisionEnhancer.minDistSqr
                 && Physics.Linecast(__instance.lastPos, position, out RaycastHit hit, 32768, QueryTriggerInteraction.Ignore)) // linecast against the "LocalScenery" layer
             {
                 Vector3 rbVelocity = __instance.rb.velocity;
-                Debug.Log($"[F: {Time.frameCount}]: [{__instance.name}] Collision Enhancer Punch Through - vel: {rbVelocity.magnitude}");
+                string objectName = hasPart ? part.partInfo?.name ?? __instance.name : __instance.name;
+                Debug.Log($"[Collision Enhancer] {mode.ToString()} on \"{objectName}\" (vel: {rbVelocity.magnitude.ToString("F0")})");
 
                 if (mode == CollisionEnhancerBehaviour.EXPLODE
                     && !CheatOptions.NoCrashDamage
@@ -86,8 +93,12 @@ namespace KSPCommunityFixes.Performance
                         __instance.rb.velocity = newVel.IsInvalid() ? Vector3.zero : newVel;
                     }
                 }
-                GameEvents.OnCollisionEnhancerHit.Fire(part, hit);
-                GameEvents.onPartExplodeGroundCollision.Fire(part);
+
+                if (hasPart)
+                {
+                    GameEvents.OnCollisionEnhancerHit.Fire(part, hit);
+                    GameEvents.onPartExplodeGroundCollision.Fire(part);
+                }
             }
 
             __instance.lastPos = position;
