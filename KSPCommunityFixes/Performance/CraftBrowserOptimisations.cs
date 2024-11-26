@@ -120,7 +120,7 @@ namespace KSPCommunityFixes.Performance
         static void CraftBrowserDialog_ReDisplay_Postfix(CraftBrowserDialog __instance) =>
             PreventDelayedRebuild(__instance);
 
-        // Disable the call to Debug.LogFormat when the thumbnail is not found.
+        // Disable the call to Debug.Log when the thumbnail is not found.
         // On a new save with a large number of imported craft, the game will generate a lot of useless log entries.
         static IEnumerable<CodeInstruction> ShipConstruction_GetThumbnail_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
