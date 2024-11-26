@@ -1,5 +1,5 @@
 ﻿// Disable logging when the thumbnail is not found.
-// Only useful for testing with Unity Explorer installed, where debug calls take measurably longer.
+// Useful for testing with Unity Explorer installed, where debug calls take measurably longer.
 #define DISABLE_THUMBNAIL_LOGGING
 
 using HarmonyLib;
