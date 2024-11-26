@@ -199,9 +199,6 @@ namespace KSPCommunityFixes.Performance
 
         private static bool FasterCraftMatchesSearch(CraftEntry craft, string searchTerm)
         {
-            if (string.IsNullOrWhiteSpace(searchTerm))
-                return true;
-
             if (craft.craftName.IndexOf(searchTerm, StringComparison.OrdinalIgnoreCase) > -1)
                 return true;
 
