@@ -1,16 +1,19 @@
-﻿using HarmonyLib;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Reflection.Emit;
 using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
 
 namespace KSPCommunityFixes.QoL
 {
     class TargetParentBody : BasePatch
     {
+        protected override Version VersionMin => new Version(1, 8, 0);
+
         protected override void ApplyPatches()
         {
             AddPatch(PatchType.Prefix, typeof(OrbitTargeter), nameof(OrbitTargeter.DropInvalidTargets));
+
             AddPatch(PatchType.Transpiler, typeof(FlightGlobals), nameof(FlightGlobals.UpdateInformation));
         }
 
