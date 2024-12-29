@@ -3,7 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using UnityEngine;
+using static Highlighting.Highlighter.RendererCache;
 
 namespace KSPCommunityFixes
 {
@@ -47,6 +49,53 @@ namespace KSPCommunityFixes
                     kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
 
                 return kspVersion;
+            }
+        }
+
+        public static bool cleanedDll
+        {
+            get
+            {
+                String dllPath = "";
+                if (Application.platform == RuntimePlatform.WindowsPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP_x64_Data/Managed/Assembly-CSharp.dll";
+                }
+                else if (Application.platform == RuntimePlatform.OSXPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll";
+                }
+                else if (Application.platform == RuntimePlatform.LinuxPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP_Data/Managed/Assembly-CSharp.dll";
+                }
+                if (File.Exists(dllPath))
+                {
+                    Byte[] data = File.ReadAllBytes(dllPath);
+                    using (SHA256 sha256 = SHA256.Create())
+                    {
+                        String checksum = BitConverter.ToString(sha256.ComputeHash(data));
+                        checksum = checksum.Replace("-", "");
+                        checksum = checksum.ToLower();
+                        if (checksum == "9ec0b701b17dde90f9a77c2297be24eea07346ac41bc3ef48463026d82c77f41") //1.12.5 cleaned by an RTB patcher
+                        {
+                            return true;
+                        }
+                        else if (checksum == "c8aa143bcd5b53013f03b2215e787997df79a036df03eda06b29a42ceae88295") //1.12.4 cleaned by an RTB patcher
+                        {
+                            return true;
+                        }
+                        else if (checksum == "429ee3d018478a82f5dc30bc330867ad3caa5447ae67d87005a19bfce303891b") //1.12.3 cleaned by an RTB patcher
+                        {
+                            return true;
+                        }
+                        else if ((data.Length < 10485760) && (KSPCommunityFixes.KspVersion >= new Version(1, 12, 0)))
+                        {
+                            return true; //most likely a home-cleaned dll, no 1.12.x build of Assembly-CSharp is less than 10MBs.
+                        }
+                    }
+                }
+                return false;
             }
         }
 
