@@ -3,7 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using UnityEngine;
+using static Highlighting.Highlighter.RendererCache;
 
 namespace KSPCommunityFixes
 {
@@ -47,6 +49,35 @@ namespace KSPCommunityFixes
                     kspVersion = new Version(Versioning.version_major, Versioning.version_minor, Versioning.Revision);
 
                 return kspVersion;
+            }
+        }
+
+        public static bool cleanedDll
+        {
+            get
+            {
+                String dllPath = "";
+                if (Application.platform == RuntimePlatform.WindowsPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP_x64_Data/Managed/Assembly-CSharp.dll";
+                }
+                else if (Application.platform == RuntimePlatform.OSXPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP.app/Contents/Resources/Data/Managed/Assembly-CSharp.dll";
+                }
+                else if (Application.platform == RuntimePlatform.LinuxPlayer)
+                {
+                    dllPath = KSPUtil.ApplicationRootPath + "KSP_Data/Managed/Assembly-CSharp.dll";
+                }
+                if (File.Exists(dllPath))
+                {
+                    Byte[] data = File.ReadAllBytes(dllPath);
+                    if ((data.Length < 10485760) && (KSPCommunityFixes.KspVersion >= new Version(1, 12, 0)))
+                    {
+                        return true; //certainly a home-cleaned dll, no official 1.12.x build of Assembly-CSharp is less than 10MBs.
+                    }
+                }
+                return false;
             }
         }
 
