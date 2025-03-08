@@ -1,45 +1,33 @@
-﻿using HarmonyLib;
-using System.Collections.Generic;
-using UnityEngine;
-
-namespace KSPCommunityFixes.Performance
+﻿namespace KSPCommunityFixes.Performance
 {
     class CommNetThrottling : BasePatch
     {
-        private static double packedInterval = 0.5;
-        private static double unpackedInterval = 5.0;
+        private static double updateInterval = 2.5;
+        private static long lastUpdateFixedFrame = 0L;
 
         protected override void ApplyPatches()
         {
-            ConfigNode settingsNode = KSPCommunityFixes.SettingsNode.GetNode("COMMNET_THROTTLING_SETTINGS");
-
-            if (settingsNode != null)
-            {
-                settingsNode.TryGetValue("packedInterval", ref packedInterval);
-                settingsNode.TryGetValue("unpackedInterval", ref unpackedInterval);
-            }
-
-            AddPatch(PatchType.Prefix, typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update));
+            KSPCommunityFixes.SettingsNode.TryGetValue("CommNetThrottlingUpdateInterval", ref updateInterval);
+            AddPatch(PatchType.Override, typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update));
         }
 
-        static bool CommNetNetwork_Update_Prefix(CommNet.CommNetNetwork __instance)
+        static void CommNetNetwork_Update_Override(CommNet.CommNetNetwork commNetNetwork)
         {
-            if (!__instance.queueRebuild && !__instance.commNet.IsDirty)
+            double currentTime = Planetarium.GetUniversalTime();
+            double interval = currentTime - commNetNetwork.prevUpdate;
+            if (!commNetNetwork.queueRebuild && !commNetNetwork.commNet.IsDirty 
+                && interval >= 0.0
+                && (interval < updateInterval || KSPCommunityFixes.FixedUpdateCount == lastUpdateFixedFrame))
             {
-                double timeSinceLastUpdate = Time.timeSinceLevelLoad - __instance.prevUpdate;
-
-                if (FlightGlobals.ActiveVessel != null)
-                {
-                    double interval = FlightGlobals.ActiveVessel.packed ? packedInterval : unpackedInterval;
-                    if (timeSinceLastUpdate < interval)
-                    {
-                        __instance.graphDirty = true;
-                        return false;
-                    }
-                }
+                commNetNetwork.graphDirty = true;
+                return;
             }
 
-            return true;
+            lastUpdateFixedFrame = KSPCommunityFixes.FixedUpdateCount;
+            commNetNetwork.commNet.Rebuild();
+            commNetNetwork.prevUpdate = currentTime;
+            commNetNetwork.graphDirty = false;
+            commNetNetwork.queueRebuild = false;
         }
     }
 }
