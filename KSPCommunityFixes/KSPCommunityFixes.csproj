@@ -219,6 +219,7 @@
     <Compile Include="QoL\AutostrutActions.cs" />
     <Compile Include="QoL\BetterEditorUndoRedo.cs" />
     <Compile Include="QoL\OptionalMakingHistoryDLCFeatures.cs" />
+    <Compile Include="QoL\TargetParentBody.cs" />
     <Compile Include="QoL\ToolbarShowHide.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />
     <Compile Include="QoL\NoIVA.cs" />
