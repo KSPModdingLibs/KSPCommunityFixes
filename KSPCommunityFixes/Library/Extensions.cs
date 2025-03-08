@@ -17,6 +17,14 @@ namespace KSPCommunityFixes
             return $"{type.Assembly.GetName().Name}:{type.Name}";
         }
 
+        /// <summary>
+        /// Get an assembly qualified type name in the "assemblyName:typeName" format
+        /// </summary>
+        public static string AssemblyQualifiedName(this Type type)
+        {
+            return $"{type.Assembly.GetName().Name}:{type.Name}";
+        }
+
         public static bool IsPAWOpen(this Part part)
         {
             return part.PartActionWindow.IsNotNullOrDestroyed() && part.PartActionWindow.isActiveAndEnabled;
