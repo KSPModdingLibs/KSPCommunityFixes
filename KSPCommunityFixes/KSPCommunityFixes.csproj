@@ -155,14 +155,17 @@
     <Compile Include="Library\LocalizationUtils.cs" />
     <Compile Include="Library\Numerics.cs" />
     <Compile Include="Library\ObjectPool.cs" />
-    <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
+    <Compile Include="Library\MuParser.cs" />
+    <Compile Include="Library\ShaderHelpers.cs" />
     <Compile Include="Modding\KSPFieldEnumDesc.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
+    <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
     <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
     <Compile Include="Performance\FloatingOriginPerf.cs" />
+    <Compile Include="Performance\GameDatabasePerf.cs" />
     <Compile Include="Performance\PartSystemsFastUpdate.cs" />
     <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
@@ -174,6 +177,7 @@
     <Compile Include="Performance\FasterPartFindTransform.cs" />
     <Compile Include="Performance\FastLoader.cs" />
     <Compile Include="Performance\FlightIntegratorPerf.cs" />
+    <Compile Include="Performance\PartParsingPerf.cs" />
     <Compile Include="Performance\IMGUIOptimization.cs" />
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
@@ -255,6 +259,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <!--Project-specfic configuration-->
   <PropertyGroup>
     <RepoRootPath>$(SolutionDir)</RepoRootPath>

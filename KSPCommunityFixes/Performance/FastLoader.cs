@@ -1,6 +1,7 @@
 ﻿// #define DEBUG_TEXTURE_CACHE
 
 using DDSHeaders;
+using Expansions;
 using HarmonyLib;
 using KSP.Localization;
 using KSPCommunityFixes.Library.Buffers;
@@ -29,6 +30,93 @@ using Debug = UnityEngine.Debug;
 
 namespace KSPCommunityFixes.Performance
 {
+    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
+    internal class KSPCFFastLoaderReport : MonoBehaviour
+    {
+        internal static float initialConfigLoadTime;
+        internal static Stopwatch wSecondConfigLoad = new Stopwatch();
+        internal static Stopwatch wConfigTranslate = new Stopwatch();
+        internal static Stopwatch wAssetsLoading = new Stopwatch();
+        internal static Stopwatch wAudioLoading = new Stopwatch();
+        internal static Stopwatch wTextureLoading = new Stopwatch();
+        internal static Stopwatch wModelLoading = new Stopwatch();
+        internal static Stopwatch wAssetBundleLoading = new Stopwatch();
+        internal static Stopwatch wGamedatabaseLoading = new Stopwatch();
+        internal static Stopwatch wBuiltInPartsCopy = new Stopwatch();
+        internal static Stopwatch wPartConfigExtraction = new Stopwatch();
+        internal static Stopwatch wPartCompilationLoading = new Stopwatch();
+        internal static Stopwatch wInternalCompilationLoading = new Stopwatch();
+        internal static Stopwatch wExpansionLoading = new Stopwatch();
+        internal static Stopwatch wPSystemSetup = new Stopwatch();
+
+        internal static long audioBytesLoaded;
+        internal static int texturesLoaded;
+        internal static long texturesBytesLoaded;
+        internal static int modelsLoaded;
+        internal static long modelsBytesLoaded;
+
+        void Start()
+        {
+            float totalLoadingTime = Time.realtimeSinceStartup;
+            int totalPartsLoaded = 0;
+            int totalModulesLoaded = 0;
+            foreach (AvailablePart availablePart in PartLoader.Instance.loadedParts)
+            {
+                if (availablePart.partPrefab.IsNotNullOrDestroyed())
+                {
+                    totalPartsLoaded++;
+                    totalModulesLoaded += availablePart.partPrefab.modules.Count;
+                }
+            }
+
+            int totalInternalsLoaded = PartLoader.Instance.internalParts.Count;
+            int totalInternalPropsLoaded = PartLoader.Instance.internalProps.Count;
+
+            string log =
+                $"[KSPCF:FastLoader] {SystemInfo.processorType} | {SystemInfo.systemMemorySize} MB | {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsMemorySize} MB)\n" +
+                $"Total loading time to main menu : {totalLoadingTime:F3}s\n" +
+                $"- Configs and assemblies loaded in {initialConfigLoadTime:F3}s\n" +
+                $"- Configs reload done in {wSecondConfigLoad.Elapsed.TotalSeconds:F3}s\n" +
+                $"- Configs translated in {wConfigTranslate.Elapsed.TotalSeconds:F3}s\n" +
+                $"- {KSPCFFastLoader.loadedAssetCount} assets loaded in {wAssetsLoading.Elapsed.TotalSeconds:F3}s :\n" +
+                $"  - {KSPCFFastLoader.audioFilesLoaded} audio assets ({StaticHelpers.HumanReadableBytes(audioBytesLoaded)}) in {wAudioLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(audioBytesLoaded / wAudioLoading.Elapsed.TotalSeconds))}/s\n" +
+                $"  - {texturesLoaded} texture assets ({StaticHelpers.HumanReadableBytes(texturesBytesLoaded)}) in {wTextureLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(texturesBytesLoaded / wTextureLoading.Elapsed.TotalSeconds))}/s\n" +
+                $"  - {modelsLoaded} model assets ({StaticHelpers.HumanReadableBytes(modelsBytesLoaded)}) in {wModelLoading.Elapsed.TotalSeconds:F3}s, {StaticHelpers.HumanReadableBytes((long)(modelsBytesLoaded / wModelLoading.Elapsed.TotalSeconds))}/s\n" +
+                $"- Asset bundles loaded in {wAssetBundleLoading.Elapsed.TotalSeconds:F3}s\n" +
+                $"- GameDatabase (configs, resources, traits, upgrades...) loaded in {wGamedatabaseLoading.Elapsed.TotalSeconds:F3}s\n" +
+                $"- Built-in parts copied in {wBuiltInPartsCopy.Elapsed.TotalSeconds:F3}s\n" +
+                $"- Part and internal configs extracted in {wPartConfigExtraction.Elapsed.TotalSeconds:F3}s\n" +
+                $"- {totalPartsLoaded} parts and {totalModulesLoaded} modules compiled in {wPartCompilationLoading.Elapsed.TotalSeconds:F3}s\n" +
+                $"  - {totalModulesLoaded / (float)totalPartsLoaded:F1} modules/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalPartsLoaded:F3} ms/part, {wPartCompilationLoading.Elapsed.TotalMilliseconds / totalModulesLoaded:F3} ms/module\n" +
+                $"  - PartIcon compilation : {PartParsingPerf.iconCompilationWatch.Elapsed.TotalSeconds:F3}s\n" +
+                $"- {totalInternalsLoaded} internal spaces and {totalInternalPropsLoaded} props compiled in {wInternalCompilationLoading.Elapsed.TotalSeconds:F3}s\n";
+
+            if (ExpansionsLoader.expansionsInfo.Count > 0)
+                log += $"- {ExpansionsLoader.expansionsInfo.Count} DLC ({ExpansionsLoader.expansionsInfo.Values.Join(info => info.DisplayName)}) loaded in {wExpansionLoading.Elapsed.TotalSeconds:F3}s\n";
+
+            log +=
+                $"- Planetary system loaded in {wPSystemSetup.Elapsed.TotalSeconds:F3}s";
+
+            Debug.Log(log);
+            Debug.Log($"Texture queries : {GameDatabasePerf.txcallCount}, slow path : {GameDatabasePerf.txMissCount} ({GameDatabasePerf.txMissCount / (float)GameDatabasePerf.txcallCount:P2})");
+            Destroy(gameObject);
+        }
+    }
+
+    [KSPAddon(KSPAddon.Startup.PSystemSpawn, true)]
+    internal class KSPCFFastLoaderPSystemSetup : MonoBehaviour
+    {
+        internal static void PSystemManager_Awake_Prefix()
+        {
+            KSPCFFastLoaderReport.wPSystemSetup.Start();
+        }
+
+        void OnDestroy()
+        {
+            KSPCFFastLoaderReport.wPSystemSetup.Stop();
+        }
+    }
+
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal class KSPCFFastLoader : MonoBehaviour
     {
@@ -59,8 +147,14 @@ namespace KSPCommunityFixes.Performance
         // min amount of files to try to keep in memory, regardless of maxBufferSize
         private const int minFileRead = 10;
 
-        private static Harmony harmony;
-        private static string HarmonyID => typeof(KSPCFFastLoader).FullName;
+        private static Harmony persistentHarmony;
+        private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
+
+        private static Harmony assetAndPartLoaderHarmony;
+        private static string AssetAndPartLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "AssetAndPartLoader";
+
+        private static Harmony expansionsLoaderHarmony;
+        private static string ExpansionsLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "ExpansionsLoader";
 
         public static KSPCFFastLoader loader;
 
@@ -81,7 +175,12 @@ namespace KSPCommunityFixes.Performance
         private Dictionary<string, CachedTextureInfo> textureCacheData;
         private HashSet<uint> textureDataIds;
         private bool cacheUpdated = false;
-        
+
+        internal static Dictionary<string, GameObject> modelsByUrl;
+        internal static Dictionary<string, GameObject> modelsByDirectoryUrl;
+        internal static Dictionary<GameObject, UrlFile> urlFilesByModel;
+        internal static Dictionary<string, TextureInfo> texturesByUrl;
+
         private void Awake()
         {
             if (KSPCommunityFixes.KspVersion < new Version(1, 12, 3))
@@ -91,22 +190,35 @@ namespace KSPCommunityFixes.Performance
                 return;
             }
 
+            KSPCFFastLoaderReport.initialConfigLoadTime = Time.realtimeSinceStartup;
+
             Debug.Log("[KSPCF] Injecting FastLoader...");
             loader = this;
             IsPatchEnabled = true;
-            harmony = new Harmony(HarmonyID);
+
+            // Patch the various GameDatabase.GetModel/GetTexture methods to use the FastLoader dictionaries
+            BasePatch.Patch(typeof(GameDatabasePerf));
+
+            persistentHarmony = new Harmony(PersistentHarmonyID);
+
+            MethodInfo m_PSystemManager_Awake = AccessTools.Method(typeof(PSystemManager), nameof(PSystemManager.Awake));
+            MethodInfo p_PSystemManager_Awake = AccessTools.Method(typeof(KSPCFFastLoaderPSystemSetup), nameof(KSPCFFastLoaderPSystemSetup.PSystemManager_Awake_Prefix));
+            persistentHarmony.Patch(m_PSystemManager_Awake, new HarmonyMethod(p_PSystemManager_Awake));
+
+            assetAndPartLoaderHarmony = new Harmony(AssetAndPartLoaderHarmonyID);
 
             MethodInfo m_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.SetupMainLoaders));
             MethodInfo t_GameDatabase_SetupMainLoaders = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_SetupMainLoaders_Prefix));
-            harmony.Patch(m_GameDatabase_SetupMainLoaders, new HarmonyMethod(t_GameDatabase_SetupMainLoaders));
+            assetAndPartLoaderHarmony.Patch(m_GameDatabase_SetupMainLoaders, new HarmonyMethod(t_GameDatabase_SetupMainLoaders));
 
             MethodInfo m_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.LoadAssetBundleObjects)));
-            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
-            harmony.Patch(m_GameDatabase_LoadAssetBundleObjects_MoveNext, new HarmonyMethod(t_GameDatabase_LoadAssetBundleObjects_MoveNext));
+            MethodInfo pr_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
+            MethodInfo po_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Postfix));
+            assetAndPartLoaderHarmony.Patch(m_GameDatabase_LoadAssetBundleObjects_MoveNext, new HarmonyMethod(pr_GameDatabase_LoadAssetBundleObjects_MoveNext), new HarmonyMethod(po_GameDatabase_LoadAssetBundleObjects_MoveNext));
 
             MethodInfo m_PartLoader_StartLoad = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.StartLoad));
             MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_StartLoad_Transpiler));
-            harmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
+            assetAndPartLoaderHarmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
 
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
@@ -115,7 +227,14 @@ namespace KSPCommunityFixes.Performance
             // Fix for issue #114 : Drag cubes are incorrectly calculated with KSPCF 1.24.1 
             MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubes)));
             MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler = AccessTools.Method(typeof(KSPCFFastLoader), nameof(DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
-            harmony.Patch(m_DragCubeSystem_RenderDragCubes_MoveNext, null, null, new HarmonyMethod(m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
+            assetAndPartLoaderHarmony.Patch(m_DragCubeSystem_RenderDragCubes_MoveNext, null, null, new HarmonyMethod(m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
+
+            expansionsLoaderHarmony = new Harmony(ExpansionsLoaderHarmonyID);
+            MethodInfo m_ExpansionsLoader_StartLoad = AccessTools.Method(typeof(ExpansionsLoader), nameof(PartLoader.StartLoad));
+            MethodInfo p_ExpansionsLoader_StartLoad = AccessTools.Method(typeof(KSPCFFastLoader), nameof(ExpansionsLoader_StartLoad_Prefix));
+            expansionsLoaderHarmony.Patch(m_ExpansionsLoader_StartLoad, new HarmonyMethod(p_ExpansionsLoader_StartLoad));
+            GameEvents.OnExpansionSystemLoaded.Add(OnExpansionSystemLoaded);
+            GameEvents.OnGameDatabaseLoaded.Add(OnGameDatabaseLoaded);
 
             configPath = ConfigPath;
             textureCachePath = Path.Combine(ModPath, "PluginData", "TextureCache");
@@ -151,8 +270,8 @@ namespace KSPCommunityFixes.Performance
             if (!IsPatchEnabled)
                 return;
 
-            harmony.UnpatchAll(HarmonyID);
-            harmony = null;
+            assetAndPartLoaderHarmony.UnpatchAll(AssetAndPartLoaderHarmonyID);
+            assetAndPartLoaderHarmony = null;
             loader = null;
         }
 
@@ -256,7 +375,35 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
+            KSPCFFastLoaderReport.wAssetBundleLoading.Start();
             return true;
+        }
+
+        static void GameDatabase_LoadAssetBundleObjects_MoveNext_Postfix(object __instance, ref bool __result)
+        {
+            if (!__result)
+            {
+                KSPCFFastLoaderReport.wAssetBundleLoading.Stop();
+                KSPCFFastLoaderReport.wGamedatabaseLoading.Start();
+            }
+        }
+
+        private void OnGameDatabaseLoaded()
+        {
+            KSPCFFastLoaderReport.wGamedatabaseLoading.Stop();
+            GameEvents.OnGameDatabaseLoaded.Remove(OnGameDatabaseLoaded);
+        }
+
+
+
+
+        static void ExpansionsLoader_StartLoad_Prefix() => KSPCFFastLoaderReport.wExpansionLoading.Start();
+
+        private void OnExpansionSystemLoaded()
+        {
+            KSPCFFastLoaderReport.wExpansionLoading.Stop();
+            expansionsLoaderHarmony.UnpatchAll(ExpansionsLoaderHarmonyID);
+            GameEvents.OnExpansionSystemLoaded.Remove(OnExpansionSystemLoaded);
         }
 
         #endregion
@@ -269,7 +416,7 @@ namespace KSPCommunityFixes.Performance
         static double ElapsedTime => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
         static int totalAssetCount;
-        static int loadedAssetCount;
+        internal static int loadedAssetCount;
 
         /// <summary>
         /// Custom partial reimplementation of the stock GameDatabase.LoadObjects() coroutine
@@ -291,10 +438,14 @@ namespace KSPCommunityFixes.Performance
             // However, the full reload means mods can take the opportunity to generate configs/assets on
             // the fly from Awake() in a Startup.Instantly KSPAddon and have it being loaded. I've found
             // at least 2 mods doing that, so unfortunately this can't really be optimized...
+            KSPCFFastLoaderReport.wSecondConfigLoad.Restart();
             gdb._root = new UrlDir(gdb.urlConfig.ToArray(), configFileTypes.ToArray());
+            KSPCFFastLoaderReport.wSecondConfigLoad.Stop();
 
             // Optimized version of GameDatabase.translateLoadedNodes()
+            KSPCFFastLoaderReport.wConfigTranslate.Restart();
             TranslateLoadedNodes(gdb);
+            KSPCFFastLoaderReport.wConfigTranslate.Stop();
             yield return null;
 
             gdb.progressTitle = "Waiting for PNGTextureCache opt-in...";
@@ -304,6 +455,7 @@ namespace KSPCommunityFixes.Performance
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
 
+            KSPCFFastLoaderReport.wAssetsLoading.Restart();
             double nextFrameTime = ElapsedTime + minFrameTimeD;
 
             // Files loaded by our custom loaders
@@ -414,6 +566,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             gdb.progressTitle = "Loading sound assets...";
+            KSPCFFastLoaderReport.wAudioLoading.Restart();
             yield return null;
 
             // call non-stock audio loaders
@@ -501,10 +654,18 @@ namespace KSPCommunityFixes.Performance
 
             // start texture loading
             gdb.progressFraction = 0.25f;
+            KSPCFFastLoaderReport.wAudioLoading.Stop();
+            KSPCFFastLoaderReport.wTextureLoading.Restart();
             gdb.progressTitle = "Loading texture assets...";
             yield return null;
 
             // call non-stock texture loaders
+
+            // note : we could use the StringComparer.OrdinalIgnoreCase comparer as the dictionary key comparer,
+            // as this is the comparison that stock is doing. However, profiling show that casing mismatches rarely happen
+            // (never in stock, 0.22% of calls in a very heavily modded install with a bunch of part mods of varying quality)
+            // and the overhead of the OrdinalIgnoreCase comparer is offsetting the gains (but a small margin, but still). 
+            texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count); 
             unsupportedFilesCount = unsupportedTextureFiles.Count;
             loadersCount = gdb.loadersTexture.Count;
 
@@ -549,6 +710,7 @@ namespace KSPCommunityFixes.Performance
             }
 
             // call our custom loader
+
             yield return gdb.StartCoroutine(FilesLoader(textureAssets, allTextureFiles, "Loading texture asset"));
 
             // write texture cache json to disk
@@ -557,10 +719,15 @@ namespace KSPCommunityFixes.Performance
 
             // start model loading
             gdb.progressFraction = 0.75f;
+            KSPCFFastLoaderReport.wTextureLoading.Stop();
+            KSPCFFastLoaderReport.wModelLoading.Start();
             gdb.progressTitle = "Loading model assets...";
             yield return null;
 
             // call non-stock model loaders
+            modelsByUrl = new Dictionary<string, GameObject>(allModelFiles.Count);
+            modelsByDirectoryUrl = new Dictionary<string, GameObject>(allModelFiles.Count);
+            urlFilesByModel = new Dictionary<GameObject, UrlFile>(allModelFiles.Count);
             unsupportedFilesCount = unsupportedModelFiles.Count;
             loadersCount = gdb.loadersModel.Count;
 
@@ -607,11 +774,14 @@ namespace KSPCommunityFixes.Performance
 
             // all done, do some cleanup
             arrayPool = null;
+            MuParser.ReleaseBuffers();
 
             // stock stuff
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
             gdb.progressFraction = 1f;
             loadObjectsInProgress = false;
+            KSPCFFastLoaderReport.wModelLoading.Stop();
+            KSPCFFastLoaderReport.wAssetsLoading.Stop();
         }
 
         /// <summary>
@@ -666,7 +836,8 @@ namespace KSPCommunityFixes.Performance
         #region Asset loader reimplementation (audio loader)
 
         static int concurrentAudioCoroutines;
-        static int audioFilesLoaded;
+        internal static int audioFilesLoaded;
+        
 
         /// <summary>
         /// Concurrent coroutines (read "multiple coroutines in the same frame") audio loader
@@ -677,7 +848,9 @@ namespace KSPCommunityFixes.Performance
 
             try
             {
-                string normalizedUri = KSPUtil.ApplicationFileProtocol + new FileInfo(urlFile.fullPath).FullName;
+                FileInfo fileInfo = new FileInfo(urlFile.fullPath);
+                KSPCFFastLoaderReport.audioBytesLoaded += fileInfo.Length;
+                string normalizedUri = KSPUtil.ApplicationFileProtocol + fileInfo.FullName;
                 UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(normalizedUri, AudioType.UNKNOWN);
                 yield return request.SendWebRequest();
                 while (!request.isDone)
@@ -831,8 +1004,6 @@ namespace KSPCommunityFixes.Performance
                 }
             }
         }
-
-
 
         /// <summary>
         /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
@@ -1042,6 +1213,9 @@ namespace KSPCommunityFixes.Performance
                             textureInfo.name = file.url;
                             textureInfo.texture.name = file.url;
                             Instance.databaseTexture.Add(textureInfo);
+                            texturesByUrl[file.url] = textureInfo;
+                            KSPCFFastLoaderReport.texturesBytesLoaded += dataLength;
+                            KSPCFFastLoaderReport.texturesLoaded++;
                         }
                     }
                     else if (file.fileType == FileType.Model)
@@ -1075,6 +1249,13 @@ namespace KSPCommunityFixes.Performance
                             model.SetActive(false);
                             Instance.databaseModel.Add(model);
                             Instance.databaseModelFiles.Add(file);
+                            modelsByUrl[file.url] = model;
+                            // if multiple models in the same dir, we only add the first
+                            // to ensure identical behavior as the GameDatabase.GetModelPrefabIn() method
+                            modelsByDirectoryUrl.TryAdd(file.parent.url, model);
+                            urlFilesByModel.Add(model, file);
+                            KSPCFFastLoaderReport.modelsBytesLoaded += dataLength;
+                            KSPCFFastLoaderReport.modelsLoaded++;
                         }
                     }
                 }
@@ -1476,83 +1657,9 @@ namespace KSPCommunityFixes.Performance
                 return new TextureInfo(file, texture, isNormalMap, !isNormalMap, false);
             }
 
-            private static void InitPartReader()
-            {
-                if (PartReader.matDummies == null)
-                    PartReader.matDummies = new List<PartReader.MaterialDummy>();
-                else
-                    PartReader.matDummies.Clear();
-
-                if (PartReader.boneDummies == null)
-                    PartReader.boneDummies = new List<PartReader.BonesDummy>();
-                else
-                    PartReader.boneDummies.Clear();
-
-                if (PartReader.textureDummies == null)
-                    PartReader.textureDummies = new PartReader.TextureDummyList();
-                else
-                    PartReader.textureDummies.Clear();
-            }
-
-            private static void CleanPartReader()
-            {
-                PartReader.matDummies.Clear();
-                PartReader.boneDummies.Clear();
-                PartReader.textureDummies.Clear();
-            }
-
             private GameObject LoadMU()
             {
-                InitPartReader();
-                PartReader.file = file;
-                memoryStream = new MemoryStream(buffer, 0, dataLength);
-                binaryReader = new BinaryReader(memoryStream);
-                PartToolsLib.FileType fileType = (PartToolsLib.FileType)binaryReader.ReadInt32();
-                PartReader.fileVersion = binaryReader.ReadInt32();
-                _ = binaryReader.ReadString() + string.Empty;
-                if (fileType != PartToolsLib.FileType.ModelBinary)
-                {
-                    SetError($"'{file.url}.mu' is an incorrect type.");
-                    return null;
-                }
-                GameObject gameObject = null;
-                try
-                {
-                    gameObject = PartReader.ReadChild(binaryReader, null);
-                    if (PartReader.boneDummies.Count > 0)
-                    {
-                        int i = 0;
-                        for (int count = PartReader.boneDummies.Count; i < count; i++)
-                        {
-                            Transform[] array = new Transform[PartReader.boneDummies[i].bones.Count];
-                            int j = 0;
-                            for (int count2 = PartReader.boneDummies[i].bones.Count; j < count2; j++)
-                            {
-                                array[j] = PartReader.FindChildByName(gameObject.transform, PartReader.boneDummies[i].bones[j]);
-                            }
-                            PartReader.boneDummies[i].smr.bones = array;
-                        }
-                    }
-                    if (PartReader.shaderFallback)
-                    {
-                        Renderer[] componentsInChildren = gameObject.GetComponentsInChildren<Renderer>();
-                        int k = 0;
-                        for (int num = componentsInChildren.Length; k < num; k++)
-                        {
-                            Renderer renderer = componentsInChildren[k];
-                            int l = 0;
-                            for (int num2 = renderer.sharedMaterials.Length; l < num2; l++)
-                            {
-                                renderer.sharedMaterials[l].shader = Shader.Find("KSP/Diffuse");
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    CleanPartReader();
-                }
-                return gameObject;
+                return MuParser.Parse(file.parent.url, buffer, dataLength);
             }
 
             private GameObject LoadDAE()
@@ -1712,8 +1819,6 @@ namespace KSPCommunityFixes.Performance
 
         private static IEnumerator PartLoader_CompileAll()
         {
-            Stopwatch watch = Stopwatch.StartNew();
-
             PartLoader instance = PartLoader.Instance;
 
             if (instance._recompile)
@@ -1722,6 +1827,8 @@ namespace KSPCommunityFixes.Performance
             }
             instance.progressTitle = "";
             instance.progressFraction = 0f;
+            KSPCFFastLoaderReport.wBuiltInPartsCopy.Restart();
+            // copy the prebuilt parts (eva kerbals and flags) into the loaded part db
             for (int i = 0; i < instance.initialPartsLength; i++)
             {
                 AvailablePart availablePart = new AvailablePart(instance.parts[i]);
@@ -1752,10 +1859,13 @@ namespace KSPCommunityFixes.Performance
                 }
                 instance.loadedParts.Add(availablePart);
             }
+            KSPCFFastLoaderReport.wBuiltInPartsCopy.Stop();
+            KSPCFFastLoaderReport.wPartConfigExtraction.Restart();
             UrlConfig[] configs = GameDatabase.Instance.GetConfigs("PART");
             UrlConfig[] allPropNodes = GameDatabase.Instance.GetConfigs("PROP");
             UrlConfig[] allSpaceNodes = GameDatabase.Instance.GetConfigs("INTERNAL");
             UrlConfig[] configs2 = GameDatabase.Instance.GetConfigs("VARIANTTHEME");
+            KSPCFFastLoaderReport.wPartConfigExtraction.Stop();
             int num = configs.Length + allPropNodes.Length + allSpaceNodes.Length;
             instance.progressDelta = 1f / num;
             instance.InitializePartDatabase();
@@ -1763,12 +1873,15 @@ namespace KSPCommunityFixes.Performance
             instance.APFinderByName.Clear();
             instance.CompileVariantThemes(configs2);
 
+            KSPCFFastLoaderReport.wPartCompilationLoading.Restart();
             PartCompilationInProgress = true;
             IEnumerator compilePartsEnumerator = FrameUnlockedCoroutine(instance.CompileParts(configs));
             while (compilePartsEnumerator.MoveNext())
                 yield return null;
             PartCompilationInProgress = false;
+            KSPCFFastLoaderReport.wPartCompilationLoading.Stop();
 
+            KSPCFFastLoaderReport.wInternalCompilationLoading.Restart();
             IEnumerator compileInternalPropsEnumerator = FrameUnlockedCoroutine(instance.CompileInternalProps(allPropNodes));
             while (compileInternalPropsEnumerator.MoveNext())
                 yield return null;
@@ -1776,15 +1889,11 @@ namespace KSPCommunityFixes.Performance
             IEnumerator compileInternalSpacesEnumerator = FrameUnlockedCoroutine(instance.CompileInternalSpaces(allSpaceNodes));
             while (compileInternalSpacesEnumerator.MoveNext())
                 yield return null;
+            KSPCFFastLoaderReport.wInternalCompilationLoading.Stop();
 
             Destroy(loader);
 
             instance.SavePartDatabase();
-
-            Debug.Log($"PartLoader: {configs.Length} parts compiled");
-            Debug.Log($"PartLoader: {allPropNodes.Length} internal props compiled");
-            Debug.Log($"PartLoader: {allSpaceNodes.Length} internal spaces compiled");
-            Debug.Log($"PartLoader: compilation took {watch.Elapsed.TotalSeconds:F3}s");
 
             instance._recompile = false;
             PartUpgradeManager.Handler.LinkUpgrades();
@@ -1805,7 +1914,7 @@ namespace KSPCommunityFixes.Performance
         private static void PatchStartCoroutineInCoroutine(MethodInfo coroutine)
         {
             MethodInfo t_StartCoroutinePassThroughTranspiler = AccessTools.Method(typeof(KSPCFFastLoader), nameof(StartCoroutinePassThroughTranspiler));
-            harmony.Patch(AccessTools.EnumeratorMoveNext(coroutine), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
+            assetAndPartLoaderHarmony.Patch(AccessTools.EnumeratorMoveNext(coroutine), null, null, new HarmonyMethod(t_StartCoroutinePassThroughTranspiler));
         }
 
         /// <summary>
@@ -2440,6 +2549,8 @@ namespace KSPCommunityFixes.Performance
 
 
         #endregion
+
+
     }
 
 #if DEBUG

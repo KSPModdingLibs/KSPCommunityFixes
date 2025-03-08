@@ -14,7 +14,6 @@ namespace KSPCommunityFixes
 
         public static string LOC_KSPCF_Title = "KSP Community Fixes";
 
-
         public static Harmony Harmony { get; private set; }
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
@@ -50,6 +49,14 @@ namespace KSPCommunityFixes
             }
         }
 
+        static KSPCommunityFixes()
+        {
+            Harmony = new Harmony("KSPCommunityFixes");
+#if DEBUG
+            Harmony.DEBUG = true;
+#endif
+        }
+
         public static T GetPatchInstance<T>() where T : BasePatch
         {
             if (!patchInstances.TryGetValue(typeof(T), out BasePatch instance))
@@ -72,11 +79,6 @@ namespace KSPCommunityFixes
                 DontDestroyOnLoad(this);
             }
 
-            Harmony = new Harmony("KSPCommunityFixes");
-
-#if DEBUG
-            Harmony.DEBUG = true;
-#endif
             LocalizationUtils.GenerateLocTemplateIfRequested();
             LocalizationUtils.ParseLocalization();
 
@@ -113,10 +115,9 @@ namespace KSPCommunityFixes
             List<Type> patchesTypes = new List<Type>();
             foreach (Type type in Assembly.GetAssembly(basePatchType).GetTypes())
             {
-                if (!type.IsAbstract && type.IsSubclassOf(basePatchType))
+                if (!type.IsAbstract && type.IsSubclassOf(basePatchType) && type.GetCustomAttribute<ManualPatchAttribute>() == null)
                 {
                     patchesTypes.Add(type);
-
                 }
             }
 
