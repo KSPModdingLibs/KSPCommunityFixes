@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using KSP.UI.TooltipTypes;
+using PartToolsLib;
 using UnityEngine;
 
 namespace KSPCommunityFixes
