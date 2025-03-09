@@ -141,6 +141,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**MinorPerfTweaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Various small performance patches (volume normalizer, eva module checks)
 - [**FloatingOriginPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
 - [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5]<br/>Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
+- [**CraftBrowserOptimisations**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/284) [KSP 1.12.0 - 1.12.5]<br/>Significantly reduces the time it takes to open the craft browser and to search by name. Most noticeable with lots of craft.
 - [**OptimisedVectorLines**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/281) [KSP 1.12.0 - 1.12.5]<br/>Improve performance in the Map View when a large number of vessels and bodies are visible via faster drawing of orbit lines and CommNet lines.
 
 #### API and modding tools

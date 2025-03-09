@@ -159,6 +159,7 @@
     <Compile Include="Library\ShaderHelpers.cs" />
     <Compile Include="Modding\KSPFieldEnumDesc.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
+    <Compile Include="Performance\CraftBrowserOptimisations.cs" />
     <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
     <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
