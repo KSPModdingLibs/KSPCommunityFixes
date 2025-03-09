@@ -1,4 +1,5 @@
-﻿using System;
+﻿using HarmonyLib;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,9 +11,23 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
+            AddPatch(PatchType.Override, AccessTools.PropertyGetter(typeof(FlightGlobals), nameof(FlightGlobals.fetch)), nameof(FlightGlobals_fetch_Override));
+
             AddPatch(PatchType.Override, typeof(Part), nameof(Part.isKerbalEVA));
 
             AddPatch(PatchType.Override, typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update));
+        }
+
+        // When FlightGlobals._fetch is null/destroyed, the stock "fetch" getter fallback to a FindObjectOfType()
+        // call. This is extremly slow, and account for ~10% of the total loading time (7 seconds) of the total
+        // launch > main menu on stock + BDB install, due to being called during part compilation.
+        // The _fetch field is acquired from Awake() and set to null in OnDestroy(), so there is no real reason for this.
+        // The only behavior change I can think of would be something calling fetch in between the OnDestroy()
+        // call and the effective destruction of the native object. In any case, this can be qualified as a bug,
+        // as the flightglobal instance left accessible will be in quite invalid state.
+        private static FlightGlobals FlightGlobals_fetch_Override()
+        {
+            return FlightGlobals._fetch.IsNullOrDestroyed() ? null : FlightGlobals._fetch;
         }
 
         // Called (sometimes multiple times) in Part.FixedUpdate()

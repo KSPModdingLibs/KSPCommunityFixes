@@ -47,7 +47,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - Fix many issues and state inconsistencies.
   - An optional `DockingPortExtendedRotation.cfg.extra` MM patch extending rotation range to 360° is available in the `Extras` folder. Copy it to your `GameData` folder and remove the `.extra` extension to use it.
 - **[AutoStrutDrift](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/21)** [KSP 1.8.0 - 1.12.5]<br/>Improves the overall physics stability when using autostruts and prevent autostrut induced deformations following vessel modification events (decoupling, docking/undocking, fairing separation...).
-- **ModuleIndexingMismatch** [KSP 1.8.0 - 1.12.5]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurrences of that issue.
+- [**ModuleIndexingMismatch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/264) [KSP 1.8.0 - 1.12.5]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurrences of that issue.
 - **PackedPartsRotation** [KSP 1.8.0 - 1.12.5]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
@@ -113,6 +113,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **ResourceLockActions** [KSP 1.8.0 - 1.12.5]<br/>Add part actions for locking/unlocking resources flow state.
 - [**BetterEditorUndoRedo**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/172) [KSP 1.12.3 - 1.12.5]<br/>Invert the editor undo state capturing logic so part tweaks aren't lost when undoing.  NOTE: this patch is disabled when TweakScale/L is installed.
 - [**OptionalMakingHistoryDLCFeatures**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/218) [KSP 1.12.3 - 1.12.5]<br/>Allow to disable the Making History DLC mission editor and additional launch sites features to decrease memory usage and increase loading speed. The Making History parts will still be available. Can be toggled from the KSPCF in-game settings (requires a restart), or from a MM patch (see `Settings.cfg`).
+- **TargetParentBody** [KSP 1.8.0 - 1.12.5]<br/>Allow targeting the parent body of the current craft, or any body in the parent hierarchy.
 
 #### Performance tweaks 
 
@@ -125,7 +126,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.5]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.5]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapUpdateInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.5]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
-- [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/56) [KSP 1.12.0 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Prevent full CommNet network updates from happening every frame, but instead to happen at a regular real-world time interval of 5 seconds while in flight. Enabling this can provide a decent performance uplift in games having an large amount of celestial bodies and/or vessels, but has a detrimental impact on the precision of the simulation and can potentially cause issues with mods relying on the stock behavior.
+- [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/299) [KSP 1.12.0 - 1.12.5]<br/>Implement a throttling mechanism preventing CommNet network updates from happening every frame. When this patch is enabled, network updates will only happen at a set interval of in-game seconds (default is 2.5s, configurable in `Settings.cfg`). This patch will cause events such as line of sight loss or acquisition, or comm link changes to happen with a slight delay, but provide a significant performance uplift in games having a large amount of celestial bodies and/or vessels.
 - [**AsteroidAndCometDrillCache**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67) [KSP 1.12.5]<br/>Reduce constant overhead of ModuleAsteroidDrill and ModuleCometDrill by using the cached asteroid/comet part lookup results from ModuleResourceHarvester. Improves performance with large part count vessels having at least one drill part.
 - [**FewerSaves**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/80) [KSP 1.8.0 - KSP 1.12.5]<br/>Disables saving on exiting Space Center minor buildings (Mission Control etc) and when deleting vessels in Tracking Station. Disabled by default.
 - [**ConfigNodePerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/88) [see also](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/90) [KSP 1.8.0 - KSP 1.12.5]<br/>Speeds up many ConfigNode methods, especially reading and writing ConfigNodes.
@@ -141,9 +142,13 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ModuleDockingNodeFindOtherNodesFaster**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Faster lookup of other docking nodes.
 - [**CollisionEnhancerFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of the `CollisionEnhancer` component (responsible for part to terrain collision detection).
 - [**PartSystemsFastUpdate**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Optimization of various flight scene auxiliary subsystems : temperature gauges, highlighter, strut position tracking...
-- [**MinorPerfTweaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Various small performance patches (volume normalizer, eva module checks)
+- [**MinorPerfTweaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>Various small performance patches (volume normalizer, eva module checks, faster `FlightGlobals.fetch` accessor)
 - [**FloatingOriginPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/257) [KSP 1.12.3 - 1.12.5]<br/>General micro-optimization of floating origin shifts. Main benefit is in large particle count situations (ie, launches with many engines) but this helps a bit in other cases as well.
 - [**FasterPartFindTransform**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/255) [KSP 1.12.3 - 1.12.5]<br/>Faster, and minimal GC alloc relacements for the Part FindModelTransform* and FindHeirarchyTransform* methods.
+- [**CraftBrowserOptimisations**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/284) [KSP 1.12.0 - 1.12.5]<br/>Significantly reduces the time it takes to open the craft browser and to search by name. Most noticeable with lots of craft.
+- [**OptimisedVectorLines**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/281) [KSP 1.12.0 - 1.12.5]<br/>Improve performance in the Map View when a large number of vessels and bodies are visible via faster drawing of orbit lines and CommNet lines.
+- [**GameDatabasePerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269) [KSP 1.12.3 - 1.12.5]<br/>Faster dictionary backed version of the stock `GameDatabase.GetModel*` / `GameDatabase.GetTexture*` methods. This patch is always enabled and has no entry in `Settings.cfg`.
+- [**PartParsingPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269) [KSP 1.8.0 - 1.12.5]<br/>Faster part icon generation and `Part` fields parsing.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
@@ -165,6 +170,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
   - `R16G16_FLOAT` / `R32G32_FLOAT` : 2 channels (RG) uncompressed 32/64 bpp
   - `R16G16B16A16_FLOAT` / `R32G32B32A32_FLOAT` : 4 channels (RGBA) uncompressed 64/128 bpp
 - [**KSPFieldEnumDesc**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/243) [KSP 1.12.2 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field.
+- [**BaseFieldListUseFieldHost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/278) [KSP 1.12.3 - 1.12.5]<br/>Allow `BaseField` and associated features (PAW controls, persistence, etc) to work when a custom `BaseField` is added to a `BaseFieldList` (ie, a `Part` or `PartModule`) with a `host` instance other than the `BaseFieldList` owner. See the linked PR and code for use cases and example usage.
 
 #### Stock configs tweaks
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
@@ -204,11 +210,33 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.37.0
+**New / improved patches**
+- New performance patch : [**CraftBrowserOptimisations**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/284), significantly reduces the time it takes to open the craft browser and to search by name. Most noticeable with lots of craft. Thanks to @Halbann for this contribution.
+- New performance patch : [**OptimisedVectorLines**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/281), improve performance in the Map View and tracking station when a large number of vessels and bodies are visible via faster drawing of orbit lines and CommNet lines. Thanks to @Halbann for this contribution.
+- New QoL patch : [**TargetParentBody**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/285), allow targeting the parent body of the current craft, or any body in the parent hierarchy. Thanks to @jamespglaze for this contribution.
+- Improved **PartSystemsFastUpdate** performance patch with a [complete reimplementation of `TemperatureGaugeSystem`](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/270), also see [issue #194](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/194). Mostly eliminate the background processing of (hidden and visible) temperature gauges, and massively reduce the overhead of instantiating them, reducing scene load time and stutter on part count change events such as decoupling, docking, undocking, crashes, etc.
+- Various initial **loading performance optimizations**, see [PR #269](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269):
+  - Added performance metrics logging upon reaching the main menu
+  - Added (almost) entirely custom MU model parser, roughly 3 times the throughput of the stock parser (~300 MB/s on my machine). Will only really benefit to people having fast NVME drives with good random read performance.
+  - New patch, **GameDatabasePerf** : KSPCF now maintains dictionaries of loaded models and texture assets by their url/name, and patch the stock `GameDatabase.GetModel*` / `GameDatabase.GetTexture*` method to use them instead of doing a linear search. This was especially bad with models, as the method would compare the requested string to the `GameObject.name` property for every model in the database.
+  - As a part of the **MinorPerfTweaks** patch, patched the `FlightGlobals.fetch` property to not fallback to a `FindObjectOfType()` call when the `FlightGlobals._fetch` field is null, which is always the case during loading. In a stock + BDB test case, this alone was about 10% of the total loading time, 7+ seconds.
+  - New patch, **PartParsingPerf**, featuring slightly faster part icon generation and faster `Part` fields parsing by creating a dictionary of IL-emitted parser delegates.
+- Improved [**CommNetThrottling**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/299) performance patch. The patch now implement a custom rate limiting logic for CommNet updates, with a more balanced take between performance improvements and simulation precision. As a result, the patch is now enabled by default. Thanks to @JonnyOThan for insisting on that one.
+- Improved [**ModuleIndexingMismatch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/264) patch. Will now restore persisted data following a config change (mod updated/added/removed) when the module now present on a part is a base or derived module. Notably allow action group customizations to be kept when sharing craft files between Waterfall / non-Waterfall installs. Thanks to @BrettRyland for detailed reporting.
+- New modding API patch : [**BaseFieldListUseFieldHost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/278). Allow `BaseField` and associated features (PAW controls, persistence, etc) to work when a custom `BaseField` is added to a `BaseFieldList` (ie, a `Part` or `PartModule`) with a `host` instance other than the `BaseFieldList` owner. Potential use cases for this are having a part or module-level PAW item associated to and sharing the state of a common field, for example a field in a `KSPAddon`, or extending external (typically stock) modules with additional PAW UI controls and/or persisted fields.
+
+**Bug fixes**
+- **CollisionEnhancerFastUpdate** : Fixed [issue #282](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/282), fixed exception spam when launching fireworks and possibly in other situations with non-part physical objects such as fairing / shroud debris. Thanks to @JonnyOThan for reporting.
+- **PersistentIConfigNode** : Fixed [issue #297](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/297), incorrect return value from the `LoadObjectFromConfig()` KSP API method, notably resulting in the PAPI Lights mod failing to load. Thanks to @svm420 for reporting.
+
+**Internal changes**
+- Added a `[ManualPatch]` attribute. When applied to a class derived from `BasePatch`, the patch won't be automatically applied by the default patching infrastructure. To apply the patch, call `BasePatch.Patch()` manually. 
+
 ##### 1.36.1
 Hotfix release for [issue #273](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/273) : [**ForceSyncSceneSwitch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/250) patch incompatibility with [Universal Storage 2](https://github.com/linuxgurugamer/universal-storage-2/). The patch will now be disabled when US2 is installed. 
 
 Note that this patch [might be causing other issues](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/260), but so far we haven't been able to confirm them.
-
 
 ##### 1.36.0
 **User facing changes**
@@ -223,8 +251,9 @@ Note that this patch [might be causing other issues](https://github.com/KSPModdi
 - New KSP bufix : [**DragCubeLoadException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/232) [KSP 1.8.0 - 1.12.5] : Fix loading of drag cubes without a name failing with an IndexOutOfRangeException (contributed by @Nazfib).
 - New KSP bufix : [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5] : Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI (contributed by @JonnyOThan).
 - New modding API improvement : [**KSPFieldEnumDesc**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/243) [KSP 1.12.2 - 1.12.5] : Disabled by default, you can enable it with a MM patch. Adds display name and localization support for enum KSPFields. To use add `Description` attribute to the field (contributed by @siimav).
-- **PAWStockGroups** : [Added PAW groups for generators](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/235), making the UI less confusing when multiple generators are present (contributed by @yalov).
 - New KSP bugfix : [**ModuleActiveRadiatorNoParentException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/249) [KSP 1.12.3 - 1.12.5] : Fix exception spam when a radiator set to `parentCoolingOnly` is detached from the vessel (reported by @BrettRyland).
+- **PAWStockGroups** : [Added PAW groups for generators](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/235), making the UI less confusing when multiple generators are present (contributed by @yalov).
+- **ModuleIndexingMismatch** : [Improved patch](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/236), now will still load a module data when the mismatched module is of a known base or derived type. Notably prevent engine state such as action groups configuration from being lost when installing/uninstalling Waterfall, or when exchanging craft files between stock and Waterfall installs.
 
 **Internal changes**
 - Patching now always run as the first ModuleManagerPostLoad callback, ensuring other callbacks can benefit from the patches (contributed by @al2me6).

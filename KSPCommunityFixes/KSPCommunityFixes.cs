@@ -14,7 +14,6 @@ namespace KSPCommunityFixes
 
         public static string LOC_KSPCF_Title = "KSP Community Fixes";
 
-
         public static Harmony Harmony { get; private set; }
 
         public static HashSet<string> enabledPatches = new HashSet<string>();
@@ -25,6 +24,9 @@ namespace KSPCommunityFixes
         public static KSPCommunityFixes Instance { get; private set; }
 
         public static long FixedUpdateCount { get; private set; }
+
+        // Frame counter that doesn't use a call to C++ like Time.frameCount.
+        public static long UpdateCount { get; private set; }
 
         private static string modPath;
         public static string ModPath
@@ -50,6 +52,14 @@ namespace KSPCommunityFixes
             }
         }
 
+        static KSPCommunityFixes()
+        {
+            Harmony = new Harmony("KSPCommunityFixes");
+#if DEBUG
+            Harmony.DEBUG = true;
+#endif
+        }
+
         public static T GetPatchInstance<T>() where T : BasePatch
         {
             if (!patchInstances.TryGetValue(typeof(T), out BasePatch instance))
@@ -72,11 +82,6 @@ namespace KSPCommunityFixes
                 DontDestroyOnLoad(this);
             }
 
-            Harmony = new Harmony("KSPCommunityFixes");
-
-#if DEBUG
-            Harmony.DEBUG = true;
-#endif
             LocalizationUtils.GenerateLocTemplateIfRequested();
             LocalizationUtils.ParseLocalization();
 
@@ -113,10 +118,9 @@ namespace KSPCommunityFixes
             List<Type> patchesTypes = new List<Type>();
             foreach (Type type in Assembly.GetAssembly(basePatchType).GetTypes())
             {
-                if (!type.IsAbstract && type.IsSubclassOf(basePatchType))
+                if (!type.IsAbstract && type.IsSubclassOf(basePatchType) && type.GetCustomAttribute<ManualPatchAttribute>() == null)
                 {
                     patchesTypes.Add(type);
-
                 }
             }
 
@@ -131,6 +135,11 @@ namespace KSPCommunityFixes
         void FixedUpdate()
         {
             FixedUpdateCount++;
+        }
+
+        void Update()
+        {
+            UpdateCount++;
         }
     }
 }
