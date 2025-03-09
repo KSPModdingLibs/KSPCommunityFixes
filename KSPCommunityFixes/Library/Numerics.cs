@@ -720,6 +720,19 @@ namespace KSPCommunityFixes.Library
         }
 
         /// <summary>
+        /// Transform point, slightly faster than using a Vector3d.
+        /// </summary>
+        public void MutateMultiplyPoint3x4(ref double x, ref double y, ref double z)
+        {
+            double x1 = x;
+            double y1 = y;
+            double z1 = z;
+            x = m00 * x1 + m01 * y1 + m02 * z1 + m03;
+            y = m10 * x1 + m11 * y1 + m12 * z1 + m13;
+            z = m20 * x1 + m21 * y1 + m22 * z1 + m23;
+        }
+
+        /// <summary>
         /// Transform point
         /// </summary>
         public Vector3d MultiplyPoint3x4(ref Vector3d point)

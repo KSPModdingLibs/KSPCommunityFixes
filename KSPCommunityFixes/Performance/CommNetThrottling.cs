@@ -1,13 +1,12 @@
-﻿using HarmonyLib;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using System.Diagnostics;
 
 namespace KSPCommunityFixes.Performance
 {
     class CommNetThrottling : BasePatch
     {
-        private static double packedInterval = 0.5;
-        private static double unpackedInterval = 5.0;
+        private static double maxGameTimeInterval = 2.5;
+        private static long minRealTimeInterval = 20;
+        private static Stopwatch realTimeUpdateTimer = new Stopwatch();
 
         protected override void ApplyPatches()
         {
@@ -15,31 +14,32 @@ namespace KSPCommunityFixes.Performance
 
             if (settingsNode != null)
             {
-                settingsNode.TryGetValue("packedInterval", ref packedInterval);
-                settingsNode.TryGetValue("unpackedInterval", ref unpackedInterval);
+                settingsNode.TryGetValue("maxGameTimeInterval", ref maxGameTimeInterval);
+                settingsNode.TryGetValue("minRealTimeInterval", ref minRealTimeInterval);
             }
 
-            AddPatch(PatchType.Prefix, typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update));
+            AddPatch(PatchType.Override, typeof(CommNet.CommNetNetwork), nameof(CommNet.CommNetNetwork.Update));
         }
 
-        static bool CommNetNetwork_Update_Prefix(CommNet.CommNetNetwork __instance)
+        static void CommNetNetwork_Update_Override(CommNet.CommNetNetwork commNetNetwork)
         {
-            if (!__instance.queueRebuild && !__instance.commNet.IsDirty)
+            double currentGameTime = Planetarium.GetUniversalTime();
+            double currentGameTimeInterval = currentGameTime - commNetNetwork.prevUpdate;
+            if (!commNetNetwork.queueRebuild && !commNetNetwork.commNet.IsDirty 
+                && currentGameTimeInterval >= 0.0
+                && (currentGameTimeInterval < maxGameTimeInterval || realTimeUpdateTimer.ElapsedMilliseconds < minRealTimeInterval))
             {
-                double timeSinceLastUpdate = Time.timeSinceLevelLoad - __instance.prevUpdate;
-
-                if (FlightGlobals.ActiveVessel != null)
-                {
-                    double interval = FlightGlobals.ActiveVessel.packed ? packedInterval : unpackedInterval;
-                    if (timeSinceLastUpdate < interval)
-                    {
-                        __instance.graphDirty = true;
-                        return false;
-                    }
-                }
+                commNetNetwork.graphDirty = true;
+                return;
             }
 
-            return true;
+            // UnityEngine.Debug.Log($"CommNet update interval : {realTimeUpdateTimer.Elapsed.TotalMilliseconds:F0}ms");
+
+            commNetNetwork.commNet.Rebuild();
+            realTimeUpdateTimer.Restart();
+            commNetNetwork.prevUpdate = currentGameTime;
+            commNetNetwork.graphDirty = false;
+            commNetNetwork.queueRebuild = false;
         }
     }
 }
