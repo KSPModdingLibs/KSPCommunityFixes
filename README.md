@@ -6,14 +6,14 @@ This mod is meant as community project, so feel free to propose additional patch
 
 ### Download and installation
 
-Compatible with **KSP 1.8.0** to **1.12.5** - Available on [CKAN]
+Compatible with **KSP 1.8.0** to **1.12.5** - Available on the [CKAN] mod manager
 
 **Required** and **must be downloaded separately** : 
 
 - **HarmonyKSP** : **[Download](https://github.com/KSPModdingLibs/HarmonyKSP/releases)** - [Homepage](https://github.com/KSPModdingLibs/HarmonyKSP/) - Available on [CKAN]
 - **ModuleManager** : **[Download](https://ksp.sarbian.com/jenkins/job/ModuleManager/lastSuccessfulBuild/artifact/)** - [Forum post](https://forum.kerbalspaceprogram.com/index.php?/topic/50533-18x-110x-module-manager-414-july-7th-2020-locked-inside-edition/) - Available on [CKAN]
 
-[CKAN]: https://github.com/KSP-CKAN/CKAN/blob/master/README.md
+[CKAN]: https://github.com/KSP-CKAN/CKAN/releases
 
 **Installation**
 
