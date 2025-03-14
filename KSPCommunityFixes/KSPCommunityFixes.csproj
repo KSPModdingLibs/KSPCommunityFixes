@@ -128,6 +128,7 @@
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
     <Compile Include="BugFixes\DragCubeLoadException.cs" />
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
+    <Compile Include="BugFixes\GetPotentialTorqueFixes.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\ModuleActiveRadiatorNoParentException.cs" />
     <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
@@ -150,6 +151,7 @@
     <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Collections\FastStack.cs" />
+    <Compile Include="Library\EditorPhysics.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\KSPObjectsExtensions.cs" />
     <Compile Include="Library\LocalizationUtils.cs" />
@@ -166,6 +168,7 @@
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
     <Compile Include="Performance\FloatingOriginPerf.cs" />
+    <Compile Include="Performance\NoLiftInSpace.cs" />
     <Compile Include="Performance\OptimisedVectorLines.cs" />
     <Compile Include="Performance\GameDatabasePerf.cs" />
     <Compile Include="Performance\PartSystemsFastUpdate.cs" />
@@ -200,7 +203,6 @@
     <Compile Include="BugFixes\PartListTooltipIconSpin.cs" />
     <Compile Include="BugFixes\PartStartStability.cs" />
     <Compile Include="BugFixes\PAWItemOrder.cs" />
-    <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
     <Compile Include="BugFixes\RoboticsDrift.cs" />
     <Compile Include="BugFixes\ROCValidationOOR.cs" />
     <Compile Include="BugFixes\ScatterDistribution.cs" />
@@ -220,7 +222,9 @@
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
     <Compile Include="QoL\BetterEditorUndoRedo.cs" />
+    <Compile Include="QoL\BetterSAS.cs" />
     <Compile Include="QoL\OptionalMakingHistoryDLCFeatures.cs" />
+    <Compile Include="QoL\RCSLimiter.cs" />
     <Compile Include="QoL\TargetParentBody.cs" />
     <Compile Include="QoL\ToolbarShowHide.cs" />
     <Compile Include="QoL\DisableNewGameIntro.cs" />

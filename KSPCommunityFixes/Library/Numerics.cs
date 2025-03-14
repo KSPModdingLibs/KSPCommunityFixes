@@ -788,5 +788,12 @@ namespace KSPCommunityFixes.Library
                 m10 * x + m11 * y + m12 * z,
                 m20 * x + m21 * y + m22 * z);
         }
+
+        public Vector3d Right => new Vector3d(m00, m10, m20);
+        public Vector3d Left => new Vector3d(-m00, -m10, -m20);
+        public Vector3d Up => new Vector3d(m01, m11, m21);
+        public Vector3d Down => new Vector3d(-m01, -m11, -m21);
+        public Vector3d Forward => new Vector3d(m02, m12, m22);
+        public Vector3d Back => new Vector3d(-m02, -m12, -m22);
     }
 }
