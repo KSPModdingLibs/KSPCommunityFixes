@@ -386,6 +386,42 @@ namespace KSPCommunityFixes.Library
                 m.m20 * x + m.m21 * y + m.m22 * z + m.m23);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double Magnitude(double x, double y, double z)
+        {
+            return Math.Sqrt(x * x + y * y + z * z);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector3d Right(ref this Matrix4x4 matrix)
+        {
+            double mag = Magnitude(matrix.m00, matrix.m10, matrix.m20);
+            if (mag > 1E-05)
+                return new Vector3d(matrix.m00 / mag, matrix.m10 / mag, matrix.m20 / mag);
+
+            return Vector3d.right;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector3d Up(ref this Matrix4x4 matrix)
+        {
+            double mag = Magnitude(matrix.m01, matrix.m11, matrix.m21);
+            if (mag > 1E-05)
+                return new Vector3d(matrix.m01 / mag, matrix.m11 / mag, matrix.m21 / mag);
+
+            return Vector3d.up;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector3d Forward(ref this Matrix4x4 matrix)
+        {
+            double mag = Magnitude(matrix.m02, matrix.m12, matrix.m22);
+            if (mag > 1E-05)
+                return new Vector3d(matrix.m02 / mag, matrix.m12 / mag, matrix.m22 / mag);
+
+            return Vector3d.forward;
+        }
+
         /// <summary>
         /// Evaluate whether a given integral value is a power of 2.
         /// </summary>
@@ -707,6 +743,46 @@ namespace KSPCommunityFixes.Library
         }
 
         /// <summary>
+        /// Local to world space transform matrix
+        /// </summary>
+        public static void LocalToWorld(Transform transform, ref TransformMatrix localToWorldMatrix)
+        {
+            Matrix4x4 matrix = transform.localToWorldMatrix;
+            localToWorldMatrix.m00 = matrix.m00;
+            localToWorldMatrix.m01 = matrix.m01;
+            localToWorldMatrix.m02 = matrix.m02;
+            localToWorldMatrix.m03 = matrix.m03;
+            localToWorldMatrix.m10 = matrix.m10;
+            localToWorldMatrix.m11 = matrix.m11;
+            localToWorldMatrix.m12 = matrix.m12;
+            localToWorldMatrix.m13 = matrix.m13;
+            localToWorldMatrix.m20 = matrix.m20;
+            localToWorldMatrix.m21 = matrix.m21;
+            localToWorldMatrix.m22 = matrix.m22;
+            localToWorldMatrix.m23 = matrix.m23;
+        }
+
+        /// <summary>
+        /// World to local space (inverse) transform matrix
+        /// </summary>
+        public static void WorldToLocal(Transform transform, ref TransformMatrix worldToLocalMatrix)
+        {
+            Matrix4x4 matrix = transform.worldToLocalMatrix;
+            worldToLocalMatrix.m00 = matrix.m00;
+            worldToLocalMatrix.m01 = matrix.m01;
+            worldToLocalMatrix.m02 = matrix.m02;
+            worldToLocalMatrix.m03 = matrix.m03;
+            worldToLocalMatrix.m10 = matrix.m10;
+            worldToLocalMatrix.m11 = matrix.m11;
+            worldToLocalMatrix.m12 = matrix.m12;
+            worldToLocalMatrix.m13 = matrix.m13;
+            worldToLocalMatrix.m20 = matrix.m20;
+            worldToLocalMatrix.m21 = matrix.m21;
+            worldToLocalMatrix.m22 = matrix.m22;
+            worldToLocalMatrix.m23 = matrix.m23;
+        }
+
+        /// <summary>
         /// Transform point
         /// </summary>
         public void MutateMultiplyPoint3x4(ref Vector3d point)
@@ -789,11 +865,38 @@ namespace KSPCommunityFixes.Library
                 m20 * x + m21 * y + m22 * z);
         }
 
-        public Vector3d Right => new Vector3d(m00, m10, m20);
-        public Vector3d Left => new Vector3d(-m00, -m10, -m20);
-        public Vector3d Up => new Vector3d(m01, m11, m21);
-        public Vector3d Down => new Vector3d(-m01, -m11, -m21);
-        public Vector3d Forward => new Vector3d(m02, m12, m22);
-        public Vector3d Back => new Vector3d(-m02, -m12, -m22);
+        private enum Direction { Right, Left, Up, Down, Forward, Back };
+
+        private Vector3d GetUnitVector(double m0, double m1, double m2, Direction direction)
+        {
+            double mag = Numerics.Magnitude(m0, m1, m2);
+            if (mag > 0.0)
+                return new Vector3d(m0 / mag, m1 / mag, m2 / mag);
+
+            switch (direction)
+            {
+                case Direction.Right:
+                    return Vector3d.right;
+                case Direction.Left:
+                    return Vector3d.left;
+                case Direction.Up:
+                    return Vector3d.up;
+                case Direction.Down:
+                    return Vector3d.down;
+                case Direction.Forward:
+                    return Vector3d.forward;
+                case Direction.Back:
+                    return Vector3d.back;
+                default:
+                    return Vector3d.zero;
+            }
+        }
+
+        public Vector3d Right => GetUnitVector(m00, m10, m20, Direction.Right);
+        public Vector3d Left => GetUnitVector(-m00, -m10, -m20, Direction.Left);
+        public Vector3d Up => GetUnitVector(m01, m11, m21, Direction.Up);
+        public Vector3d Down => GetUnitVector(-m01, -m11, -m21, Direction.Down);
+        public Vector3d Forward => GetUnitVector(m02, m12, m22, Direction.Forward);
+        public Vector3d Back => GetUnitVector(-m02, -m12, -m22, Direction.Back);
     }
 }

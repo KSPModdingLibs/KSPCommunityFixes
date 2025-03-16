@@ -36,6 +36,7 @@ using System.Reflection;
 using KSP.Localization;
 using UnityEngine;
 using KSPCommunityFixes.Modding;
+using KSPCommunityFixes.Library.Collections;
 
 namespace KSPCommunityFixes.QoL
 {
@@ -48,7 +49,7 @@ namespace KSPCommunityFixes.QoL
         {
             if (KSPCommunityFixes.GetPatchInstance<BaseFieldListUseFieldHost>() == null)
             {
-                reason = $"The {nameof(RCSLimiter)} patch requires the {nameof(BaseFieldListUseFieldHost)} to be enabled";
+                reason = $"The {nameof(RCSLimiter)} patch requires the {nameof(BaseFieldListUseFieldHost)} patch to be enabled";
                 return false;
             }
             return base.CanApplyPatch(out reason);
@@ -62,7 +63,7 @@ namespace KSPCommunityFixes.QoL
             AddPatch(PatchType.Prefix, typeof(ModuleRCS), nameof(ModuleRCS.FixedUpdate));
             AddPatch(PatchType.Postfix, typeof(ModuleRCS), nameof(ModuleRCS.Update));
 
-            moduleRCSExtensions = new Dictionary<ModuleRCS, ModuleRCSExtension>();
+            moduleRCSExtensions = new UnityObjectDictionary<ModuleRCS, ModuleRCSExtension>();
 
             autoLOC_6001330_Pitch = Localizer.Format("#autoLOC_6001330");
             autoLOC_6001331_Yaw = Localizer.Format("#autoLOC_6001331");
@@ -107,7 +108,7 @@ namespace KSPCommunityFixes.QoL
         private static string autoLOC_Fore;
         private static string autoLOC_Aft;
 
-        internal static Dictionary<ModuleRCS, ModuleRCSExtension> moduleRCSExtensions;
+        internal static UnityObjectDictionary<ModuleRCS, ModuleRCSExtension> moduleRCSExtensions;
 
         static void ModuleRCS_OnAwake_Postfix(ModuleRCS __instance)
         {

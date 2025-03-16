@@ -151,6 +151,7 @@
     <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
     <Compile Include="Library\Collections\Deque.cs" />
     <Compile Include="Library\Collections\FastStack.cs" />
+    <Compile Include="Library\Collections\UnityObjectDictionary.cs" />
     <Compile Include="Library\EditorPhysics.cs" />
     <Compile Include="Library\Extensions.cs" />
     <Compile Include="Library\KSPObjectsExtensions.cs" />

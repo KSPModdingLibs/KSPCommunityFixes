@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using Random = UnityEngine.Random;
 using KSPCommunityFixes.Library;
+using KSPCommunityFixes.Library.Collections;
 
 /*
 This patch is a rewrite of the stock implementations for `ITorqueProvider.GetPotentialTorque(out Vector3 pos, out Vector3 neg)`.
@@ -126,6 +127,38 @@ namespace KSPCommunityFixes.BugFixes
         private static string autoLOC_6001331_Yaw;
         private static string autoLOC_6001332_Roll;
 
+        public class VesselTransformCache
+        {
+            private static VesselTransformCache instance = new VesselTransformCache();
+
+            private int vesselInstanceID;
+            private long currentFixedUpdate;
+            public TransformMatrix worldToLocal;
+            public Vector3d pitchDir;
+            public Vector3d rollDir;
+            public Vector3d yawDir;
+
+
+            public static VesselTransformCache Get(Vessel vessel)
+            {
+                int instanceID = vessel.GetInstanceIDFast();
+                if (instanceID != instance.vesselInstanceID || instance.currentFixedUpdate != KSPCommunityFixes.FixedUpdateCount)
+                {
+                    instance.vesselInstanceID = instanceID;
+                    instance.currentFixedUpdate = KSPCommunityFixes.FixedUpdateCount;
+
+                    ref TransformMatrix vesselLocalToWorld = ref TransformMatrix.LocalToWorldCurrent(vessel.ReferenceTransform);
+                    instance.pitchDir = vesselLocalToWorld.Right;
+                    instance.rollDir = vesselLocalToWorld.Up;
+                    instance.yawDir = vesselLocalToWorld.Forward;
+
+                    TransformMatrix.WorldToLocal(vessel.ReferenceTransform, ref instance.worldToLocal);
+                }
+
+                return instance;
+            }
+        }
+
         #region ModuleReactionWheel
 
         // Fix reaction wheels reporting incorrect available torque when the "Wheel Authority" tweakable is set below 100%.
@@ -168,12 +201,7 @@ namespace KSPCommunityFixes.BugFixes
             if (power < 0.0001)
                 return;
 
-            ref TransformMatrix vesselLocalToWorld = ref TransformMatrix.LocalToWorldCurrent(mrcs.vessel.ReferenceTransform);
-            Vector3d pitchDir = vesselLocalToWorld.Right;
-            Vector3d rollDir = vesselLocalToWorld.Up;
-            Vector3d yawDir = vesselLocalToWorld.Forward;
-
-            ref TransformMatrix vesselWorldToLocal = ref TransformMatrix.WorldToLocalCurrent(mrcs.vessel.ReferenceTransform);
+            VesselTransformCache vesselTransform = VesselTransformCache.Get(mrcs.vessel);
 
             double minRotActuation;
             bool checkActuation = RCSLimiter.moduleRCSExtensions != null;
@@ -194,9 +222,20 @@ namespace KSPCommunityFixes.BugFixes
                 if (!thruster.gameObject.activeInHierarchy)
                     continue;
 
-                Vector3d thrusterPosFromCoM = thruster.position - mrcs.vessel.CoMD;
-                Vector3d thrusterDirFromCoM = thrusterPosFromCoM.normalized;
-                Vector3d thrustDirection = mrcs.useZaxis ? thruster.forward : thruster.up;
+                Matrix4x4 thrusterMatrix = thruster.localToWorldMatrix;
+                ref Vector3d vesselCOM = ref mrcs.vessel.CoMD;
+                double thrusterPosFromCoMX = thrusterMatrix.m03 - vesselCOM.x;
+                double thrusterPosFromCoMY = thrusterMatrix.m13 - vesselCOM.y;
+                double thrusterPosFromCoMZ = thrusterMatrix.m23 - vesselCOM.z;
+
+                Vector3d thrusterDirFromCoM;
+                double mag = Numerics.Magnitude(thrusterPosFromCoMX, thrusterPosFromCoMY, thrusterPosFromCoMZ);
+                if (mag > 0.0)
+                    thrusterDirFromCoM = new Vector3d(thrusterPosFromCoMX / mag, thrusterPosFromCoMY / mag, thrusterPosFromCoMZ / mag);
+                else
+                    thrusterDirFromCoM = Vector3d.zero;
+
+                Vector3d thrustDirection = mrcs.useZaxis ? thrusterMatrix.Forward() : thrusterMatrix.Up();
 
                 double thrusterPower = power;
                 if (FlightInputHandler.fetch.precisionMode)
@@ -219,17 +258,18 @@ namespace KSPCommunityFixes.BugFixes
                 double thrustY = thrustDirection.y * thrusterPower;
                 double thrustZ = thrustDirection.z * thrusterPower;
 
+                // cross product
                 Vector3d thrusterTorque = new Vector3d(
-                    thrusterPosFromCoM.y * thrustZ - thrusterPosFromCoM.z * thrustY,
-                    thrusterPosFromCoM.z * thrustX - thrusterPosFromCoM.x * thrustZ,
-                    thrusterPosFromCoM.x * thrustY - thrusterPosFromCoM.y * thrustX);
+                    thrusterPosFromCoMY * thrustZ - thrusterPosFromCoMZ * thrustY,
+                    thrusterPosFromCoMZ * thrustX - thrusterPosFromCoMX * thrustZ,
+                    thrusterPosFromCoMX * thrustY - thrusterPosFromCoMY * thrustX);
 
                 // transform in vessel control space
-                vesselWorldToLocal.MutateMultiplyVector(ref thrusterTorque);
+                vesselTransform.worldToLocal.MutateMultiplyVector(ref thrusterTorque);
 
                 if (mrcs.enablePitch && Math.Abs(thrusterTorque.x) > 0.0001)
                 {
-                    double actuation = GetRCSActuation(ref pitchDir, ref thrusterDirFromCoM, ref thrustDirection);
+                    double actuation = GetRCSActuation(ref vesselTransform.pitchDir, ref thrusterDirFromCoM, ref thrustDirection);
                     
                     if (checkActuation)
                     {
@@ -249,9 +289,9 @@ namespace KSPCommunityFixes.BugFixes
                     }
                 }
 
-                if (mrcs.enableRoll && Math.Abs(thrusterTorque.y) > 0.0001f)
+                if (mrcs.enableRoll && Math.Abs(thrusterTorque.y) > 0.0001)
                 {
-                    double actuation = GetRCSActuation(ref rollDir, ref thrusterDirFromCoM, ref thrustDirection);
+                    double actuation = GetRCSActuation(ref vesselTransform.rollDir, ref thrusterDirFromCoM, ref thrustDirection);
 
                     if (checkActuation)
                     {
@@ -271,9 +311,9 @@ namespace KSPCommunityFixes.BugFixes
                     }
                 }
 
-                if (mrcs.enableYaw && Math.Abs(thrusterTorque.z) > 0.0001f)
+                if (mrcs.enableYaw && Math.Abs(thrusterTorque.z) > 0.0001)
                 {
-                    double actuation = GetRCSActuation(ref yawDir, ref thrusterDirFromCoM, ref thrustDirection);
+                    double actuation = GetRCSActuation(ref vesselTransform.yawDir, ref thrusterDirFromCoM, ref thrustDirection);
 
                     if (checkActuation)
                     {
@@ -307,7 +347,7 @@ namespace KSPCommunityFixes.BugFixes
         private static double GetMaxRCSPower(ModuleRCS mrcs)
         {
             if (!mrcs.requiresFuel)
-                return 1f;
+                return 1.0;
 
             double flowMult = mrcs.flowMult;
             if (mrcs.useThrustCurve)
@@ -320,8 +360,8 @@ namespace KSPCommunityFixes.BugFixes
         {
             double xP, yP, zP;
 
-            double dirSqr = controlDir.x * controlDir.x + controlDir.y * controlDir.y + controlDir.z * controlDir.z;
-            if (dirSqr < 1.401298464324817E-45)
+            double dirSqrMag = controlDir.x * controlDir.x + controlDir.y * controlDir.y + controlDir.z * controlDir.z;
+            if (dirSqrMag < 1.401298464324817E-45)
             {
                 xP = thrusterDirFromCoM.x;
                 yP = thrusterDirFromCoM.y;
@@ -330,9 +370,9 @@ namespace KSPCommunityFixes.BugFixes
             else
             {
                 double dot = thrusterDirFromCoM.x * controlDir.x + thrusterDirFromCoM.y * controlDir.y + thrusterDirFromCoM.z * controlDir.z;
-                xP = thrusterDirFromCoM.x - controlDir.x * dot / dirSqr;
-                yP = thrusterDirFromCoM.y - controlDir.y * dot / dirSqr;
-                zP = thrusterDirFromCoM.z - controlDir.z * dot / dirSqr;
+                xP = thrusterDirFromCoM.x - controlDir.x * dot / dirSqrMag;
+                yP = thrusterDirFromCoM.y - controlDir.y * dot / dirSqrMag;
+                zP = thrusterDirFromCoM.z - controlDir.z * dot / dirSqrMag;
             }
 
             double xC, yC, zC;
@@ -388,7 +428,7 @@ namespace KSPCommunityFixes.BugFixes
 
         private class ModuleCtrlSrfExtension
         {
-            private static Dictionary<ModuleControlSurface, ModuleCtrlSrfExtension> instances = new Dictionary<ModuleControlSurface, ModuleCtrlSrfExtension>();
+            private static UnityObjectDictionary<ModuleControlSurface, ModuleCtrlSrfExtension> instances = new UnityObjectDictionary<ModuleControlSurface, ModuleCtrlSrfExtension>();
 
             public static ModuleCtrlSrfExtension Get(ModuleControlSurface module)
             {
@@ -923,7 +963,7 @@ namespace KSPCommunityFixes.BugFixes
 
         private class ModuleGimbalExtension
         {
-            private static Dictionary<ModuleGimbal, ModuleGimbalExtension> instances = new Dictionary<ModuleGimbal, ModuleGimbalExtension>();
+            private static UnityObjectDictionary<ModuleGimbal, ModuleGimbalExtension> instances = new UnityObjectDictionary<ModuleGimbal, ModuleGimbalExtension>();
 
             public static ModuleGimbalExtension Get(ModuleGimbal module)
             {
