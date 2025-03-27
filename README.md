@@ -210,6 +210,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.37.1
+**Bug fixes**
+- **PartParsingPerf** : Fixed [issue #305](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/305), incorrect parsing of `dragModelType` part config values resulting in various parts such as wings to generate additional drag.
+
 ##### 1.37.0
 **New / improved patches**
 - New performance patch : [**CraftBrowserOptimisations**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/284), significantly reduces the time it takes to open the craft browser and to search by name. Most noticeable with lots of craft. Thanks to @Halbann for this contribution.
