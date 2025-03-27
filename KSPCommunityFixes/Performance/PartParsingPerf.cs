@@ -546,9 +546,14 @@ namespace KSPCommunityFixes.Performance
 
                 string fieldName = fieldInfo.Name;
 
-                if (fieldName == "dragModelType")
+                if (fieldName == "dragModel")
                 {
-                    setter = new DragModelTypeSetter();
+                    // The usual way the `dragModel` field is set is through a `dragModelType` config value,
+                    // triggering a code path with custom parsing rules as well as a case-insensitive parsing :
+                    typeSetterDict["dragModelType"] = new DragModelTypeSetter();
+                    // However using the `dragModel` config value is valid as well, but the enum value is parsed directly :
+                    typeSetterDict["dragModel"] = new EnumSetter(fieldInfo);
+                    continue;
                 }
                 else if (fieldName == "partRendererBoundsIgnore")
                 {
