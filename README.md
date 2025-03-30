@@ -176,6 +176,30 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[ManufacturerFixes](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/62)**<br/>Fix a bunch of stock parts not having manufacturers, add icons for the stock "Stratus Corporation" and "LightYear Tire Company" and two new agents, "FreeFall Parachutes" and "Clamp-O-Tron".
 - **[LandingGearLights](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/122)**<br/>Fix the lights on the "LY-10" and "LY-35" landing gears not automatically turning on/off when extending/retracting the landing gear.
 
+### Performance improvement figures
+
+- CPU profiling results, KSPCF 1.37.0 vs stock, fresh sandbox save.
+- 452 parts stock+DLCs craft (https://kerbalx.com/Zacspace/Exoloper-+-Delivery-System)
+- 720P resolution, all graphics settings to the min to avoid being GPU-limited.
+- 3 situations : idling on the launchpad, during launch at 3000m, idling in low kerbin orbit (LKO).
+- AVG = average FPS | 1% = worst percentile ("1% lows") | IMP = Improvement over stock
+
+#### Pentium N5030 4C/4T | 8 GB DDR4@2400Mhz | UHD 605 IGP @720P | Results over 200 frames
+
+|              | AVG - Stock | AVG - KSPCF | AVG - IMP | 1% - Stock | 1% - KSPCF | 1% - IMP |
+|--------------|:-----------:|:-----------:|:---------:|:----------:|:----------:|:--------:|
+| Launchpad    |     10,0    |     15,8    |    58%    |     8,0    |    13,4    |    68%   |
+| Launch@3000m |      8,4    |     12,1    |    44%    |     7,2    |    10,0    |    39%   |
+| LKO          |     11,1    |     14,7    |    32%    |     9,3    |    12,8    |    38%   |
+
+#### Ryzen 5800X3D | 32 GB DDR4@3600Mhz | Radeon RX 7600XT @ 720p | Results over 500 frames
+
+|              | AVG - Stock | AVG - KSPCF | AVG - IMP | 1% - Stock | 1% - KSPCF | 1% - IMP |
+|--------------|:-----------:|:-----------:|:---------:|:----------:|:----------:|:--------:|
+| Launchpad    |     46,4    |     69,4    |    50%    |    39,2    |    59,2    |    51%   |
+| Launch@3000m |     37,0    |     56,3    |    52%    |    31,4    |    44,2    |    41%   |
+| LKO          |     49,5    |     92,0    |    86%    |    41,0    |    70,4    |    72%   |
+
 ### License
 
 MIT
