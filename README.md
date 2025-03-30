@@ -210,6 +210,10 @@ If doing so in the `Debug` configuration and if your KSP install is modified to 
 
 ### Changelog
 
+##### 1.37.2
+**Bug fixes**
+- **PersistentIConfigNode** : Reverted the `DataType` and `FieldData` types to being public instead of internal as those are part of the public API for this patch, and in active use by ROLib and SEP.
+
 ##### 1.37.1
 **Bug fixes**
 - **PartParsingPerf** : Fixed [issue #305](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/305), incorrect parsing of `dragModelType` part config values resulting in various parts such as wings to generate additional drag.

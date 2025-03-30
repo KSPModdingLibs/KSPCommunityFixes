@@ -80,8 +80,13 @@ namespace KSPCommunityFixes.Modding
         }
     }
 
-    // This is an expanded version of System.TypeCode
-    internal enum DataType : uint
+    /// <summary>
+    /// Expanded version of System.TypeCode
+    /// </summary>
+    /// <remarks>
+    /// This is part of the public modding API for this patch
+    /// </remarks>
+    public enum DataType : uint
     {
         INVALID = 0,
         IConfigNode,
@@ -119,7 +124,10 @@ namespace KSPCommunityFixes.Modding
         LastValueType = ValueEnum,
     }
 
-    internal class FieldData
+    /// <remarks>
+    /// This is part of the public modding API for this patch
+    /// </remarks>
+    public class FieldData
     {
         private static readonly System.Globalization.CultureInfo _Invariant = System.Globalization.CultureInfo.InvariantCulture;
 
