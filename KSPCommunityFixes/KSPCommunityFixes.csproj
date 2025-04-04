@@ -328,6 +328,7 @@
     </ItemGroup>
     <Copy SourceFiles="@(BinariesToCopy)" DestinationFolder="$(PublishBinariesPath)" />
     <Copy SourceFiles="$(RepoRootPath)\README.md" DestinationFolder="$(PublishPluginRootPath)" />
+    <Copy SourceFiles="$(RepoRootPath)\CHANGELOG.md" DestinationFolder="$(PublishPluginRootPath)" />
     <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
       <Output PropertyName="AVCVersionMajor" TaskParameter="Major" />
       <Output PropertyName="AVCVersionMinor" TaskParameter="Minor" />
