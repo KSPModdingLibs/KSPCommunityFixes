@@ -47,26 +47,30 @@ namespace KSPCommunityFixes
 
             AddPatch(PatchType.Transpiler, typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() });
 
-            Type partModuleType = typeof(PartModule);
             Type multiModuleType = typeof(IMultipleModuleInPart);
 
             // note : do not use AppDomain.CurrentDomain.GetAssemblies(), as in case some plugin was missing
             // a reference, that missing reference assembly will be included even though it is invalid, leading
             // to a ReflectionTypeLoadException when doing anything with it such as calling GetTypes()
+
+            // note: it's important that this logic mirrors AssemblyLoader.GetTypeByName since that is what's
+            // used to instantiate a PartModule from a cfg file.
             foreach (AssemblyLoader.LoadedAssembly loadedAssembly in AssemblyLoader.loadedAssemblies)
             {
-                foreach (Type type in loadedAssembly.assembly.GetTypes())
+                var partModules = loadedAssembly.types.GetValueOrDefault(typeof(PartModule));
+
+                if (partModules == null) continue;
+
+                foreach (Type type in partModules)
                 {
-                    if (partModuleType.IsAssignableFrom(type))
+                    if (allModuleTypes.TryAdd(type.Name, type))
                     {
-                        if (type == partModuleType)
-                            continue;
-
-                        if (!type.IsAbstract && !type.IsInterface)
-                            allModuleTypes.Add(type.Name, type);
-
                         if (multiModuleType.IsAssignableFrom(type))
                             multiModules.Add(type.Name);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[KSPCF:ModuleIndexingMismatch] Found additional PartModule named '{type.Name}' in assembly '{loadedAssembly.assembly.GetName().Name}'.  Original was in '{allModuleTypes[type.Name].Assembly.GetName().Name}'");
                     }
                 }
             }
