@@ -1,5 +1,9 @@
 ### Changelog
 
+##### 1.37.3
+**Bug fixes**
+- **ModuleIndexingMismatch** : Fixed [issue #307](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/307) that would functionally disable this patch when multiple mods contain PartModules with the same name.
+
 ##### 1.37.2
 **Bug fixes**
 - **PersistentIConfigNode** : Reverted the `DataType` and `FieldData` types to being public instead of internal as those are part of the public API for this patch, and in active use by ROLib and SEP.
