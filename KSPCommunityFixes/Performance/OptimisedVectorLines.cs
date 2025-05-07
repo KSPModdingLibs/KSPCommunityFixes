@@ -143,8 +143,9 @@ namespace KSPCommunityFixes.Performance
 
             viewport = new ViewportInfo(camera.pixelRect);
 
-            // WorldToClip. Use the fourth row in place of the third row.
-            // This is because users of WorldToScreen/Viewport expect world distance from the camera plane (w after projection) in the z component, not z in NDC.
+            // WorldToClip. Normally this would be a 4x4 matrix, but we omit the third row.
+            // This is because users of WorldToScreen/Viewport expect world distance from the camera plane (which is w after projection) in the z component, not z in NDC.
+            // Therefore we never need to calculate the z component, only x, y and w.
 
             Matrix4x4 worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
             VectorLineCameraProjection.worldToClip = new TransformMatrix(
