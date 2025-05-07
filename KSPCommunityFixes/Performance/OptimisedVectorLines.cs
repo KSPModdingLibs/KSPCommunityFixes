@@ -185,7 +185,7 @@ namespace KSPCommunityFixes.Performance
             double y = worldPosition.y;
             double z = worldPosition.z;
 
-            // z becomes w after this projection with our funny matrix. True z is never calculated.
+            // z becomes w after this projection with our xyw matrix. True z is never calculated.
             worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
 
             double num = 0.5 / z;
@@ -207,7 +207,7 @@ namespace KSPCommunityFixes.Performance
             double y = worldPosition.y;
             double z = worldPosition.z;
 
-            // z becomes w after this projection with our funny matrix. True z is never calculated.
+            // z becomes w after this projection with our xyw matrix. True z is never calculated.
             worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
 
             double num = 0.5 / z;
