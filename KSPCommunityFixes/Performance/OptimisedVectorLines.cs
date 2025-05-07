@@ -143,8 +143,16 @@ namespace KSPCommunityFixes.Performance
 
             viewport = new ViewportInfo(camera.pixelRect);
 
+            // WorldToClip. Use the fourth row in place of the third row.
+            // This is because users of WorldToScreen/Viewport expect world distance from the camera plane (w after projection) in the z component, not z in NDC.
+
             Matrix4x4 worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
-            VectorLineCameraProjection.worldToClip = new TransformMatrix(ref worldToClip);
+            VectorLineCameraProjection.worldToClip = new TransformMatrix(
+                worldToClip.m00, worldToClip.m01, worldToClip.m02, worldToClip.m03,
+                worldToClip.m10, worldToClip.m11, worldToClip.m12, worldToClip.m13,
+                worldToClip.m30, worldToClip.m31, worldToClip.m32, worldToClip.m33);
+
+            // ClipToWorld
 
             Matrix4x4 worldToCameraInv = camera.worldToCameraMatrix.inverse;
             Matrix4x4 projectionInv = camera.projectionMatrix.inverse;
@@ -176,6 +184,7 @@ namespace KSPCommunityFixes.Performance
             double y = worldPosition.y;
             double z = worldPosition.z;
 
+            // z becomes w after this projection with our funny matrix. True z is discarded.
             worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
 
             double num = 0.5 / z;
@@ -197,6 +206,7 @@ namespace KSPCommunityFixes.Performance
             double y = worldPosition.y;
             double z = worldPosition.z;
 
+            // z becomes w after this projection with our funny matrix. True z is discarded.
             worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
 
             double num = 0.5 / z;
