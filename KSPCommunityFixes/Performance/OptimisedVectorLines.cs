@@ -91,12 +91,12 @@ namespace KSPCommunityFixes.Performance
             return ReplaceCall(instructions, Camera_ScreenToWorldPoint, VectorLineOptimisation_ScreenToWorldPoint, count);
         }
 
-        private static IEnumerable<CodeInstruction> ReplaceScreenToViewportPoint(IEnumerable<CodeInstruction> instructions, int count)
+        private static IEnumerable<CodeInstruction> ReplaceViewportToWorldPoint(IEnumerable<CodeInstruction> instructions, int count)
         {
-            MethodInfo Camera_ScreenToViewportPoint = AccessTools.Method(typeof(Camera), nameof(Camera.ScreenToViewportPoint), new Type[] { typeof(Vector3) });
-            MethodInfo VectorLineOptimisation_ScreenToViewportPoint = AccessTools.Method(typeof(VectorLineCameraProjection), nameof(VectorLineCameraProjection.ScreenToViewportPoint));
+            MethodInfo Camera_ViewportToWorldPoint = AccessTools.Method(typeof(Camera), nameof(Camera.ViewportToWorldPoint), new Type[] { typeof(Vector3) });
+            MethodInfo VectorLineOptimisation_ViewportToWorldPoint = AccessTools.Method(typeof(VectorLineCameraProjection), nameof(VectorLineCameraProjection.ViewportToWorldPoint));
 
-            return ReplaceCall(instructions, Camera_ScreenToViewportPoint, VectorLineOptimisation_ScreenToViewportPoint, count);
+            return ReplaceCall(instructions, Camera_ViewportToWorldPoint, VectorLineOptimisation_ViewportToWorldPoint, count);
         }
 
         #endregion
@@ -153,9 +153,10 @@ namespace KSPCommunityFixes.Performance
             projectionInv.m22 += projectionInv.m23;
 
             Matrix4x4 clipToWorld = worldToCameraInv * projectionInv;
-            VectorLineCameraProjection.clipToWorld = new TransformMatrix(clipToWorld.m00, clipToWorld.m01, clipToWorld.m02, camera.worldToCameraMatrix.inverse.m03,
-                                                clipToWorld.m10, clipToWorld.m11, clipToWorld.m12, camera.worldToCameraMatrix.inverse.m13,
-                                                clipToWorld.m20, clipToWorld.m21, clipToWorld.m22, camera.worldToCameraMatrix.inverse.m23);
+            VectorLineCameraProjection.clipToWorld = new TransformMatrix(
+                clipToWorld.m00, clipToWorld.m01, clipToWorld.m02, camera.worldToCameraMatrix.inverse.m03,
+                clipToWorld.m10, clipToWorld.m11, clipToWorld.m12, camera.worldToCameraMatrix.inverse.m13,
+                clipToWorld.m20, clipToWorld.m21, clipToWorld.m22, camera.worldToCameraMatrix.inverse.m23);
         }
 
         #region World to Clip
@@ -229,10 +230,10 @@ namespace KSPCommunityFixes.Performance
             return new Vector3((float)x, (float)y, (float)z);
         }
 
-        public static Vector3 ScreenToViewportPoint(Camera camera, Vector3 position)
+        public static Vector3 ViewportToWorldPoint(Camera camera, Vector3 position)
         {
             //if (!patchEnabled)
-            //    return camera.ScreenToViewportPoint(position);
+            //    return camera.ViewportToWorldPoint(position);
 
             //if (lastCachedFrame != KSPCommunityFixes.frameCount)
             //    UpdateCache();
