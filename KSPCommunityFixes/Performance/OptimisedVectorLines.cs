@@ -111,7 +111,7 @@ namespace KSPCommunityFixes.Performance
         public static long lastCachedFrame;
 
         private static TransformMatrix worldToClip;
-        private static TransformMatrix clipToWorld;
+        private static TransformMatrix screenToWorld; // Not a normal transformation matrix, do not use as such.
         private static Matrix4x4 projectionMatrix;
 
         // Storing viewport info instead of using Rect properties grants us a few extra frames.
@@ -158,16 +158,12 @@ namespace KSPCommunityFixes.Performance
                 worldToClip.m10, worldToClip.m11, worldToClip.m12, worldToClip.m13,
                 worldToClip.m30, worldToClip.m31, worldToClip.m32, worldToClip.m33);
 
-            // ClipToWorld
-            // Omit the fourth row because we don't need to figure out w when converting from clip space to world space.
-            // We already have w and instead need to figure out the z component (see function).
+            // ScreenToWorld (NB: not ClipToWorld).
+            // Credit to Charles Rogers for this incredible solution.
+            // It takes screen space coordinates (x, y, w) and converts them directly to world space
+            // without any intermediate steps. It's at least 6x faster than Unity's own ScreenToWorldPoint.
 
-            Matrix4x4 clipToWorld = worldToClip.inverse;
-            VectorLineCameraProjection.clipToWorld = new TransformMatrix(
-                clipToWorld.m00, clipToWorld.m01, clipToWorld.m02, clipToWorld.m03,
-                clipToWorld.m10, clipToWorld.m11, clipToWorld.m12, clipToWorld.m13,
-                clipToWorld.m20, clipToWorld.m21, clipToWorld.m22, clipToWorld.m23
-            );
+            BuildScreenToWorldMatrix(out screenToWorld, in worldToClip);
         }
 
         #region World to Clip
@@ -225,6 +221,26 @@ namespace KSPCommunityFixes.Performance
 
         #region Clip to World
 
+        private static void BuildScreenToWorldMatrix(out TransformMatrix matrix, in Matrix4x4 worldToClip)
+        {
+            double xScaled = viewport.x / viewport.halfWidth;
+            double yScaled = viewport.y / viewport.halfHeight;
+
+            Matrix4x4 clipToWorld = worldToClip.inverse;
+            matrix.m00 = clipToWorld.m00 / viewport.halfWidth;
+            matrix.m01 = clipToWorld.m01 / viewport.halfHeight;
+            matrix.m02 = -clipToWorld.m00 * xScaled - clipToWorld.m01 * yScaled - clipToWorld.m02 * projectionMatrix.m22 + clipToWorld.m03 - clipToWorld.m00 - clipToWorld.m01;
+            matrix.m03 = clipToWorld.m02 * projectionMatrix.m23;
+            matrix.m10 = clipToWorld.m10 / viewport.halfWidth;
+            matrix.m11 = clipToWorld.m11 / viewport.halfHeight;
+            matrix.m12 = -clipToWorld.m10 * xScaled - clipToWorld.m11 * yScaled - clipToWorld.m12 * projectionMatrix.m22 + clipToWorld.m13 - clipToWorld.m10 - clipToWorld.m11;
+            matrix.m13 = clipToWorld.m12 * projectionMatrix.m23;
+            matrix.m20 = clipToWorld.m20 / viewport.halfWidth;
+            matrix.m21 = clipToWorld.m21 / viewport.halfHeight;
+            matrix.m22 = -clipToWorld.m20 * xScaled - clipToWorld.m21 * yScaled - clipToWorld.m22 * projectionMatrix.m22 + clipToWorld.m23 - clipToWorld.m20 - clipToWorld.m21;
+            matrix.m23 = clipToWorld.m22 * projectionMatrix.m23;
+        }
+
         public static Vector3 ScreenToWorldPoint(Camera camera, Vector3 screenPosition)
         {
             //if (!patchEnabled)
@@ -233,23 +249,14 @@ namespace KSPCommunityFixes.Performance
             if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
                 UpdateCache();
 
-            // Convert to individual doubles for speed.
             double x = screenPosition.x;
             double y = screenPosition.y;
-            double w = screenPosition.z;
+            double z = screenPosition.z;
 
-            // Convert from screen space to viewport space and undo perspective division.
-            x = ((x - viewport.x) / viewport.halfWidth - 1) * w;
-            y = ((y - viewport.y) / viewport.halfHeight - 1) * w;
-
-            // w is the distance from the camera plane, but we need z in clip space so that we can use clipToWorld.
-            // Making w negative gives us a coordinate in front of the camera in view space.
-            // Then we do a tiny part of the normal projection matrix to get z in clip space.
-            double z = projectionMatrix.m22 * (-w) + projectionMatrix.m23;
-
-            double x1 = clipToWorld.m00 * x + clipToWorld.m01 * y + clipToWorld.m02 * z + clipToWorld.m03 * w;
-            double y1 = clipToWorld.m10 * x + clipToWorld.m11 * y + clipToWorld.m12 * z + clipToWorld.m13 * w;
-            double z1 = clipToWorld.m20 * x + clipToWorld.m21 * y + clipToWorld.m22 * z + clipToWorld.m23 * w;
+            // NB: not a normal matrix multiplication.
+            double x1 = (screenToWorld.m00 * x + screenToWorld.m01 * y + screenToWorld.m02) * z + screenToWorld.m03;
+            double y1 = (screenToWorld.m10 * x + screenToWorld.m11 * y + screenToWorld.m12) * z + screenToWorld.m13;
+            double z1 = (screenToWorld.m20 * x + screenToWorld.m21 * y + screenToWorld.m22) * z + screenToWorld.m23;
 
             return new Vector3((float)x1, (float)y1, (float)z1);
         }
