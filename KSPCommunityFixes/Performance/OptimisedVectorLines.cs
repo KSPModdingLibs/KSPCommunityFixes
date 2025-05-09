@@ -143,9 +143,12 @@ namespace KSPCommunityFixes.Performance
 
             viewport = new ViewportInfo(camera.pixelRect);
 
-            // WorldToClip. Normally this would be a 4x4 matrix, but we omit the third row.
-            // This is because users of WorldToScreen/Viewport expect world distance from the camera plane (which is w after projection) in the z component, not z in NDC.
+            // WorldToClip.
+            // Normally this would be a 4x4 matrix, but we omit the third row.
+            // This is because users of WorldToScreen/Viewport expect world distance from the camera plane
+            // (which is w after projection) in the z component, not z in NDC.
             // Therefore we never need to calculate the z component, only x, y and w.
+            // w is the right value because m32 in the projection matrix just copies z in view space into w.
 
             Matrix4x4 worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
             VectorLineCameraProjection.worldToClip = new TransformMatrix(
@@ -154,18 +157,15 @@ namespace KSPCommunityFixes.Performance
                 worldToClip.m30, worldToClip.m31, worldToClip.m32, worldToClip.m33);
 
             // ClipToWorld
+            // Omit the fourth row because we don't need to figure out w when converting from clip space to world space.
+            // We already have w and instead need to figure out the z component (see function).
 
-            Matrix4x4 worldToCameraInv = camera.worldToCameraMatrix.inverse;
-            Matrix4x4 projectionInv = camera.projectionMatrix.inverse;
-            projectionInv.m02 += projectionInv.m03;
-            projectionInv.m12 += projectionInv.m13;
-            projectionInv.m22 += projectionInv.m23;
-
-            Matrix4x4 clipToWorld = worldToCameraInv * projectionInv;
+            Matrix4x4 clipToWorld = worldToClip.inverse;
             VectorLineCameraProjection.clipToWorld = new TransformMatrix(
-                clipToWorld.m00, clipToWorld.m01, clipToWorld.m02, camera.worldToCameraMatrix.inverse.m03,
-                clipToWorld.m10, clipToWorld.m11, clipToWorld.m12, camera.worldToCameraMatrix.inverse.m13,
-                clipToWorld.m20, clipToWorld.m21, clipToWorld.m22, camera.worldToCameraMatrix.inverse.m23);
+                clipToWorld.m00, clipToWorld.m01, clipToWorld.m02, clipToWorld.m03,
+                clipToWorld.m10, clipToWorld.m11, clipToWorld.m12, clipToWorld.m13,
+                clipToWorld.m20, clipToWorld.m21, clipToWorld.m22, clipToWorld.m23
+            );
         }
 
         #region World to Clip
@@ -183,16 +183,17 @@ namespace KSPCommunityFixes.Performance
 
             double x = worldPosition.x;
             double y = worldPosition.y;
-            double z = worldPosition.z;
+            double w = worldPosition.z;
 
-            // z becomes w after this projection with our xyw matrix. True z is never calculated.
-            worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
+            // z becomes w after this projection with our xyw matrix. Clip space z is never calculated.
+            worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref w);
 
-            double num = 0.5 / z;
+            // Perspective division and viewport conversion.
+            double num = 0.5 / w;
             x = (0.5 + num * x) * viewport.width + viewport.x;
             y = (0.5 + num * y) * viewport.height + viewport.y;
 
-            return new Vector3((float)x, (float)y, (float)z);
+            return new Vector3((float)x, (float)y, (float)w);
         }
 
         public static Vector3 WorldToViewportPoint(Camera camera, Vector3 worldPosition)
@@ -205,21 +206,24 @@ namespace KSPCommunityFixes.Performance
 
             double x = worldPosition.x;
             double y = worldPosition.y;
-            double z = worldPosition.z;
+            double w = worldPosition.z;
 
-            // z becomes w after this projection with our xyw matrix. True z is never calculated.
-            worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref z);
+            // z becomes w after this projection with our xyw matrix. Clip space z is never calculated.
+            worldToClip.MutateMultiplyPoint3x4(ref x, ref y, ref w);
 
-            double num = 0.5 / z;
+            // Perspective division and viewport conversion.
+            double num = 0.5 / w;
             x = 0.5 + num * x;
             y = 0.5 + num * y;
 
-            return new Vector3((float)x, (float)y, (float)z);
+            return new Vector3((float)x, (float)y, (float)w);
         }
 
         #endregion
 
         #region Clip to World
+
+        public static bool useScreenToWorldPoint = false;
 
         public static Vector3 ScreenToWorldPoint(Camera camera, Vector3 screenPosition)
         {
@@ -229,16 +233,26 @@ namespace KSPCommunityFixes.Performance
             if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
                 UpdateCache();
 
+            // Convert to individual doubles for speed.
             double x = screenPosition.x;
             double y = screenPosition.y;
-            double z = screenPosition.z;
+            double w = screenPosition.z;
 
-            x = z * ((x - viewport.x) / viewport.halfWidth - 1);
-            y = z * ((y - viewport.y) / viewport.halfHeight - 1);
+            // Convert from screen space to viewport space and undo perspective division.
+            x = ((x - viewport.x) / viewport.halfWidth - 1) * w;
+            y = ((y - viewport.y) / viewport.halfHeight - 1) * w;
 
-            clipToWorld.MutateMultiplyPoint3x4(ref x, ref y, ref z);
+            // w is the distance from the camera plane, but we need z in clip space so that we can use clipToWorld.
+            // Making w negative gives us a coordinate in front of the camera in view space.
+            // Then we do a tiny part of the normal projection matrix to get z in clip space.
+            Matrix4x4 proj = camera.projectionMatrix;
+            double z = proj.m22 * (-w) + proj.m23;
 
-            return new Vector3((float)x, (float)y, (float)z);
+            double x1 = clipToWorld.m00 * x + clipToWorld.m01 * y + clipToWorld.m02 * z + clipToWorld.m03 * w;
+            double y1 = clipToWorld.m10 * x + clipToWorld.m11 * y + clipToWorld.m12 * z + clipToWorld.m13 * w;
+            double z1 = clipToWorld.m20 * x + clipToWorld.m21 * y + clipToWorld.m22 * z + clipToWorld.m23 * w;
+
+            return new Vector3((float)x1, (float)y1, (float)z1);
         }
 
         public static Vector3 ViewportToWorldPoint(Camera camera, Vector3 position)
