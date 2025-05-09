@@ -225,8 +225,6 @@ namespace KSPCommunityFixes.Performance
 
         #region Clip to World
 
-        public static bool useScreenToWorldPoint = false;
-
         public static Vector3 ScreenToWorldPoint(Camera camera, Vector3 screenPosition)
         {
             //if (!patchEnabled)
