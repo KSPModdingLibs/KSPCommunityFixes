@@ -112,6 +112,7 @@ namespace KSPCommunityFixes.Performance
 
         private static TransformMatrix worldToClip;
         private static TransformMatrix clipToWorld;
+        private static Matrix4x4 projectionMatrix;
 
         // Storing viewport info instead of using Rect properties grants us a few extra frames.
         public struct ViewportInfo
@@ -142,6 +143,7 @@ namespace KSPCommunityFixes.Performance
             Camera camera = VectorLine.cam3D;
 
             viewport = new ViewportInfo(camera.pixelRect);
+            projectionMatrix = camera.projectionMatrix;
 
             // WorldToClip.
             // Normally this would be a 4x4 matrix, but we omit the third row.
@@ -150,7 +152,7 @@ namespace KSPCommunityFixes.Performance
             // Therefore we never need to calculate the z component, only x, y and w.
             // w is the right value because m32 in the projection matrix just copies z in view space into w.
 
-            Matrix4x4 worldToClip = camera.projectionMatrix * camera.worldToCameraMatrix;
+            Matrix4x4 worldToClip = projectionMatrix * camera.worldToCameraMatrix;
             VectorLineCameraProjection.worldToClip = new TransformMatrix(
                 worldToClip.m00, worldToClip.m01, worldToClip.m02, worldToClip.m03,
                 worldToClip.m10, worldToClip.m11, worldToClip.m12, worldToClip.m13,
@@ -245,8 +247,7 @@ namespace KSPCommunityFixes.Performance
             // w is the distance from the camera plane, but we need z in clip space so that we can use clipToWorld.
             // Making w negative gives us a coordinate in front of the camera in view space.
             // Then we do a tiny part of the normal projection matrix to get z in clip space.
-            Matrix4x4 proj = camera.projectionMatrix;
-            double z = proj.m22 * (-w) + proj.m23;
+            double z = projectionMatrix.m22 * (-w) + projectionMatrix.m23;
 
             double x1 = clipToWorld.m00 * x + clipToWorld.m01 * y + clipToWorld.m02 * z + clipToWorld.m03 * w;
             double y1 = clipToWorld.m10 * x + clipToWorld.m11 * y + clipToWorld.m12 * z + clipToWorld.m13 * w;
