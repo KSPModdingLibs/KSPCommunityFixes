@@ -1,9 +1,14 @@
+// Check the results of the replacement camera projection functions against Unity's own for correctness.
+// #define DEBUG_CAMERAPROJECTION
+
 using HarmonyLib;
 using KSPCommunityFixes.Library;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text;
 using UnityEngine;
 using Vectrosity;
 
@@ -191,7 +196,13 @@ namespace KSPCommunityFixes.Performance
             x = (0.5 + num * x) * viewport.width + viewport.x;
             y = (0.5 + num * y) * viewport.height + viewport.y;
 
+#if !DEBUG_CAMERAPROJECTION
             return new Vector3((float)x, (float)y, (float)w);
+#else
+            Vector3 result = new Vector3((float)x, (float)y, (float)w);
+            CheckResult(nameof(WorldToScreenPoint), in worldPosition, camera.WorldToScreenPoint(worldPosition), in result);
+            return result;
+#endif
         }
 
         public static Vector3 WorldToViewportPoint(Camera camera, Vector3 worldPosition)
@@ -214,7 +225,13 @@ namespace KSPCommunityFixes.Performance
             x = 0.5 + num * x;
             y = 0.5 + num * y;
 
+#if !DEBUG_CAMERAPROJECTION
             return new Vector3((float)x, (float)y, (float)w);
+#else
+            Vector3 result = new Vector3((float)x, (float)y, (float)w);
+            CheckResult(nameof(WorldToViewportPoint), in worldPosition, camera.WorldToViewportPoint(worldPosition), in result);
+            return result;
+#endif
         }
 
         #endregion
@@ -258,7 +275,13 @@ namespace KSPCommunityFixes.Performance
             double y1 = (screenToWorld.m10 * x + screenToWorld.m11 * y + screenToWorld.m12) * z + screenToWorld.m13;
             double z1 = (screenToWorld.m20 * x + screenToWorld.m21 * y + screenToWorld.m22) * z + screenToWorld.m23;
 
+#if !DEBUG_CAMERAPROJECTION
             return new Vector3((float)x1, (float)y1, (float)z1);
+#else
+            Vector3 result = new Vector3((float)x1, (float)y1, (float)z1);
+            CheckResult(nameof(ScreenToWorldPoint), in screenPosition, camera.ScreenToWorldPoint(screenPosition), in result);
+            return result;
+#endif
         }
 
         public static Vector3 ViewportToWorldPoint(Camera camera, Vector3 position)
@@ -274,5 +297,172 @@ namespace KSPCommunityFixes.Performance
         }
 
         #endregion
+
+#if DEBUG_CAMERAPROJECTION
+        #region Debugging
+
+        // Debugging settings. Edit these values in-game with UnityExplorerKSP.
+        public static int maxUlps = 1000;
+        public static int maxLogsPerFrame = 2; // Logging many hundreds or thousands of times per frame will freeze the game.
+        public static LogLevel logLevel = LogLevel.All;
+
+        public enum LogLevel
+        {
+            None,
+            Summary,
+            All
+        }
+
+        private static long lastFrameDebug;
+        private static long logsThisFrame;
+        private static long totalDiscrepanciesThisFrame;
+        private static long totalCorrectThisFrame;
+        private static Dictionary<string, int> logCount = new Dictionary<string, int>();
+        private static StringBuilder sb = new StringBuilder();
+
+        private static Dictionary<int, FrameDebugData> csv = new Dictionary<int, FrameDebugData>();
+        private static bool takingCSV;
+        private static int csvFrameCount;
+        private static int framesPerUlps;
+        private static int[] ulpLevels;
+
+        private struct FrameDebugData
+        {
+            public int count;
+            public float averageCorrect;
+            public float averageIncorrect;
+        }
+
+        private static void CheckResult(string functionName, in Vector3 input, Vector3 expected, in Vector3 result)
+        {
+            // Exit early if we are not logging.
+            if (logLevel == LogLevel.None)
+                return;
+
+            // Once per frame that one of the functions is used.
+            if (lastFrameDebug != KSPCommunityFixes.UpdateCount)
+            {
+                lastFrameDebug = KSPCommunityFixes.UpdateCount;
+                logsThisFrame = 0;
+
+                // Summary is logged regardless of whether there are any discrepancies.
+                if (logLevel == LogLevel.Summary)
+                {
+                    sb.Clear();
+                    sb.AppendLine($"[KSPCF/OptimisedVectorLines]: Camera projection result mismatches detected:");
+                    foreach (var kvp in logCount)
+                        sb.AppendLine($"{kvp.Key}: {kvp.Value}");
+
+                    sb.AppendLine($"Total: {totalDiscrepanciesThisFrame} mismatches, {totalCorrectThisFrame} correct results this frame ({totalCorrectThisFrame / (float)(totalCorrectThisFrame + totalDiscrepanciesThisFrame) * 100:N0}%).");
+
+                    Debug.Log(sb.ToString());
+                    logCount.Clear();
+                }
+
+                if (takingCSV)
+                {
+                    maxUlps = ulpLevels[Mathf.FloorToInt(csvFrameCount / (float)framesPerUlps)];
+                    csvFrameCount++;
+
+                    AddToCSV();
+
+                    if (csvFrameCount >= framesPerUlps * ulpLevels.Length)
+                        FinishCSV();
+                }
+
+                totalCorrectThisFrame = 0;
+                totalDiscrepanciesThisFrame = 0;
+            }
+
+            // Do the actual comparison.
+            if (Numerics.AlmostEqual(result.x, expected.x, maxUlps)
+                && Numerics.AlmostEqual(result.y, expected.y, maxUlps)
+                && Numerics.AlmostEqual(result.z, expected.z, maxUlps))
+            {
+                totalCorrectThisFrame++;
+
+                return;
+            }
+
+            totalDiscrepanciesThisFrame++;
+
+            // Only log that there was a mismatch on this function if it's only a summary.
+            if (logLevel == LogLevel.Summary)
+            {
+                logCount[functionName] = logCount.GetValueOrDefault(functionName) + 1;
+                return;
+            }
+
+            // Log the details of the mismatch, only if the maxLogsPerFrame is not exceeded.
+            if (logsThisFrame >= maxLogsPerFrame)
+                return;
+
+            logsThisFrame++;
+            sb.Clear();
+            sb.AppendLine($"[KSPCF/OptimisedVectorLines]: Camera projection result mismatch in {functionName} on frame {KSPCommunityFixes.UpdateCount}.");
+            sb.AppendLine($"Input: ({input.x:G9}, {input.y:G9}, {input.z:G9})");
+            sb.AppendLine($"Expected: ({expected.x:G9}, {expected.y:G9}, {expected.z:G9})");
+            sb.AppendLine($"Result: ({result.x:G9}, {result.y:G9}, {result.z:G9})");
+            Debug.LogWarning(sb.ToString());
+        }
+
+        public static void TakeCSV(int framesPerUlps, params int[] ulpLevels)
+        {
+            if (takingCSV)
+                return;
+
+            csv.Clear();
+            takingCSV = true;
+            csvFrameCount = 0;
+
+            VectorLineCameraProjection.framesPerUlps = framesPerUlps;
+            VectorLineCameraProjection.ulpLevels = ulpLevels;
+        }
+
+        private static void AddToCSV()
+        {
+            if (csv.TryGetValue(maxUlps, out FrameDebugData data))
+            {
+                data.count++;
+                data.averageCorrect += (totalCorrectThisFrame - data.averageCorrect) / data.count;
+                data.averageIncorrect += (totalDiscrepanciesThisFrame - data.averageIncorrect) / data.count;
+
+                csv[maxUlps] = data;
+            }
+            else
+            {
+                data = new FrameDebugData
+                {
+                    count = 1,
+                    averageCorrect = totalCorrectThisFrame,
+                    averageIncorrect = totalDiscrepanciesThisFrame
+                };
+                csv.Add(maxUlps, data);
+            }
+        }
+
+        private static void FinishCSV()
+        {
+            if (!takingCSV)
+                return;
+
+            takingCSV = false;
+
+            string dateTime = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+            string path = Path.Combine(KSPCommunityFixes.ModPath, $"KSPCF_CameraProjection_{dateTime}.csv");
+
+            sb.Clear();
+            sb.AppendLine("maxUlps,averageCorrect,averageIncorrect");
+            foreach (var kvp in csv)
+                sb.AppendLine($"{kvp.Key},{kvp.Value.averageCorrect},{kvp.Value.averageIncorrect}");
+
+            File.WriteAllText(path, sb.ToString());
+            Debug.Log($"[KSPCF/OptimisedVectorLines]: CSV saved to {path}.");
+            csv.Clear();
+            sb.Clear();
+        }
+
+        #endregion
+#endif
     }
 }
