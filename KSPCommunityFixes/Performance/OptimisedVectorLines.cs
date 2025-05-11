@@ -1,5 +1,5 @@
 // Check the results of the replacement camera projection functions against Unity's own for correctness.
-#define DEBUG_CAMERAPROJECTION
+//#define DEBUG_CAMERAPROJECTION
 
 using HarmonyLib;
 using KSPCommunityFixes.Library;
