@@ -1,16 +1,19 @@
 // Check the results of the replacement camera projection functions against Unity's own for correctness.
-// #define DEBUG_CAMERAPROJECTION
+#define DEBUG_CAMERAPROJECTION
 
 using HarmonyLib;
 using KSPCommunityFixes.Library;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 using UnityEngine;
 using Vectrosity;
+
+#if DEBUG_CAMERAPROJECTION
+using System.IO;
+using System.Text;
+#endif
 
 namespace KSPCommunityFixes.Performance
 {
@@ -336,15 +339,12 @@ namespace KSPCommunityFixes.Performance
         private static void CheckResult(string functionName, in Vector3 input, Vector3 expected, in Vector3 result)
         {
             // Exit early if we are not logging.
-            if (logLevel == LogLevel.None)
+            if (logLevel == LogLevel.None && !takingCSV)
                 return;
 
             // Once per frame that one of the functions is used.
             if (lastFrameDebug != KSPCommunityFixes.UpdateCount)
             {
-                lastFrameDebug = KSPCommunityFixes.UpdateCount;
-                logsThisFrame = 0;
-
                 // Summary is logged regardless of whether there are any discrepancies.
                 if (logLevel == LogLevel.Summary)
                 {
@@ -370,6 +370,8 @@ namespace KSPCommunityFixes.Performance
                         FinishCSV();
                 }
 
+                lastFrameDebug = KSPCommunityFixes.UpdateCount;
+                logsThisFrame = 0;
                 totalCorrectThisFrame = 0;
                 totalDiscrepanciesThisFrame = 0;
             }
@@ -392,21 +394,24 @@ namespace KSPCommunityFixes.Performance
                 logCount[functionName] = logCount.GetValueOrDefault(functionName) + 1;
                 return;
             }
+            else if (logLevel == LogLevel.All)
+            {
+                // Log the details of the mismatch, only if the maxLogsPerFrame is not exceeded.
+                if (logsThisFrame >= maxLogsPerFrame)
+                    return;
 
-            // Log the details of the mismatch, only if the maxLogsPerFrame is not exceeded.
-            if (logsThisFrame >= maxLogsPerFrame)
-                return;
-
-            logsThisFrame++;
-            sb.Clear();
-            sb.AppendLine($"[KSPCF/OptimisedVectorLines]: Camera projection result mismatch in {functionName} on frame {KSPCommunityFixes.UpdateCount}.");
-            sb.AppendLine($"Input: ({input.x:G9}, {input.y:G9}, {input.z:G9})");
-            sb.AppendLine($"Expected: ({expected.x:G9}, {expected.y:G9}, {expected.z:G9})");
-            sb.AppendLine($"Result: ({result.x:G9}, {result.y:G9}, {result.z:G9})");
-            Debug.LogWarning(sb.ToString());
+                logsThisFrame++;
+                sb.Clear();
+                sb.AppendLine($"[KSPCF/OptimisedVectorLines]: Camera projection result mismatch in {functionName} on frame {KSPCommunityFixes.UpdateCount}.");
+                sb.AppendLine($"Input: ({input.x:G9}, {input.y:G9}, {input.z:G9})");
+                sb.AppendLine($"Expected: ({expected.x:G9}, {expected.y:G9}, {expected.z:G9})");
+                sb.AppendLine($"Result: ({result.x:G9}, {result.y:G9}, {result.z:G9})");
+                Debug.LogWarning(sb.ToString());
+            }
         }
 
-        public static void TakeCSV(int framesPerUlps, params int[] ulpLevels)
+        // Call from the UnityExplorer console to start taking a CSV.
+        public static void StartCSV(int framesPerUlps, params int[] ulpLevels)
         {
             if (takingCSV)
                 return;
