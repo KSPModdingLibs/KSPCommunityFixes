@@ -1,5 +1,13 @@
 ### Changelog
 
+##### 1.38.0
+**New/improved patches**
+- New performance patch : [**ModuleColorChangerOptimization**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/304/) : Mostly eliminate the constant overhead from `ModuleColorChanger.Update()` by avoiding re-setting the shader property when the state hasn't changed.
+- Improved **OptimizedModuleRaycasts** patch by removing useless constant overhead from the `ModuleSurfaceFX.Update()` method, see [PR #303](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/303/).
+
+**Bug fixes**
+- **OptimisedVectorLines** : Fixed [issue #306](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/306), fuel overlay not showing in the editor due to incorrect camera matrix math used in the optimization. Thanks to @Halbann for taking care of that one.
+
 ##### 1.37.3
 **Bug fixes**
 - **ModuleIndexingMismatch** : Fixed [issue #307](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/307) that would functionally disable this patch when multiple mods contain PartModules with the same name.
