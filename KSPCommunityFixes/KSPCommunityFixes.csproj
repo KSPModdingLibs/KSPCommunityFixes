@@ -166,6 +166,7 @@
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
     <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
     <Compile Include="Performance\FloatingOriginPerf.cs" />
+    <Compile Include="Performance\ModuleColorChangerOptimization.cs" />
     <Compile Include="Performance\OptimisedVectorLines.cs" />
     <Compile Include="Performance\GameDatabasePerf.cs" />
     <Compile Include="Performance\PartSystemsFastUpdate.cs" />
