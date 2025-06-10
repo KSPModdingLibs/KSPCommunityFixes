@@ -11,7 +11,8 @@
 
         static void ModuleColorChanger_Start_Postfix(ModuleColorChanger __instance)
         {
-            __instance.SetState(__instance.currentRateState); // ensure initial state is correct
+            if (__instance.useRate)
+                __instance.SetState(__instance.currentRateState); // ensure initial state is correct
         }
 
         static void ModuleColorChanger_FixedUpdate_Override(ModuleColorChanger mcc)

@@ -1,5 +1,9 @@
 ### Changelog
 
+##### 1.38.1
+**Bug fixes**
+- **ModuleColorChangerOptimization** : Fixed externally controlled ModuleColorChanger modules state being wrongly reset on startup, notably causing the stock heat shield to start in the charred / black state in the editor.
+
 ##### 1.38.0
 **New/improved patches**
 - New performance patch : [**ModuleColorChangerOptimization**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/304/) : Mostly eliminate the constant overhead from `ModuleColorChanger.Update()` by avoiding re-setting the shader property when the state hasn't changed.
