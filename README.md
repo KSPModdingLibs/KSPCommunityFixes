@@ -94,6 +94,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**DragCubeLoadException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/232) [KSP 1.8.0 - 1.12.5]<br/>Fix loading of drag cubes without a name failing with an IndexOutOfRangeException
 - [**TimeWarpBodyCollision**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/259) [KSP 1.12.0 - 1.12.5]<br/>Fix timewarp rate not always being limited on SOI transistions, sometimes resulting in failure to detect an encounter/collision with the body in the next SOI.
 - [**ModuleActiveRadiatorNoParentException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/249) [KSP 1.12.3 - 1.12.5]<br/>Fix exception spam when a radiator set to `parentCoolingOnly` is detached from the vessel
+- [**FastAndFixedEnumExtensions**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/321) [KSP 1.12.3 - 1.12.5]<br/>Fix exceptions when calling the `EnumExtensions.*Description()` methods with a non-defined enum value, and implement a cache for faster and less allocating execution of those methods.
 
 #### Quality of Life tweaks 
 
