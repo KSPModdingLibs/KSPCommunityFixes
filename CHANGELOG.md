@@ -1,5 +1,9 @@
 ### Changelog
 
+##### 1.39.0
+**New/improved patches**
+- [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/242) [KSP 1.12.3 - 1.12.5]<br/>Improve the responsiveness of the part list when switching between categories, sorting and searching by tag.
+
 ##### 1.38.1
 **Bug fixes**
 - **ModuleColorChangerOptimization** : Fixed externally controlled ModuleColorChanger modules state being wrongly reset on startup, notably causing the stock heat shield to start in the charred / black state in the editor.
