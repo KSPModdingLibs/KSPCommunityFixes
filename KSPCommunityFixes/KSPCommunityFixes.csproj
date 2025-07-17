@@ -104,6 +104,7 @@
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
     <Publicize Include="mscorlib:System.String.m_firstChar" />
+    <Publicize Include="mscorlib:System.Collections.Generic.List`1._items" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.ILGeneratorShimExt" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelInfo" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelledExceptionHandler" />
@@ -169,6 +170,7 @@
     <Compile Include="Performance\ModuleColorChangerOptimization.cs" />
     <Compile Include="Performance\OptimisedVectorLines.cs" />
     <Compile Include="Performance\GameDatabasePerf.cs" />
+    <Compile Include="Performance\ParallelPQS\PQSPatches.cs" />
     <Compile Include="Performance\PartSystemsFastUpdate.cs" />
     <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
     <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
