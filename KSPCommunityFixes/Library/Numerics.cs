@@ -271,6 +271,12 @@ namespace KSPCommunityFixes.Library
             v.z *= scalar;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double Dot(ref Vector3d lhs, ref Vector3d rhs)
+        {
+            return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+        }
+
         /// <summary>
         /// Clamp a value between 0.0 and 1.0
         /// </summary>
