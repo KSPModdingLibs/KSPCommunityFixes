@@ -99,6 +99,10 @@ namespace KSPCommunityFixes.BugFixes
                 {
                     code[i].opcode = OpCodes.Br_S;
                     code[i].operand = code[i + 2].operand; // grab the target instruction from the original jump
+                    code[i + 1].opcode = OpCodes.Nop; // don't generate invalid IL
+                    code[i + 1].operand = null;
+                    code[i + 2].opcode = OpCodes.Nop; // don't generate invalid IL
+                    code[i + 2].operand = null;
                     break;
                 }
             }

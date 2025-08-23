@@ -346,3 +346,6 @@ KSPDevPath.xml
 
 # Binaries
 GameData/KSPCommunityFixes/Plugins/*
+
+# keep harmony PBD
+!0Harmony.pdb

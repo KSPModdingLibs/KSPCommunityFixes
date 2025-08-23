@@ -375,9 +375,6 @@ namespace KSPCommunityFixes
             // This gets quite complicated because the ILGenerator isn't actually an ILGenerator from reflection, but a runtime
             // generated replacement from MonoMod. Long story short, copying all the stuff require accessing all that internal
             // MonoMod generator stuff, which we publicize for convenience.
-            // This however mean that this is very likely to break on updating MonoMod/Harmony, and as a matter of fact, will
-            // definitely break if we start using Harmony 2.3+, which is based on a new major version of MonoMod where all this
-            // stuff has been heavily refactored.
             List<CodeInstruction> overrideIl = PatchProcessor.GetOriginalInstructions(patch.patchMethod, out ILGenerator overrideGen);
             PatchProcessor.GetOriginalInstructions(__originalMethod, out ILGenerator originalGen);
 
