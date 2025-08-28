@@ -18,8 +18,8 @@ namespace KSPCommunityFixes.Modding
             Type fieldType = __instance.FieldInfo.FieldType;
             if (fieldType.IsEnum)
             {
-                var val = (Enum)__instance.GetValue(host);
-                __result = val.displayDescription();
+                Enum val = (Enum)__instance.GetValue(host);
+                __result = FastAndFixedEnumExtensions.EnumExtensions_displayDescription_Override(val);
                 return false;
             }
 
