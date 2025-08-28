@@ -1,19 +1,34 @@
 ﻿/* 
-The part list implements a caching mechanism to avoid re-instantiating already generated icons, which avoid the bulk of the cost of swapping the shown parts
-in the part list. Once all icons were generated at least once, it just re-parent them between a disabled `partIconStorage` GameObject and the scrollview GameObject. 
+The part list implements a caching mechanism to avoid re-instantiating already generated icons, 
+which avoid the bulk of the cost of swapping the shown parts in the part list. 
+Once all icons were generated at least once, it just re-parent them between a disabled `partIconStorage` 
+GameObject and the scrollview GameObject.
+
 Profiling show that roughly 70-80% of the time is spent doing this reparenting, which we avoid by :
-- Preventing the icon objects from being parented to the `partIconStorage` in the EditorPartList.ClearAllItems() method (by removing the SetParent call)
-- Preventing the icon objects from being parented back to the scrollview in the EditorPartList.UpdatePartIcon() method (by removing the SetParent call)
+- Preventing the icon objects from being parented to the `partIconStorage` in the 
+  EditorPartList.ClearAllItems() method (by removing the SetParent call)
+- Preventing the icon objects from being parented back to the scrollview in the 
+  EditorPartList.UpdatePartIcon() method (by removing the SetParent call)
+
 Doing this cause two issues : 
 - It prevent the icon object from ever being parented to the scrollist, so they never appear
-- The icons are not ordered anymore according to the sorting filter, as this was done by unparenting / reparenting them
-We fix that by altering EditorPartList.UpdatePartIcons() in two ways :
-- We call SetParent for newly instantiated icons so they are parented to the scrollview
-- We set the already instantiated icons that are about to be re-activated to be the last sibling to respect the requested sorting.
-Note that we do both *before* the call to EditorPartList.UpdatePartIcon(), as VABOrganizer is postfixing it and is relying on the icons being 
-in their right place within the scrollview at this time.
+- The icons are not ordered anymore according to the sorting filter, as this was done by 
+  unparenting / reparenting them
 
-This significantlly improve overall responsivness of the part list updates when switching between categories, changing the sorting or using the tag search
+We fix that by altering `EditorPartList.UpdatePartIcons()` in two ways :
+- We call SetParent for newly instantiated icons so they are parented to the scrollview
+- We set the already instantiated icons that are about to be re-activated to be the last sibling to 
+  respect the requested sorting.
+
+Note that we do both *before* the call to `EditorPartList.UpdatePartIcon()`, as VABOrganizer is 
+postfixing it and is relying on the icons being in their right place within the scrollview at this time.
+
+Additionally, this implement a caching mechanism storing pre-parsed tags for each `AvailablePart`, 
+preventing the overhead of having to parse to the tokenized `AvailablePart.tags` string every time 
+filtering is needed. There are typically 15+ tags per part, so this has a very significant impact.
+
+These changes significantly improve overall responsiveness of the part list updates when switching 
+between categories, changing the sorting type/order or using tag search.
 */
 
 using HarmonyLib;
@@ -95,7 +110,40 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        private static Dictionary<AvailablePart, PartTag[]> partsTags = new Dictionary<AvailablePart, PartTag[]>();
+        private class PartTags
+        {
+            public static Dictionary<AvailablePart, PartTags> partsTags = new Dictionary<AvailablePart, PartTags>();
+
+            public string joinedTags;
+            public PartTag[] parsedTags;
+
+            public static PartTag[] GetTagsForPart(BasePartCategorizer bpcInstance, AvailablePart ap)
+            {
+                if (!partsTags.TryGetValue(ap, out PartTags tags) || tags.joinedTags != ap.tags)
+                {
+                    tags = new PartTags();
+                    tags.joinedTags = ap.tags;
+                    tags.parsedTags = ParseTags(bpcInstance, ap);
+
+                    partsTags[ap] = tags;
+                }
+
+                return tags.parsedTags;
+            }
+
+            private static PartTag[] ParseTags(BasePartCategorizer bpcInstance, AvailablePart ap)
+            {
+                string[] rawTags = SearchTagSplit(ap.tags);
+                PartTag[] tags = new PartTag[rawTags.Length];
+                for (int i = 0; i < rawTags.Length; i++)
+                {
+                    string rawTag = rawTags[i];
+                    MatchType matchType = bpcInstance.TagMatchType(ref rawTag);
+                    tags[i] = new PartTag(rawTag, matchType);
+                }
+                return tags;
+            }
+        }
 
         private class PartTag
         {
@@ -121,19 +169,7 @@ namespace KSPCommunityFixes.Performance
             if (terms.Length == 0)
                 return true;
 
-            if (!partsTags.TryGetValue(part, out PartTag[] tags))
-            {
-                string[] rawTags = SearchTagSplit(part.tags);
-                tags = new PartTag[rawTags.Length];
-                for (int i = 0; i < rawTags.Length; i++)
-                {
-                    string rawTag = rawTags[i];
-                    MatchType matchType = instance.TagMatchType(ref rawTag);
-                    tags[i] = new PartTag(rawTag, matchType);
-                }
-
-                partsTags.Add(part, tags);
-            }
+            PartTag[] tags = PartTags.GetTagsForPart(instance, part);
 
             for (int i = terms.Length; i-- > 0;)
             {
