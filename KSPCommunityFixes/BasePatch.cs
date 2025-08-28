@@ -442,6 +442,10 @@ namespace KSPCommunityFixes
                     instruction.operand = jumpTo;
                 }
 
+                if (instruction.opcode == OpCodes.Switch && instruction.operand is Label[] jumpTable)
+                    for (int j = jumpTable.Length; j-- > 0;)
+                        jumpTable[j].label = modifiedOverrideLabelIndices[jumpTable[j].label];
+
                 OpCode opCode = instruction.opcode;
                 if (opCode == OpCodes.Stloc || opCode == OpCodes.Stloc_S)
                 {
