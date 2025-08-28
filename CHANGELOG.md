@@ -1,5 +1,9 @@
 ### Changelog
 
+##### 1.39.0
+**New/improved patches**
+- New KSP bugfix : **DebugConsoleDontStealInput**, fix the Alt+F12 console input field stealing input when a console entry is added.
+
 ##### 1.38.1
 **Bug fixes**
 - **ModuleColorChangerOptimization** : Fixed externally controlled ModuleColorChanger modules state being wrongly reset on startup, notably causing the stock heat shield to start in the charred / black state in the editor.
