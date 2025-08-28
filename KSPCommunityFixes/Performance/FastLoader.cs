@@ -1324,197 +1324,215 @@ namespace KSPCommunityFixes.Performance
 
             private TextureInfo LoadDDS()
             {
-                memoryStream = new MemoryStream(buffer, 0, dataLength);
-                binaryReader = new BinaryReader(memoryStream);
-
-                if (binaryReader.ReadUInt32() != DDSValues.uintMagic)
+                using DDSParser.DDSLoadRequest ddsLoadRequest = new DDSParser.DDSLoadRequest(buffer, 0, dataLength, true, false);
+                if (!ddsLoadRequest.IsValidFile)
                 {
-                    SetError("DDS: File is not a DDS format file!");
+                    SetError($"DDS: {ddsLoadRequest.ErrorMessage}");
                     return null;
                 }
-                DDSHeader dDSHeader = new DDSHeader(binaryReader);
-                bool mipChain = (dDSHeader.dwCaps & DDSPixelFormatCaps.MIPMAP) != 0;
-                bool isNormalMap = (dDSHeader.ddspf.dwFlags & 0x80000u) != 0 || (dDSHeader.ddspf.dwFlags & 0x80000000u) != 0;
 
-                DDSFourCC ddsFourCC = (DDSFourCC)dDSHeader.ddspf.dwFourCC;
-                Texture2D texture2D = null;
-                GraphicsFormat graphicsFormat = GraphicsFormat.None;
-
-                switch (ddsFourCC)
+                if (!ddsLoadRequest.TryLoad())
                 {
-                    case DDSFourCC.DXT1:
-                        graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
-                        break;
-                    case DDSFourCC.DXT5:
-                        graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
-                        break;
-                    case DDSFourCC.BC4U_ATI:
-                    case DDSFourCC.BC4U:
-                        graphicsFormat = GraphicsFormat.R_BC4_UNorm;
-                        break;
-                    case DDSFourCC.BC4S:
-                        graphicsFormat = GraphicsFormat.R_BC4_SNorm;
-                        break;
-                    case DDSFourCC.BC5U_ATI:
-                    case DDSFourCC.BC5U:
-                        graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
-                        break;
-                    case DDSFourCC.BC5S:
-                        graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
-                        break;
-                    case DDSFourCC.R16G16B16A16_UNORM:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
-                        break;
-                    case DDSFourCC.R16G16B16A16_SNORM:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
-                        break;
-                    case DDSFourCC.R16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16_SFloat;
-                        break;
-                    case DDSFourCC.R16G16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16G16_SFloat;
-                        break;
-                    case DDSFourCC.R16G16B16A16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
-                        break;
-                    case DDSFourCC.R32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32_SFloat;
-                        break;
-                    case DDSFourCC.R32G32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32G32_SFloat;
-                        break;
-                    case DDSFourCC.R32G32B32A32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
-                        break;
-                    case DDSFourCC.DX10:
-                        DDSHeaderDX10 dx10Header = new DDSHeaderDX10(binaryReader);
-                        switch (dx10Header.dxgiFormat)
-                        {
-                            case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT1_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT1_SRGB;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT5_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT5_SRGB;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM: 
-                                graphicsFormat = GraphicsFormat.R_BC4_SNorm; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM: 
-                                graphicsFormat = GraphicsFormat.R_BC4_UNorm; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM: 
-                                graphicsFormat = GraphicsFormat.RG_BC5_SNorm; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM: 
-                                graphicsFormat = GraphicsFormat.RG_BC5_UNorm; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM: 
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB: 
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16: 
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16: 
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat; 
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_SNORM:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16G16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32G32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32G32_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
-                                break;
-                            default:
-                                SetError($"DDS: The '{dx10Header.dxgiFormat}' DXT10 format isn't supported");
-                                break;
-                        }
-                        break;
-                    case DDSFourCC.DXT2:
-                    case DDSFourCC.DXT3:
-                    case DDSFourCC.DXT4:
-                    case DDSFourCC.RGBG:
-                    case DDSFourCC.GRGB:
-                    case DDSFourCC.UYVY:
-                    case DDSFourCC.YUY2:
-                    case DDSFourCC.CxV8U8:
-                        SetError($"DDS: The '{ddsFourCC}' format isn't supported, use DXT1 for RGB textures or DXT5 for RGBA textures");
-                        break;
-                    default:
-                        SetError($"DDS: Unknown dwFourCC format '0x{ddsFourCC:X}'");
-                        break;
+                    SetError($"DDS: {ddsLoadRequest.ErrorMessage}");
+                    return null;
                 }
 
-                if (graphicsFormat != GraphicsFormat.None)
-                {
-                    if (!SystemInfo.IsFormatSupported(graphicsFormat, FormatUsage.Sample))
-                    {
-                        if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX && 
-                            (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm 
-                             || graphicsFormat == GraphicsFormat.RGBA_BC7_SRGB
-                             || graphicsFormat == GraphicsFormat.RGB_BC6H_SFloat
-                             || graphicsFormat == GraphicsFormat.RGB_BC6H_UFloat))
-                        {
-                            SetError($"DDS: The '{graphicsFormat}' format is not supported on MacOS");
-                        }
-                        else
-                        {
-                            SetError($"DDS: The '{graphicsFormat}' format is not supported by your GPU or OS");
-                        }
-                    }
-                    else
-                    {
-                        texture2D = new Texture2D((int)dDSHeader.dwWidth, (int)dDSHeader.dwHeight, graphicsFormat, mipChain ? TextureCreationFlags.MipChain : TextureCreationFlags.None);
-                        if (texture2D.IsNullOrDestroyed())
-                        {
-                            SetError($"DDS: Failed to load texture, unknown error");
-                        }
-                        else
-                        {
-                            int position = (int)binaryReader.BaseStream.Position;
-                            GCHandle pinnedHandle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-                            try
-                            {
-                                IntPtr ptr = Marshal.UnsafeAddrOfPinnedArrayElement(buffer, position);
-                                texture2D.LoadRawTextureData(ptr, dataLength - position);
-                            }
-                            finally
-                            {
-                                pinnedHandle.Free();
-                            }
-
-                            texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
-                        }
-                    }
-                }
-
-                return new TextureInfo(file, texture2D, isNormalMap, false, true);
+                return new TextureInfo(file, ddsLoadRequest.Texture, ddsLoadRequest.IsKSPNormalMap(), false, true);
             }
+
+            //private TextureInfo LoadDDS()
+            //{
+            //    memoryStream = new MemoryStream(buffer, 0, dataLength);
+            //    binaryReader = new BinaryReader(memoryStream);
+
+            //    if (binaryReader.ReadUInt32() != DDSValues.uintMagic)
+            //    {
+            //        SetError("DDS: File is not a DDS format file!");
+            //        return null;
+            //    }
+            //    DDSHeader dDSHeader = new DDSHeader(binaryReader);
+            //    bool mipChain = (dDSHeader.dwCaps & DDSPixelFormatCaps.MIPMAP) != 0;
+            //    bool isNormalMap = (dDSHeader.ddspf.dwFlags & 0x80000u) != 0 || (dDSHeader.ddspf.dwFlags & 0x80000000u) != 0;
+
+            //    DDSFourCC ddsFourCC = (DDSFourCC)dDSHeader.ddspf.dwFourCC;
+            //    Texture2D texture2D = null;
+            //    GraphicsFormat graphicsFormat = GraphicsFormat.None;
+
+            //    switch (ddsFourCC)
+            //    {
+            //        case DDSFourCC.DXT1:
+            //            graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
+            //            break;
+            //        case DDSFourCC.DXT5:
+            //            graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
+            //            break;
+            //        case DDSFourCC.BC4U_ATI:
+            //        case DDSFourCC.BC4U:
+            //            graphicsFormat = GraphicsFormat.R_BC4_UNorm;
+            //            break;
+            //        case DDSFourCC.BC4S:
+            //            graphicsFormat = GraphicsFormat.R_BC4_SNorm;
+            //            break;
+            //        case DDSFourCC.BC5U_ATI:
+            //        case DDSFourCC.BC5U:
+            //            graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
+            //            break;
+            //        case DDSFourCC.BC5S:
+            //            graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
+            //            break;
+            //        case DDSFourCC.R16G16B16A16_UNORM:
+            //            graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
+            //            break;
+            //        case DDSFourCC.R16G16B16A16_SNORM:
+            //            graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
+            //            break;
+            //        case DDSFourCC.R16_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R16_SFloat;
+            //            break;
+            //        case DDSFourCC.R16G16_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R16G16_SFloat;
+            //            break;
+            //        case DDSFourCC.R16G16B16A16_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+            //            break;
+            //        case DDSFourCC.R32_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R32_SFloat;
+            //            break;
+            //        case DDSFourCC.R32G32_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R32G32_SFloat;
+            //            break;
+            //        case DDSFourCC.R32G32B32A32_FLOAT:
+            //            graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
+            //            break;
+            //        case DDSFourCC.DX10:
+            //            DDSHeaderDX10 dx10Header = new DDSHeaderDX10(binaryReader);
+            //            switch (dx10Header.dxgiFormat)
+            //            {
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM:
+            //                    graphicsFormat = GraphicsFormat.RGBA_DXT1_UNorm;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB:
+            //                    graphicsFormat = GraphicsFormat.RGBA_DXT1_SRGB;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM:
+            //                    graphicsFormat = GraphicsFormat.RGBA_DXT5_UNorm;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB:
+            //                    graphicsFormat = GraphicsFormat.RGBA_DXT5_SRGB;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM: 
+            //                    graphicsFormat = GraphicsFormat.R_BC4_SNorm; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM: 
+            //                    graphicsFormat = GraphicsFormat.R_BC4_UNorm; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM: 
+            //                    graphicsFormat = GraphicsFormat.RG_BC5_SNorm; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM: 
+            //                    graphicsFormat = GraphicsFormat.RG_BC5_UNorm; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM: 
+            //                    graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB: 
+            //                    graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16: 
+            //                    graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16: 
+            //                    graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat; 
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM:
+            //                    graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_SNORM:
+            //                    graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R16_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R16_SFloat;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R16G16_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R16G16_SFloat;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R32_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R32_SFloat;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R32G32_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R32G32_SFloat;
+            //                    break;
+            //                case DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT:
+            //                    graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
+            //                    break;
+            //                default:
+            //                    SetError($"DDS: The '{dx10Header.dxgiFormat}' DXT10 format isn't supported");
+            //                    break;
+            //            }
+            //            break;
+            //        case DDSFourCC.DXT2:
+            //        case DDSFourCC.DXT3:
+            //        case DDSFourCC.DXT4:
+            //        case DDSFourCC.RGBG:
+            //        case DDSFourCC.GRGB:
+            //        case DDSFourCC.UYVY:
+            //        case DDSFourCC.YUY2:
+            //        case DDSFourCC.CxV8U8:
+            //            SetError($"DDS: The '{ddsFourCC}' format isn't supported, use DXT1 for RGB textures or DXT5 for RGBA textures");
+            //            break;
+            //        default:
+            //            SetError($"DDS: Unknown dwFourCC format '0x{ddsFourCC:X}'");
+            //            break;
+            //    }
+
+            //    if (graphicsFormat != GraphicsFormat.None)
+            //    {
+            //        if (!SystemInfo.IsFormatSupported(graphicsFormat, FormatUsage.Sample))
+            //        {
+            //            if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX && 
+            //                (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm 
+            //                 || graphicsFormat == GraphicsFormat.RGBA_BC7_SRGB
+            //                 || graphicsFormat == GraphicsFormat.RGB_BC6H_SFloat
+            //                 || graphicsFormat == GraphicsFormat.RGB_BC6H_UFloat))
+            //            {
+            //                SetError($"DDS: The '{graphicsFormat}' format is not supported on MacOS");
+            //            }
+            //            else
+            //            {
+            //                SetError($"DDS: The '{graphicsFormat}' format is not supported by your GPU or OS");
+            //            }
+            //        }
+            //        else
+            //        {
+            //            texture2D = new Texture2D((int)dDSHeader.dwWidth, (int)dDSHeader.dwHeight, graphicsFormat, mipChain ? TextureCreationFlags.MipChain : TextureCreationFlags.None);
+            //            if (texture2D.IsNullOrDestroyed())
+            //            {
+            //                SetError($"DDS: Failed to load texture, unknown error");
+            //            }
+            //            else
+            //            {
+            //                int position = (int)binaryReader.BaseStream.Position;
+            //                GCHandle pinnedHandle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+            //                try
+            //                {
+            //                    IntPtr ptr = Marshal.UnsafeAddrOfPinnedArrayElement(buffer, position);
+            //                    texture2D.LoadRawTextureData(ptr, dataLength - position);
+            //                }
+            //                finally
+            //                {
+            //                    pinnedHandle.Free();
+            //                }
+
+            //                texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+            //            }
+            //        }
+            //    }
+
+            //    return new TextureInfo(file, texture2D, isNormalMap, false, true);
+            //}
 
             private TextureInfo LoadJPG()
             {
@@ -2391,10 +2409,7 @@ namespace KSPCommunityFixes.Performance
 
         #region Utility
 
-        private static int GetDefaultMipMapCount(int height, int width)
-        {
-            return 1 + (int)(Math.Floor(Math.Log(Math.Max(width, height), 2.0)));
-        }
+
 
         private static bool GetPNGSize(byte[] pngData, out uint width, out uint height)
         {
