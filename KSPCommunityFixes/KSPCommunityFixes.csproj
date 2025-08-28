@@ -91,36 +91,43 @@
   </ItemGroup>
   <!--Krafs.Publicizer items-->
   <ItemGroup>
+    <!-- Publicize the whole KSP assembly -->
     <Publicize Include="Assembly-CSharp" />
     <Publicize Include="Assembly-CSharp-firstpass" />
+    <!-- Prevent some name collisions due to publicizing the whole Assembly-CSharp -->
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
+    <!-- Direct access to UnityEngine.Object pointer to the native object (various optimizations) -->
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject" />
+    <!-- IMGUIOptimization patch : allow access to internal IMGUI stuff -->
     <Publicize Include="UnityEngine.IMGUIModule" />
+    <!-- low level access to a NativeArray data -->
     <Publicize Include="UnityEngine.CoreModule:Unity.Collections.NativeArray`1.m_Buffer" />
-    <Publicize Include="mscorlib:System.Runtime.CompilerServices.Unsafe" />
+    <!-- FastLoader patch : lower level access to files creation / latswrite time -->
     <Publicize Include="mscorlib:System.IO.MonoIO" />
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
+    <!-- ReflectionTypeLoadExceptionHandler patch : reimplementation of GetTypes requires acces to the internal overload -->
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
+    <!-- Publicized for low level / unsafe access to strings -->
     <Publicize Include="mscorlib:System.String.m_firstChar" />
+    <!-- We need to publicize some MonoMod stuff to implement the override patch type -->
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.ILGeneratorShimExt" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelInfo" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelledExceptionHandler" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+ExceptionHandlerChain" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelInfos" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._LabelsToMark" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlersToMark" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._Variables" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ExceptionHandlers" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator.labelCounter" />
-    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator._ILOffset" />
+    <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator.IL" />
+    <Publicize Include="0Harmony:Mono.Collections.Generic.Collection`1" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableDefinition" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.ILProcessor" />
+    <Publicize Include="0Harmony:Mono.Cecil.Cil.MethodBody" />
     <Publicize Include="mscorlib:System.Reflection.Emit.Label.label" />
     <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.position" />
     <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.is_pinned" />
     <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.type" />
-    <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
