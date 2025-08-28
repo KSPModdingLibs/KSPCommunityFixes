@@ -126,6 +126,7 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\DebugConsoleDontStealInput.cs" />
     <Compile Include="BugFixes\DragCubeLoadException.cs" />
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />

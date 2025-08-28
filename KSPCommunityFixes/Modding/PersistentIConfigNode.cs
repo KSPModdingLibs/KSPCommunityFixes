@@ -182,8 +182,8 @@ namespace KSPCommunityFixes.Modding
         {
             if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommunityFixes] Tried to read value `{value.name} = {value.value}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.AssemblyQualifiedName()}."
-                    + "\nThis is probably because the value was specified twice in the config. Making that assumption and clamping.");
+                Debug.LogWarning($"[KSPCF] Value `{value.name} = {value.value}` on object `{host.AssemblyQualifiedName()}` is the {attribIndex + 1}nth value read, but only {attribs.Length} [Persistent] attributes are defined. "
+                    + "The value will be applied, but it was likely incorrectly specified twice in the config");
                 attribIndex = 0;
             }
             if (attribs[attribIndex].link)
@@ -213,8 +213,8 @@ namespace KSPCommunityFixes.Modding
         {
             if (attribIndex >= attribs.Length)
             {
-                Debug.LogError($"[KSPCommunityFixes] Tried to read node `{node.name}` for field {fieldInfo.Name}, index was {attribIndex} but only {attribs.Length} [Persistent] attributes on that field on host object of type {host.AssemblyQualifiedName()}."
-                    + "\nThis is probably because the node was specified twice in the config. Making that assumption and clamping.");
+                Debug.LogWarning($"[KSPCF] Node `{node.name}` on object `{host.AssemblyQualifiedName()}` is the {attribIndex + 1}nth node read, but only {attribs.Length} [Persistent] attributes are defined. "
+                    + "The node will be applied, but it was likely incorrectly specified twice in the config");
                 attribIndex = 0;
             }
             int vCount = node._values.values.Count;
@@ -580,7 +580,7 @@ namespace KSPCommunityFixes.Modding
                     {
                         string[] enumNames = fieldType.GetEnumNames();
                         string defaultName = enumNames.Length > 0 ? enumNames[0] : string.Empty;
-                        Debug.LogWarning($"[KSPCF] Couldn't parse value '{value}' for enum '{fieldType.Name}', default value '{defaultName}' will be used.\nValid values are {string.Join(", ", enumNames)}");
+                        Debug.LogWarning($"[KSPCF] Couldn't parse value '{value}' for enum '{fieldType.Name}', default value '{defaultName}' will be used. Valid values are {string.Join(", ", enumNames)}");
                         return null;
                     }
                 case DataType.ValueVector2:
@@ -956,7 +956,7 @@ namespace KSPCommunityFixes.Modding
             var tc = new TypeCache(t);
             if (tc._fields.Count == 0)
             {
-                Debug.LogWarning($"[KSPCommunityFixes]: No Persistent fields on object of type {t.AssemblyQualifiedName()}, adding as null to TypeCache. That object likely shouldn't implement the IConfigNode interface.");
+                Debug.LogWarning($"[KSPCF] No Persistent fields on object of type {t.AssemblyQualifiedName()}, adding as null to TypeCache. That object likely shouldn't implement the IConfigNode interface.");
                 tc = null;
             }
 
