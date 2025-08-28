@@ -151,6 +151,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**GameDatabasePerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269) [KSP 1.12.3 - 1.12.5]<br/>Faster dictionary backed version of the stock `GameDatabase.GetModel*` / `GameDatabase.GetTexture*` methods. This patch is always enabled and has no entry in `Settings.cfg`.
 - [**PartParsingPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269) [KSP 1.8.0 - 1.12.5]<br/>Faster part icon generation and `Part` fields parsing.
 - [**ModuleColorChangerOptimization**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/304) [KSP 1.12.3 - 1.12.5]<br/>Reduce the constant overhead from ModuleColorChanger
+- [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/242) [KSP 1.12.3 - 1.12.5]<br/>Improve the responsiveness of the part list when switching between categories, sorting and searching by tag.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).

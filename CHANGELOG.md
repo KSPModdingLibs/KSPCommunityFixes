@@ -2,6 +2,7 @@
 
 ##### 1.39.0
 **New/improved patches**
+- New performance patch : [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/242) Improve the responsiveness of the part list when switching between categories, sorting and searching by tag.
 - New KSP bugfix : **DebugConsoleDontStealInput**, fix the Alt+F12 console input field stealing input when a console entry is added.
 
 ##### 1.38.1
