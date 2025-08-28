@@ -134,8 +134,10 @@
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
+    <Compile Include="BugFixes\DebugConsoleDontStealInput.cs" />
     <Compile Include="BugFixes\DragCubeLoadException.cs" />
     <Compile Include="BugFixes\EVAConstructionMass.cs" />
+    <Compile Include="BugFixes\FastAndFixedEnumExtensions.cs" />
     <Compile Include="BugFixes\InventoryPartMass.cs" />
     <Compile Include="BugFixes\ModuleActiveRadiatorNoParentException.cs" />
     <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
@@ -169,6 +171,7 @@
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\CraftBrowserOptimisations.cs" />
     <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
+    <Compile Include="Performance\FasterEditorPartList.cs" />
     <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
     <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />

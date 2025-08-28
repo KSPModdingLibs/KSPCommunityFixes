@@ -29,6 +29,35 @@ namespace KSPCommunityFixes
         {
             return part.PartActionWindow.IsNotNullOrDestroyed() && part.PartActionWindow.isActiveAndEnabled;
         }
+
+        /// <summary>
+        /// Get the value of a boxed enum, as a 64 bit signed integer. 
+        /// If the enum underlying type is an unsigned 64 bit integer and the value is greater than long.MaxValue, 
+        /// the result will overflow and be negative.
+        /// </summary>
+        public static long GetSignedBoxedEnumValue(this Enum enumInstance)
+        {
+            Type underlyingType = enumInstance.GetType().GetEnumUnderlyingType();
+
+            if (underlyingType == typeof(int))
+                return (int)(object)enumInstance;
+            else if (underlyingType == typeof(sbyte))
+                return (sbyte)(object)enumInstance;
+            else if (underlyingType == typeof(short))
+                return (short)(object)enumInstance;
+            else if (underlyingType == typeof(long))
+                return (long)(object)enumInstance;
+            else if (underlyingType == typeof(uint))
+                return (uint)(object)enumInstance;
+            else if (underlyingType == typeof(byte))
+                return (byte)(object)enumInstance;
+            else if (underlyingType == typeof(ushort))
+                return (ushort)(object)enumInstance;
+            else if (underlyingType == typeof(ulong))
+                return (long)(ulong)(object)enumInstance;
+
+            throw new Exception($"Enum {enumInstance.GetType()} is of unknown size");
+        }
     }
 
     static class ParticleBuffer

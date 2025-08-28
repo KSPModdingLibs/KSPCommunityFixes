@@ -1,5 +1,15 @@
 ### Changelog
 
+##### 1.39.0
+**New/improved patches**
+- New performance patch : [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/326) Improve the responsiveness of the part list when switching between categories, sorting and searching by tag. Adress [issue #242](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/242) reported by @Rodg88.
+- New KSP bugfix : [**DebugConsoleDontStealInput**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/322), fix the Alt+F12 console input field stealing input when a console entry is added. Thanks to @Clayell for reminding me of that especially annoying issue.
+- New KSP bugfix & performance patch : [**FastAndFixedEnumExtensions**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/322), fix exceptions when calling the `EnumExtensions.*Description()` methods with a non-defined enum value, and implement a cache for faster and less allocating execution of those methods. Adress [issue #321](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/321), thanks to @k1suuu for reporting it.
+
+**Other changes**
+- Fixed `Override` patches not properly handling `switch` statement.
+- Changed the logging level from `Error` to `Warning` when KSPCF detects a duplicate value in configs used to load a `[Persistent]` field.
+
 ##### 1.38.1
 **Bug fixes**
 - **ModuleColorChangerOptimization** : Fixed externally controlled ModuleColorChanger modules state being wrongly reset on startup, notably causing the stock heat shield to start in the charred / black state in the editor.
