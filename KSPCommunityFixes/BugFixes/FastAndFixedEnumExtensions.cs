@@ -8,7 +8,7 @@ namespace KSPCommunityFixes
 {
     internal class FastAndFixedEnumExtensions : BasePatch
     {
-        internal static Dictionary<Type, Dictionary<long, EnumMemberDescription>> enumMemberDescriptionCache = new Dictionary<Type, Dictionary<long, EnumMemberDescription>>();
+        internal static Dictionary<Type, Dictionary<string, EnumMemberDescription>> enumMemberDescriptionCache = new Dictionary<Type, Dictionary<string, EnumMemberDescription>>();
 
         internal class EnumMemberDescription
         {
@@ -31,9 +31,9 @@ namespace KSPCommunityFixes
         internal static bool TryGetEnumMemberDescription(Enum enumValue, out EnumMemberDescription enumMemberDescription)
         {
             Type enumType = enumValue.GetType();
-            if (!enumMemberDescriptionCache.TryGetValue(enumType, out Dictionary<long, EnumMemberDescription> enumDescriptions))
+            if (!enumMemberDescriptionCache.TryGetValue(enumType, out Dictionary<string, EnumMemberDescription> enumDescriptions))
             {
-                enumDescriptions = new Dictionary<long, EnumMemberDescription>();
+                enumDescriptions = new Dictionary<string, EnumMemberDescription>();
                 string[] names = enumType.GetEnumNames();
 
                 foreach (string enumMemberName in names)
@@ -44,13 +44,13 @@ namespace KSPCommunityFixes
 
                     DescriptionAttribute descriptionAttribute = enumMembers[0].GetCustomAttribute<DescriptionAttribute>();
                     Enum enumMember = (Enum)Enum.Parse(enumType, enumMemberName);
-                    enumDescriptions.Add(enumMember.GetSignedBoxedEnumValue(), new EnumMemberDescription(enumMemberName, descriptionAttribute));
+                    enumDescriptions.Add(enumMemberName, new EnumMemberDescription(enumMemberName, descriptionAttribute));
                 }
 
                 enumMemberDescriptionCache.Add(enumType, enumDescriptions);
             }
 
-            if (enumDescriptions.TryGetValue(enumValue.GetSignedBoxedEnumValue(), out enumMemberDescription))
+            if (enumDescriptions.TryGetValue(enumValue.ToString(), out enumMemberDescription))
                 return true;
 
             return false;

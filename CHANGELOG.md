@@ -1,5 +1,9 @@
 ### Changelog
 
+##### 1.39.1
+**Bug fixes**
+- **FastAndFixedEnumExtensions** : fixed the caching mechanism erroring out on enums containing multiple members using the same underlying value. Was causing various issues in RO/RP1 due to such an enum being defind here.
+
 ##### 1.39.0
 **New/improved patches**
 - New performance patch : [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/326) Improve the responsiveness of the part list when switching between categories, sorting and searching by tag. Adress [issue #242](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/242) reported by @Rodg88.
