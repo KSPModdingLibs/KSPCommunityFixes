@@ -164,6 +164,7 @@
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\CraftBrowserOptimisations.cs" />
     <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
+    <Compile Include="Performance\ExpansionBundlePreload.cs" />
     <Compile Include="Performance\FasterEditorPartList.cs" />
     <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
     <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
