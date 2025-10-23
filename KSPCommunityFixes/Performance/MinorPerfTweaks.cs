@@ -16,6 +16,8 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(Part), nameof(Part.isKerbalEVA));
 
             AddPatch(PatchType.Override, typeof(VolumeNormalizer), nameof(VolumeNormalizer.Update));
+
+            AddPatch(PatchType.Override, typeof(MonoUtilities), nameof(MonoUtilities.RefreshContextWindows));
         }
 
         // When FlightGlobals._fetch is null/destroyed, the stock "fetch" getter fallback to a FindObjectOfType()
@@ -88,6 +90,16 @@ namespace KSPCommunityFixes.Performance
                 AudioListener.volume = newVolume;
 
             vn.volume = newVolume;
+        }
+
+        // MonoUtilities.RefreshContextWindows calls Object.FindObjectsOfType.
+        // This is quite slow. The method is not used in stock but several mods
+        // do use it and it would otherwise take up a notable chunk of scene
+        // switch times.
+        private static void MonoUtilities_RefreshContextWindows_Override(Part part)
+        {
+            if (part.IsNotNullRef() && part.PartActionWindow.IsNotNullOrDestroyed())
+                part.PartActionWindow.displayDirty = true;
         }
     }
 }

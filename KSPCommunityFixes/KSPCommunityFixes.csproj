@@ -219,7 +219,6 @@
     <Compile Include="Performance\ConfigNodePerf.cs" />
     <Compile Include="Performance\MinorPerfTweaks.cs" />
     <Compile Include="Performance\ModuleDockingNodeFindOtherNodesFaster.cs" />
-    <Compile Include="Performance\MonoUtilitiesCache.cs" />
     <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
