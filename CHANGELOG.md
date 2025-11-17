@@ -1,5 +1,9 @@
 ### Changelog
 
+##### Unreleased
+**New/improved patches**
+- **MinorPerfTweaks** [now includes a patch to make PQS loading faster](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/343) on scene switches, saving ~1 second when switching from KSC to a vessel.  Thanks @Phantomical!
+
 ##### 1.39.1
 **Bug fixes**
 - **FastAndFixedEnumExtensions** : fixed the caching mechanism erroring out on enums containing multiple members using the same underlying value. Was causing various issues in RO/RP1 due to such an enum being defind here.

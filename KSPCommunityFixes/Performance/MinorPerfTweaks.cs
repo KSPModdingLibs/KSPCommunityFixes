@@ -1,6 +1,8 @@
-﻿using HarmonyLib;
+﻿using Contracts.Predicates;
+using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
 using UnityEngine;
 
 namespace KSPCommunityFixes.Performance
@@ -19,6 +21,8 @@ namespace KSPCommunityFixes.Performance
 
             AddPatch(PatchType.Override, typeof(MonoUtilities), nameof(MonoUtilities.RefreshContextWindows));
             AddPatch(PatchType.Override, typeof(MonoUtilities), nameof(MonoUtilities.RefreshPartContextWindow));
+
+            AddPatch(PatchType.Transpiler, typeof(PQS), nameof(PQS.StartSphere));
         }
 
         // When FlightGlobals._fetch is null/destroyed, the stock "fetch" getter fallback to a FindObjectOfType()
@@ -107,6 +111,36 @@ namespace KSPCommunityFixes.Performance
         {
             if (part.IsNotNullRef() && part.PartActionWindow.IsNotNullOrDestroyed())
                 part.PartActionWindow.displayDirty = true;
+        }
+
+        private static PQSCache GetPQSCache(Type _)
+        {
+            var instance = PQSCache.Instance;
+            if (!instance.IsNullOrDestroyed())
+                return instance;
+
+            // If we can't find a valid instance then fall back to FindObjectOfType
+            return (PQSCache)UnityEngine.Object.FindObjectOfType(typeof(PQSCache));
+        }
+
+        // PQS.StartSphere calls out to FindObjectOfType. Since it is called a
+        // number of times during scene switch, this can add up to >1s of overhead
+        // during scene switches.
+        //
+        // PQSCache already tracks the active instance so this just replaces the
+        // call to FindObjectOfType with one that reads from PQSCache.Instance.
+        private static IEnumerable<CodeInstruction> PQS_StartSphere_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var findObjectOfTypeMethod = SymbolExtensions.GetMethodInfo(
+                () => UnityEngine.Object.FindObjectOfType(typeof(PQSCache))
+            );
+
+            var matcher = new CodeMatcher(instructions);
+            matcher
+                .MatchStartForward(new CodeMatch(OpCodes.Call, findObjectOfTypeMethod))
+                .SetOperandAndAdvance(SymbolExtensions.GetMethodInfo(() => GetPQSCache(null)));
+
+            return matcher.Instructions();
         }
     }
 }
