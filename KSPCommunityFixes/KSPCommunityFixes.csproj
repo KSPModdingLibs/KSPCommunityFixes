@@ -80,6 +80,10 @@
       <Name>Assembly-CSharp-firstpass</Name>
       <Private>False</Private>
     </Reference>
+    <Reference Include="$(ManagedPath)\KSPAssets.dll">
+      <Name>KSPAssets</Name>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="$(ProjectDir)\lib\0Harmony.dll">
       <Name>Harmony</Name>
       <Private>False</Private>
@@ -93,6 +97,7 @@
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
     <Publicize Include="Assembly-CSharp-firstpass" />
+    <Publicize Include="KSPAssets" />
     <DoNotPublicize Include="Assembly-CSharp:BaseField`1.OnValueModified" />
     <DoNotPublicize Include="Assembly-CSharp:SaveUpgradePipeline.SaveUpgradePipeline.OnSetCfgNodeVersion" />
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.m_CachedPtr" />
