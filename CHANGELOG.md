@@ -1,5 +1,9 @@
 ### Changelog
 
+##### Unreleased
+**New/improved patches**
+- **FastLoader** : Added a [patch to start loading the stock asset bundles asynchronously](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/344), improving load time by ~4 seconds.  Thanks @Phantomical!
+
 ##### 1.39.1
 **Bug fixes**
 - **FastAndFixedEnumExtensions** : fixed the caching mechanism erroring out on enums containing multiple members using the same underlying value. Was causing various issues in RO/RP1 due to such an enum being defind here.
