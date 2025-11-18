@@ -4,6 +4,8 @@ using DDSHeaders;
 using Expansions;
 using HarmonyLib;
 using KSP.Localization;
+using KSPAssets;
+using KSPAssets.Loaders;
 using KSPCommunityFixes.Library.Buffers;
 using KSPCommunityFixes.Library.Collections;
 using System;
@@ -27,6 +29,8 @@ using UnityEngine.UI;
 using static GameDatabase;
 using static UrlDir;
 using Debug = UnityEngine.Debug;
+using UnityEngine.Profiling;
+using System.Threading.Tasks;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -138,7 +142,7 @@ namespace KSPCommunityFixes.Performance
             "Do you want to enable this optimization ?";
 
         // approximate max FPS during asset loading and part parsing
-        private const int maxFPS = 30; 
+        private const int maxFPS = 30;
         private const float minFrameTime = 1f / maxFPS;
         private const double minFrameTimeD = 1.0 / maxFPS;
 
@@ -214,7 +218,13 @@ namespace KSPCommunityFixes.Performance
             MethodInfo m_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(GameDatabase), nameof(GameDatabase.LoadAssetBundleObjects)));
             MethodInfo pr_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Prefix));
             MethodInfo po_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Postfix));
-            assetAndPartLoaderHarmony.Patch(m_GameDatabase_LoadAssetBundleObjects_MoveNext, new HarmonyMethod(pr_GameDatabase_LoadAssetBundleObjects_MoveNext), new HarmonyMethod(po_GameDatabase_LoadAssetBundleObjects_MoveNext));
+            MethodInfo t_GameDatabase_LoadAssetBundleObjects_MoveNext = AccessTools.Method(typeof(KSPCFFastLoader), nameof(GameDatabase_LoadAssetBundleObjects_MoveNext_Transpiler));
+            assetAndPartLoaderHarmony.Patch(
+                m_GameDatabase_LoadAssetBundleObjects_MoveNext,
+                new HarmonyMethod(pr_GameDatabase_LoadAssetBundleObjects_MoveNext),
+                new HarmonyMethod(po_GameDatabase_LoadAssetBundleObjects_MoveNext),
+                new HarmonyMethod(t_GameDatabase_LoadAssetBundleObjects_MoveNext)
+            );
 
             MethodInfo m_PartLoader_StartLoad = AccessTools.Method(typeof(PartLoader), nameof(PartLoader.StartLoad));
             MethodInfo t_PartLoader_StartLoad = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_StartLoad_Transpiler));
@@ -452,6 +462,9 @@ namespace KSPCommunityFixes.Performance
             while (!loader.userOptInChoiceDone)
                 yield return null;
 
+            // Start load asset bundles in the background while we load other assets.
+            PreloadAssetBundleObjects(gdb);
+
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
 
@@ -572,7 +585,7 @@ namespace KSPCommunityFixes.Performance
             // call non-stock audio loaders
             int unsupportedFilesCount = unsupportedAudioFiles.Count;
             int loadersCount = gdb.loadersAudio.Count;
-            
+
             if (loadersCount > 0 && unsupportedFilesCount > 0)
             {
                 for (int i = 0; i < unsupportedFilesCount; i++)
@@ -589,7 +602,7 @@ namespace KSPCommunityFixes.Performance
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<AudioClip> loader = gdb.loadersAudio[k];
-                        if (!loader.extensions.Contains(file.fileExtension)) 
+                        if (!loader.extensions.Contains(file.fileExtension))
                             continue;
 
                         yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
@@ -665,7 +678,7 @@ namespace KSPCommunityFixes.Performance
             // as this is the comparison that stock is doing. However, profiling show that casing mismatches rarely happen
             // (never in stock, 0.22% of calls in a very heavily modded install with a bunch of part mods of varying quality)
             // and the overhead of the OrdinalIgnoreCase comparer is offsetting the gains (but a small margin, but still). 
-            texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count); 
+            texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count);
             unsupportedFilesCount = unsupportedTextureFiles.Count;
             loadersCount = gdb.loadersTexture.Count;
 
@@ -685,7 +698,7 @@ namespace KSPCommunityFixes.Performance
                     for (int k = 0; k < loadersCount; k++)
                     {
                         DatabaseLoader<TextureInfo> loader = gdb.loadersTexture[k];
-                        if (!loader.extensions.Contains(file.fileExtension)) 
+                        if (!loader.extensions.Contains(file.fileExtension))
                             continue;
 
                         yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
@@ -837,7 +850,7 @@ namespace KSPCommunityFixes.Performance
 
         static int concurrentAudioCoroutines;
         internal static int audioFilesLoaded;
-        
+
 
         /// <summary>
         /// Concurrent coroutines (read "multiple coroutines in the same frame") audio loader
@@ -1023,7 +1036,7 @@ namespace KSPCommunityFixes.Performance
                 ModelDAE
             }
 
-            private static readonly string[] assetTypeNames = 
+            private static readonly string[] assetTypeNames =
             {
                 "DDS texture",
                 "JPG texture",
@@ -1082,7 +1095,7 @@ namespace KSPCommunityFixes.Performance
                 {
                     if (resultMessage == null)
                         resultMessage = message;
-                    else 
+                    else
                         resultMessage = $"{resultMessage}\nWARNING: {message}";
                 }
                 else
@@ -1402,29 +1415,29 @@ namespace KSPCommunityFixes.Performance
                             case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB:
                                 graphicsFormat = GraphicsFormat.RGBA_DXT5_SRGB;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM: 
-                                graphicsFormat = GraphicsFormat.R_BC4_SNorm; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM:
+                                graphicsFormat = GraphicsFormat.R_BC4_SNorm;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM: 
-                                graphicsFormat = GraphicsFormat.R_BC4_UNorm; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM:
+                                graphicsFormat = GraphicsFormat.R_BC4_UNorm;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM: 
-                                graphicsFormat = GraphicsFormat.RG_BC5_SNorm; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM:
+                                graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM: 
-                                graphicsFormat = GraphicsFormat.RG_BC5_UNorm; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM:
+                                graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM: 
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM:
+                                graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB: 
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB:
+                                graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16: 
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16:
+                                graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat;
                                 break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16: 
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat; 
+                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16:
+                                graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat;
                                 break;
                             case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM:
                                 graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
@@ -1474,8 +1487,8 @@ namespace KSPCommunityFixes.Performance
                 {
                     if (!SystemInfo.IsFormatSupported(graphicsFormat, FormatUsage.Sample))
                     {
-                        if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX && 
-                            (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm 
+                        if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX &&
+                            (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm
                              || graphicsFormat == GraphicsFormat.RGBA_BC7_SRGB
                              || graphicsFormat == GraphicsFormat.RGB_BC6H_SFloat
                              || graphicsFormat == GraphicsFormat.RGB_BC6H_UFloat))
@@ -1556,7 +1569,7 @@ namespace KSPCommunityFixes.Performance
                     SetError("Invalid PNG file");
                     return null;
                 }
-                
+
                 bool isNormalMap = file.name.EndsWith("NRM");
                 bool nonReadable = file.fullPath.Contains("@thumbs"); // KSPCF optimization : don't keep cargo icons in memory
                 bool hasMipMaps = file.fullPath.Contains(mipMapsPNGTexturePath); // only generate mipmaps for flags (stock behavior)
@@ -1697,7 +1710,7 @@ namespace KSPCommunityFixes.Performance
                 Texture2D normalMap = new Texture2D(original.width, original.height, TextureFormat.RGBA32, true);
                 normalMap.wrapMode = TextureWrapMode.Repeat;
 
-                if (originalFormat == TextureFormat.RGBA32 
+                if (originalFormat == TextureFormat.RGBA32
                     || originalFormat == TextureFormat.ARGB32
                     || originalFormat == TextureFormat.RGB24)
                 {
@@ -1974,7 +1987,7 @@ namespace KSPCommunityFixes.Performance
                 catch (Exception e)
                 {
                     Debug.LogException(e);
-                    
+
                     if (currentEnumerator == coroutine)
                     {
                         exceptionInfo = new LoaderExceptionInfo(e, coroutine);
@@ -2061,6 +2074,243 @@ namespace KSPCommunityFixes.Performance
             return code;
         }
 
+        #endregion
+
+        #region Asset bundle preloading
+        static List<AssetBundleCreateRequest> AssetBundleRequestCache = null;
+
+        static void PreloadAssetBundleObjects(GameDatabase gdb)
+        {
+            Profiler.BeginSample("FastLoader.PreloadAssetBundleObjects");
+            KSPCFFastLoaderReport.wAssetBundleLoading.Start();
+
+            Debug.Log("Preloading Asset Bundle Definitions");
+
+            Profiler.BeginSample("FastLoader.LoadAssetBlacklist");
+            gdb.LoadAssetBlacklist();
+            Profiler.EndSample();
+
+            PreloadAssetDefinitions();
+
+            KSPCFFastLoaderReport.wAssetBundleLoading.Stop();
+            Profiler.EndSample();
+        }
+
+        static void PreloadAssetDefinitions()
+        {
+            Profiler.BeginSample("FastLoader.PreloadAssetDefinitions");
+
+            var loader = AssetLoader.Instance;
+            var assetDirectory = AssetLoader.CreateApplicationPath(loader.assetDirectory);
+            var assetBlacklist = new HashSet<string>(loader.assetBlacklist);
+
+            loader.coreAndAutoloadDefinitions = new List<BundleDefinition>();
+            loader.ready = false;
+
+            var coreDir = new DirectoryInfo(Path.Combine(assetDirectory, loader.coreDirectory));
+            var assetDir = new DirectoryInfo(assetDirectory);
+            var glob = "*." + loader.assetExtension;
+
+            var files = Enumerable.Repeat(coreDir, 1)
+                .Concat(
+                    assetDir
+                        .EnumerateDirectories()
+                        .Where(dir => dir.Name != loader.coreDirectory)
+                )
+                .AsParallel()
+                .AsOrdered()
+                .SelectMany(dir => dir.GetFiles(glob, SearchOption.AllDirectories))
+                .Where(file => !assetBlacklist.Contains(file.Name))
+                .AsSequential();
+
+            loader.allFilesList = new List<FileInfo>();
+            AssetBundleRequestCache = new List<AssetBundleCreateRequest>();
+
+            var seen = new HashSet<string>();
+            var requestCache = AssetBundleRequestCache;
+            foreach (var assetFile in files)
+            {
+                // We don't need to check for duplicates here because the files
+                // enumerator avoids them by construction.
+
+                loader.allFilesList.Add(assetFile);
+
+                // Some asset bundles have the same name. We can't load those
+                // concurrently so we just keep a null request and load them
+                // as we encounter them later on.
+                if (seen.Contains(assetFile.Name))
+                {
+                    requestCache.Add(null);
+                }
+                else
+                {
+                    // Debug.Log($"AssetLoader: Preloading bundle {path}");
+                    seen.Add(assetFile.Name);
+                    requestCache.Add(AssetBundle.LoadFromFileAsync(assetFile.FullName));
+                }
+            }
+
+            Profiler.EndSample();
+        }
+
+        static IEnumerator LoadAssetDefinitionsAsync(AssetLoader loader)
+        {
+            Debug.Log("AssetLoader: Loading bundle definitions");
+            var files = loader.allFilesList;
+            var requestCache = AssetBundleRequestCache;
+            AssetBundleRequestCache = null;
+
+            // Keep track of which bundles could not be preloaded and start
+            // loading them as soon as the conflicting bundle has been unloaded.
+            var missing = new Dictionary<string, int>();
+            for (int i = 0; i < files.Count; ++i)
+            {
+                var assetFile = files[i];
+                var request = requestCache[i];
+
+                if (!(request is null))
+                    continue;
+
+                // Make sure to only track the first index, in case there are
+                // even more bundles with the same name.
+                if (missing.ContainsKey(assetFile.Name))
+                    continue;
+                missing.Add(assetFile.Name, i);
+            }
+
+            for (int i = 0; i < files.Count; ++i)
+            {
+                var assetFile = files[i];
+                var request = requestCache[i];
+
+                AssetBundle bundle;
+                if (request is null)
+                {
+                    // Some bundles can't be preloaded because they share the same
+                    // name with a pre-existing asset bundle. In that case we just
+                    // load them now.
+                    bundle = AssetBundle.LoadFromFile(assetFile.FullName);
+                }
+                else
+                {
+                    if (!request.isDone)
+                        yield return request;
+
+                    bundle = request.assetBundle;
+                }
+
+                if (bundle == null)
+                {
+                    Debug.LogError("AssetLoader: Bundle is null");
+                    continue;
+                }
+
+                BundleDefinition bundleDefinition = null;
+                string[] assetNames = bundle.GetAllAssetNames();
+                foreach (string name in assetNames)
+                {
+                    if (name.EndsWith(loader.assetDefinitionSuffix))
+                    {
+                        var asset = bundle.LoadAsset<TextAsset>(name);
+                        var bundleDef = BundleDefinition.CreateFromText(asset.text);
+                        if (bundleDef != null)
+                            bundleDefinition = bundleDef;
+                    }
+                    else if (name.EndsWith(loader.bundleDependencySuffix))
+                    {
+                        string platform = Application.platform == RuntimePlatform.LinuxPlayer
+                            ? "linux"
+                            : "windows";
+
+                        if (!name.Contains(platform))
+                            continue;
+
+                        var asset = bundle.LoadAsset<TextAsset>(name);
+                        var bundleName = Path.GetFileNameWithoutExtension(name);
+                        string savePath = Path.Combine(Path.GetDirectoryName(assetFile.FullName), bundleName.Remove(bundleName.IndexOf('_')) + ".ksp");
+
+                        using (var fs = File.Open(savePath, FileMode.OpenOrCreate, FileAccess.ReadWrite))
+                        {
+                            fs.SetLength(0L);
+                            fs.Write(asset.bytes, 0, asset.bytes.Length);
+                            fs.Close();
+                        }
+
+                        var depBundleFile = new FileInfo(savePath);
+                        if (!files.Contains(depBundleFile, new AssetLoader.FileComparer()))
+                        {
+                            files.Add(depBundleFile);
+                            requestCache.Add(AssetBundle.LoadFromFileAsync(depBundleFile.FullName));
+                        }
+                    }
+                }
+
+                bundle.Unload(unloadAllLoadedObjects: true);
+
+                if (bundleDefinition != null)
+                {
+                    if (bundleDefinition.autoLoad || (!bundleDefinition.name.ToLower().StartsWith("kspedia_") && bundleDefinition.name.ToLower().Contains("core")))
+                    {
+                        bundleDefinition.path = assetFile.FullName;
+                        loader.coreAndAutoloadDefinitions.Add(bundleDefinition);
+                        loader.amountAutoLoadBundles++;
+                        Debug.Log("AssetLoader: Loaded bundle '" + bundleDefinition.name + "'");
+                    }
+                    else if (!bundleDefinition.autoLoad && !bundleDefinition.name.ToLower().Contains("core"))
+                    {
+                        bundleDefinition.path = assetFile.FullName;
+                        loader.coreAndAutoloadDefinitions.Add(bundleDefinition);
+                        loader.amountAutoLoadBundles++;
+                        Debug.Log("AssetLoader: Loaded mod bundle '" + bundleDefinition.name + "'");
+                    }
+                }
+                else
+                {
+                    bundleDefinition = new BundleDefinition
+                    {
+                        name = assetFile.Name,
+                        path = assetFile.FullName
+                    };
+                }
+
+                // If we were blocking the load of another bundle then start that now.
+                if (missing.TryGetValue(assetFile.Name, out var index))
+                {
+                    missing.Remove(assetFile.Name);
+                    requestCache[index] = AssetBundle.LoadFromFileAsync(files[index].FullName);
+                }
+            }
+
+            loader.CompileBundleDefinitions();
+            loader.CreateAssetDefinitionList();
+            Debug.Log("AssetLoader: Finished loading. " + loader.coreAndAutoloadDefinitions.Count + " bundle definitions loaded.");
+            loader.ready = true;
+        }
+
+        static IEnumerable<CodeInstruction> GameDatabase_LoadAssetBundleObjects_MoveNext_Transpiler(
+            IEnumerable<CodeInstruction> instructions
+        )
+        {
+            // We want to avoid repeating the work we did in the preload stage:
+            // - strip out the call to LoadAssetBlacklist
+            // - replace the call to LoadDefinitionsAsync with a custom version
+            //   that uses the bundle load requests we have already made, among
+            //   other optimizations
+
+            var loadAssetBlacklistMethod = SymbolExtensions.GetMethodInfo((GameDatabase gdb) => gdb.LoadAssetBlacklist());
+            var loadDefinitionsAsyncMethod = SymbolExtensions.GetMethodInfo((AssetLoader l) => l.LoadDefinitionsAsync());
+
+            var matcher = new CodeMatcher(instructions);
+            matcher
+                .MatchStartForward(new CodeMatch(OpCodes.Call, loadAssetBlacklistMethod))
+                .ThrowIfInvalid("Unable to find call to LoadAssetBlacklist")
+                .SetInstructionAndAdvance(new CodeInstruction(OpCodes.Pop))
+                .MatchStartForward(new CodeMatch(OpCodes.Callvirt, loadDefinitionsAsyncMethod))
+                .ThrowIfInvalid("Unable to find call to LoadDefinitionAsync")
+                .Set(OpCodes.Call, SymbolExtensions.GetMethodInfo(() => LoadAssetDefinitionsAsync(null)));
+
+            return matcher.Instructions();
+        }
         #endregion
 
         #region PNG texture cache
@@ -2517,7 +2767,7 @@ namespace KSPCommunityFixes.Performance
                         }
                     }
                 }
-                catch {}
+                catch { }
             }
 
             public void Show()
