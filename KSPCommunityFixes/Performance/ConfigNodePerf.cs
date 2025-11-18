@@ -27,10 +27,12 @@ namespace KSPCommunityFixes.Performance
 
         const int _SaveBufferSize = 64 * 1024;
         const int _ReadBufferSize = 1024 * 1024;
-        private static readonly char[] _charBuf = new char[_ReadBufferSize];
+        [ThreadStatic]
+        private static char[] _charBuf;
         static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
-        static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
+        [ThreadStatic]
+        static Stack<ConfigNode> _nodeStack;
         public static bool _doClean = true; // so it is accessible from ModUpgradePipeline
         public static bool _AllowSkipIndent = false; // so it is accessible from other things if needed
         // This large-size stringbuilder is used for writing ConfigNodes to string.
@@ -738,7 +740,7 @@ namespace KSPCommunityFixes.Performance
                 if (fLength > _ReadBufferSize)
                     chars = new char[fLength];
                 else
-                    chars = _charBuf;
+                    chars = _charBuf ??= new char[_ReadBufferSize];
 
                 numChars = reader.Read(chars, 0, chars.Length);
             }
@@ -776,6 +778,7 @@ namespace KSPCommunityFixes.Performance
             int pos = 0;
             string savedName = string.Empty;
             ParseMode mode = ParseMode.SkipToKey;
+            _nodeStack ??= new Stack<ConfigNode>(128);
             _nodeStack.Push(node);
 
 
