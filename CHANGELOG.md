@@ -1,5 +1,9 @@
 ### Changelog
 
+##### Unreleased
+**New/improved patches**
+-New performance patch: [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) : Loads DLC assetbundles asynchronously, saving several seconds during loading if DLC is installed. Thanks @Phantomical!
+
 ##### 1.39.1
 **Bug fixes**
 - **FastAndFixedEnumExtensions** : fixed the caching mechanism erroring out on enums containing multiple members using the same underlying value. Was causing various issues in RO/RP1 due to such an enum being defind here.
