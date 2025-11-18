@@ -2,7 +2,9 @@
 
 ##### Unreleased
 **New/improved patches**
--New performance patch: [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) : Loads DLC assetbundles asynchronously, saving several seconds during loading if DLC is installed. Thanks @Phantomical!
+- New performance patch: [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) : Loads DLC assetbundles asynchronously, saving several seconds during loading if DLC is installed. Thanks @Phantomical!
+- **MinorPerfTweaks** [now includes a patch to make PQS loading faster](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/343) on scene switches, saving ~1 second when switching from KSC to a vessel.  Thanks @Phantomical!
+- **MinorPerfTweaks** [now includes a patch to optimize refreshing part context windows](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/338). Thanks @Phantomical!
 
 ##### 1.39.1
 **Bug fixes**
