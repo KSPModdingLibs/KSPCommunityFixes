@@ -53,7 +53,7 @@ namespace KSPCommunityFixes.Performance
             instance.StartCoroutine(LoadExpansionsV2(instance));
         }
 
-        static void ExpansionsLoader_StartLoad_Override()
+        static void ExpansionsLoader_StartLoad_Override(ExpansionsLoader _)
         {
             ExpansionsLoaderStarted = true;
         }
