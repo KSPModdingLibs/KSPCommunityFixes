@@ -221,6 +221,7 @@
     <Compile Include="Performance\ModuleDockingNodeFindOtherNodesFaster.cs" />
     <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
     <Compile Include="Performance\PQSCoroutineLeak.cs" />
+    <Compile Include="Performance\PQSOnlyStartOnce.cs" />
     <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
     <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
     <Compile Include="QoL\AutostrutActions.cs" />
