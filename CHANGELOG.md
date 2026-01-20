@@ -1,11 +1,15 @@
 ### Changelog
 
-##### Unreleased
-**New/improved patches**
-- New performance patch: [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) : Loads DLC assetbundles asynchronously, saving several seconds during loading if DLC is installed. Thanks @Phantomical!
-- **FastLoader** : Added a [patch to start loading the stock asset bundles asynchronously](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/344), improving load time by ~4 seconds.  Thanks @Phantomical!
-- **MinorPerfTweaks** [now includes a patch to make PQS loading faster](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/343) on scene switches, saving ~1 second when switching from KSC to a vessel.  Thanks @Phantomical!
-- **MinorPerfTweaks** [now includes a patch to optimize refreshing part context windows](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/338). Thanks @Phantomical!
+**New/Improved patches**
+- New KSP bugfix : [**WheelIntertiaLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the lower inertia limit for wheels from 0.01 to 0.00001. Thanks to @MajorNr01 for contributing it.
+- New performance patch : [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) Starts loading expansion bundles in the background while part compilation is happening. This should have a significant reduction in load times if you have the expansions installed.
+- New performance patch : [**PQSOnlyStartOnce**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/350) Avoid a second unnecessary restart of all PQS spheres in game when launching from the VAB or SPH. This should be a small improvement to scene switch times, possibly larger if you have parallax continued installed.
+- Improved the **FastLoader** patch to load early asset bundles in the background. Should result in a small improvement to load times.
+- Improved the **MinorPerfTweaks** patch to optimize away a `FindObjectOfType` call. Should result in a small improvement to scene switch times.
+- Improved the **MinorPerfTweaks** patch to optimize `MonoUtilities.RefreshContextWindows()` and `MonoUtilities.RefreshPartContextWindow()`. Should be a minor improvement to scene switch times under some conditions. 
+
+**Other changes**
+- Added descriptions and mentalities for: Clamp-O-Tron, FreeFall Parachutes, LightYear Tire Company, Stratus Corporation. Thanks to @munktron239 for contributing it.
 
 ##### 1.39.1
 **Bug fixes**

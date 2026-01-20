@@ -96,6 +96,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ModuleActiveRadiatorNoParentException**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/249) [KSP 1.12.3 - 1.12.5]<br/>Fix exception spam when a radiator set to `parentCoolingOnly` is detached from the vessel
 - [**FastAndFixedEnumExtensions**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/322) [KSP 1.12.3 - 1.12.5]<br/>Fix exceptions when calling the `EnumExtensions.*Description()` methods with a non-defined enum value, and implement a cache for faster and less allocating execution of those methods.
 - [**DebugConsoleDontStealInput**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/329) [KSP 1.12.3 - 1.12.5]<br/>Fix the Alt+F12 console input field stealing input when a console entry is added
+- [**WheelIntertialLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the minimum inertia limit for wheels from 0.01 to 0.00001. Several small wheels had inertia values below this limit, so this makes them behave more correctly.
 
 #### Quality of Life tweaks 
 
@@ -125,6 +126,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**FastLoader**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/108) [KSP 1.12.3 - 1.12.5]<br/>Complete rewrite of the KSP asset/part loader : prevent GPU framerate limits from affecting loading speed, implement multithreaded asset loading (20% to 40% speedup depending on CPU & storage specs), provides an opt-in mechanism for caching PNG textures in the DXT5 format, also implements loading of additional DDS formats (see **BetterDDSSupport** patch in the API/modding tools section).
 - **PQSUpdateNoMemoryAlloc** [KSP 1.11.0 - 1.12.5]<br/> Prevent huge memory allocations and resulting occasional stutter on PQS creation happening when moving around near a body surface.
 - [**PQSCoroutineLeak**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/85) [KSP 1.8.0 - 1.12.5]<br/>Prevent KSP from spawning multiple PQS update coroutines for the same PQS after scene switches and on other occasions, causing large performance degradation over time.
+- [**PQSOnlyStartOnce**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/350) [KSP 1.12.0 - 1.12.5]</br>Prevent KSP from restarting PQS spheres multiple times when launching a vessel from the VAB or SPH.
 - [**MemoryLeaks**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/49) [KSP 1.12.0 - 1.12.5]<br/>Fix a bunch of managed memory leaks, mainly by proactively removing `GameEvents` delegates originating from destroyed `UnityEngine.Object` instances on scene switches. Will log detected leaks and memory usage. Also see`Settings.cfg` to enable advanced logging options that can be useful to hunt down memory leaks in mods.
 - [**ProgressTrackingSpeedBoost**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/57) [KSP 1.12.0 - 1.12.5]<br/>Remove unused ProgressTracking update handlers. Provides a very noticeable performance uplift in career games having a large amount of celestial bodies and/or vessels.
 - [**DisableMapUpdateInFlight**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/59) [KSP 1.8.0 - 1.12.5]<br/>Disable the update of orbit lines and markers in flight when the map view isn't shown. Provides decent performance gains in games having a large amount of celestial bodies and/or vessels.
@@ -153,6 +155,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**PartParsingPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/269) [KSP 1.8.0 - 1.12.5]<br/>Faster part icon generation and `Part` fields parsing.
 - [**ModuleColorChangerOptimization**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/304) [KSP 1.12.3 - 1.12.5]<br/>Reduce the constant overhead from ModuleColorChanger
 - [**FasterEditorPartList**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/326) [KSP 1.12.3 - 1.12.5]<br/>Improve the responsiveness of the part list when switching between categories, sorting and searching by tag.
+- [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) [KSP 1.12.3 - 1.12.5]<br/>Load expansion bundles in the background while part compilation is happening.
 
 #### API and modding tools
 - **MultipleModuleInPartAPI** [KSP 1.8.0 - 1.12.5]<br/>This API allow other plugins to implement PartModules that can exist in multiple occurrence in a single part and won't suffer "module indexing mismatch" persistent data losses following part configuration changes. [See documentation on the wiki](https://github.com/KSPModdingLibs/KSPCommunityFixes/wiki/MultipleModuleInPartAPI).
