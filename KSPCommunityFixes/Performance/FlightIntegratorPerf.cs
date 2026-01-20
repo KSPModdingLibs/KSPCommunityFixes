@@ -757,13 +757,12 @@ namespace KSPCommunityFixes.Performance
                 double weightedDrag = dragCubes.weightedDrag[i];
 
                 double dot = Vector3.Dot(direction, faceDir);
-                double dotNormalized = (dot + 1.0) * 0.5;
                 double drag; // = PhysicsGlobals.DragCurveValue(__instance.SurfaceCurves, dotNormalized, machNumber);
 
-                if (dotNormalized <= 0.5)
-                    drag = Numerics.Lerp(fiData.dragTail, fiData.dragSurf, dotNormalized * 2.0) * fiData.dragMult;
+                if (dot <= 0.0)
+                    drag = Numerics.Lerp(fiData.dragSurf, fiData.dragTail, -dot) * fiData.dragMult;
                 else
-                    drag = Numerics.Lerp(fiData.dragSurf, fiData.dragTip, (dotNormalized - 0.5) * 2.0) * fiData.dragMult;
+                    drag = Numerics.Lerp(fiData.dragSurf, fiData.dragTip, dot) * fiData.dragMult;
 
                 double areaOccludedByDrag = areaOccluded * drag;
                 area += areaOccludedByDrag;
