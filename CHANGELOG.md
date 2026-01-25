@@ -1,5 +1,6 @@
 ### Changelog
 
+##### 1.40.0
 **New/Improved patches**
 - New KSP bugfix : [**WheelIntertiaLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the lower inertia limit for wheels from 0.01 to 0.00001. Thanks to @MajorNr01 for contributing it.
 - New performance patch : [**ExpansionBundlePreload**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/345) Starts loading expansion bundles in the background while part compilation is happening. This should have a significant reduction in load times if you have the expansions installed.
