@@ -1,5 +1,10 @@
 ### Changelog
 
+##### 1.40.1
+**Bug Fixes**
+- **PQSOnlyStartOnce** : This patch is now disabled by default as it appears to cause
+  issues with PQS terrain generation under certain conditions.
+
 ##### 1.40.0
 **New/Improved patches**
 - New KSP bugfix : [**WheelIntertiaLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the lower inertia limit for wheels from 0.01 to 0.00001. Thanks to @MajorNr01 for contributing it.

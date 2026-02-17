@@ -30,9 +30,9 @@ using System.Runtime.InteropServices;
 //      Revision
 //
 [assembly: AssemblyVersion("1.40.0.0")]
-[assembly: AssemblyFileVersion("1.40.0.0")]
+[assembly: AssemblyFileVersion("1.40.1.0")]
 
-[assembly: KSPAssembly("KSPCommunityFixes", 1, 40, 0)]
+[assembly: KSPAssembly("KSPCommunityFixes", 1, 40, 1)]
 [assembly: KSPAssemblyDependency("MultipleModulePartAPI", 1, 0, 0)]
 [assembly: KSPAssemblyDependency("ModuleManager", 1, 0)]
 [assembly: KSPAssemblyDependency("HarmonyKSP", 1, 0)]
