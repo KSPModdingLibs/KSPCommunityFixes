@@ -222,6 +222,7 @@
     <Compile Include="Modding\DockingPortLockedEvents.cs" />
     <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
     <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
+    <Compile Include="Modding\EventProfilerMarkers.cs" />
     <Compile Include="Performance\FewerSaves.cs" />
     <Compile Include="Performance\ConfigNodePerf.cs" />
     <Compile Include="Performance\MinorPerfTweaks.cs" />
