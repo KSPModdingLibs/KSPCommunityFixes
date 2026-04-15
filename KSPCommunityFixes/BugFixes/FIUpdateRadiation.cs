@@ -8,7 +8,7 @@ namespace KSPCommunityFixes
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(FlightIntegrator), "UpdateRadiation");
+            AddPatch(PatchType.Override, typeof(FlightIntegrator), "UpdateRadiation");
         }
 
         /// <summary>
@@ -17,8 +17,7 @@ namespace KSPCommunityFixes
         /// </summary>
         /// <param name="__instance"></param>
         /// <param name="ptd"></param>
-        /// <returns></returns>
-        static bool FlightIntegrator_UpdateRadiation_Prefix(FlightIntegrator __instance, PartThermalData ptd)
+        static void FlightIntegrator_UpdateRadiation_Override(FlightIntegrator __instance, PartThermalData ptd)
         {
             double cacheStefanBoltzmanConstant = __instance.cacheStefanBoltzmanConstant;
 
@@ -52,8 +51,6 @@ namespace KSPCommunityFixes
                     ptd.radiationFlux += ptd.expFlux - (skinTemperature - brtExposed) * cacheStefanBoltzmanConstant * ptd.emissScalar * exposedArea;
                 }
             }
-
-            return false;
         }
     }
 }
