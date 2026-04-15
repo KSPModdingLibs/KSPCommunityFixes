@@ -130,6 +130,7 @@
   <ItemGroup>
     <Compile Include="BasePatch.cs" />
     <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
+    <Compile Include="BugFixes\FIUpdateRadiation.cs" />
     <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
     <Compile Include="BugFixes\CorrectDragForFlags.cs" />
     <Compile Include="BugFixes\DebugConsoleDontStealInput.cs" />
