@@ -21,6 +21,7 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetModel));
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetModelIn));
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetModelFile), new[] { typeof(GameObject) });
+            AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.ExistsModel));
             // we don't patch the GetModelFile(string) variant as it would require an additional dictionary,
             // is unused in stock and very unlikely to ever be used by anyone.
 
@@ -120,6 +121,11 @@ namespace KSPCommunityFixes.Performance
             }
 
             return result;
+        }
+
+        static bool GameDatabase_ExistsModel_Override(GameDatabase gdb, string url)
+        {
+            return GameDatabase_GetModelPrefab_Override(gdb, url).IsNotNullRef();
         }
 
         internal static int txcallCount;
