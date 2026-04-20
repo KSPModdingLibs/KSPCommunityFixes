@@ -191,6 +191,11 @@ namespace KSPCommunityFixes
             patches.Add(new PatchInfo(patchType, AccessTools.Method(patchedMethodType, patchedMethodName, patchedMethodArgs), patchMethodName, patchPriority));
         }
 
+        protected void AddPatch(PatchInfo patch)
+        {
+            patches.Add(patch);
+        }
+
         public bool IsVersionValid => KSPCommunityFixes.KspVersion >= VersionMin && KSPCommunityFixes.KspVersion <= VersionMax;
 
         private bool ApplyHarmonyPatch()
@@ -209,10 +214,8 @@ namespace KSPCommunityFixes
                     continue;
                 }
 
-                if (patch.patchMethodName == null)
-                    patch.patchMethodName = patch.patchedMethod.DeclaringType.Name + "_" + patch.patchedMethod.Name + "_" + patch.patchType;
-
-                patch.patchMethod = AccessTools.Method(GetType(), patch.patchMethodName);
+                patch.patchMethodName ??= patch.patchedMethod.DeclaringType.Name + "_" + patch.patchedMethod.Name + "_" + patch.patchType;
+                patch.patchMethod ??= AccessTools.Method(GetType(), patch.patchMethodName);
 
                 if (patch.patchMethod == null)
                 {
