@@ -258,7 +258,7 @@ namespace KSPCommunityFixes.Performance
                 for (int i = partRenderers.Count; i-- > 0;)
                 {
                     Renderer renderer = partRenderers[i];
-                    if (renderer.gameObject.layer != 1 && !renderer.material.name.Contains("KSP/Alpha/Translucent Additive"))
+                    if (renderer.gameObject.layer != 1 && !renderer.sharedMaterial.name.Contains("KSP/Alpha/Translucent Additive"))
                     {
                         RendererCache rendererCache = new RendererCache(renderer, hl.opaqueMaterial, hl.zTestFloat, hl.stencilRefFloat);
                         hl.highlightableRenderers.Add(rendererCache);
