@@ -35,6 +35,7 @@ using static UrlDir;
 using Debug = UnityEngine.Debug;
 using UnityEngine.Profiling;
 using System.Threading.Tasks;
+using KSP.UI;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -157,8 +158,13 @@ namespace KSPCommunityFixes.Performance
 
         // max concurrent per-texture coroutines spawned by TextureDriverCoroutine.
         // Each in-flight request holds at most one of {ReadHandle, UnityWebRequest, background Task},
-        // so a single semaphore covers all resource bounds.
+        // so this caps total in-flight resource usage.
         private const int MaxConcurrentTextures = 512;
+
+        // max new texture-load coroutines spawned in any single frame, regardless of how
+        // many completions free up queue slots that frame. Bounds per-frame allocation /
+        // dispatch overhead independently of MaxConcurrentTextures.
+        private const int MaxTextureSpawnsPerFrame = 128;
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -1270,6 +1276,7 @@ namespace KSPCommunityFixes.Performance
         private static readonly ProfilerMarker s_pmCopyLevel0 = new ProfilerMarker("KSPCF.Tex.CopyLevel0");
         private static readonly ProfilerMarker s_pmFileSize = new ProfilerMarker("KSPCF.Tex.FileSize");
         private static readonly ProfilerMarker s_pmReadAllBytes = new ProfilerMarker("KSPCF.Tex.ReadAllBytes");
+        private static readonly ProfilerMarker s_pmCompress = new ProfilerMarker("KSPCF.Tex.Compress");
 
         // Result/error carrier for each texture file. Replaces RawAsset for textures.
         private sealed class TextureLoadRequest
@@ -1663,54 +1670,48 @@ namespace KSPCommunityFixes.Performance
             return tex;
         }
 
-        // Wraps an inner format-specific coroutine with exception capture and semaphore release.
+        // Wraps an inner format-specific coroutine with exception capture.
         // C# does not allow yield inside a try/catch, so we manually drive MoveNext() and
-        // do the catch around just the MoveNext call.
-        private static IEnumerator LoadTextureWrapperCoroutine(TextureLoadRequest req, IEnumerator inner, SemaphoreSlim semaphore)
+        // do the catch around just the MoveNext call. The driver detects completion via
+        // req.Status, so no other signaling is required here.
+        private static IEnumerator LoadTextureWrapperCoroutine(TextureLoadRequest req, IEnumerator inner)
         {
-            try
+            while (true)
             {
-                while (true)
+                bool moved;
+                bool failed = false;
+                object current = null;
+                try
                 {
-                    bool moved;
-                    bool failed = false;
-                    object current = null;
-                    try
-                    {
-                        moved = inner.MoveNext();
-                        if (moved)
-                            current = inner.Current;
-                    }
-                    catch (Exception e)
-                    {
-                        req.Exception = e;
-                        req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
-                        req.Status = TextureLoadRequest.State.Failed;
-                        moved = false;
-                        failed = true;
-                    }
-                    if (failed)
-                        yield break;
-                    if (!moved)
-                        break;
-                    yield return current;
+                    moved = inner.MoveNext();
+                    if (moved)
+                        current = inner.Current;
                 }
-
-                if (req.Status == TextureLoadRequest.State.Pending)
+                catch (Exception e)
                 {
-                    if (req.Result != null)
-                        req.Status = TextureLoadRequest.State.Ready;
-                    else
-                    {
-                        if (req.ErrorMessage == null)
-                            req.ErrorMessage = "Loader produced no result";
-                        req.Status = TextureLoadRequest.State.Failed;
-                    }
+                    req.Exception = e;
+                    req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    moved = false;
+                    failed = true;
                 }
+                if (failed)
+                    yield break;
+                if (!moved)
+                    break;
+                yield return current;
             }
-            finally
+
+            if (req.Status == TextureLoadRequest.State.Pending)
             {
-                semaphore.Release();
+                if (req.Result != null)
+                    req.Status = TextureLoadRequest.State.Ready;
+                else
+                {
+                    if (req.ErrorMessage == null)
+                        req.ErrorMessage = "Loader produced no result";
+                    req.Status = TextureLoadRequest.State.Failed;
+                }
             }
         }
 
@@ -1833,6 +1834,9 @@ namespace KSPCommunityFixes.Performance
                     if (isNormalMap)
                         dst.wrapMode = TextureWrapMode.Repeat;
 
+                    // Wait a frame to avoid UnshareTextureData overhead within Unity
+                    yield return null;
+
                     NativeArray<byte> srcData = src.GetRawTextureData<byte>();
                     NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
                     TextureFormat srcFormat = src.format;
@@ -1874,7 +1878,10 @@ namespace KSPCommunityFixes.Performance
                 }
 
                 if (canCompress)
-                    src.Compress(highQuality: !isNormalMap);
+                {
+                    using (s_pmCompress.Auto())
+                        src.Compress(highQuality: !isNormalMap);
+                }
                 else if (!isNormalMap)
                     Debug.LogWarning($"Texture '{req.File.url}' isn't eligible for DXT compression, width and height must be multiples of 4");
 
@@ -1950,6 +1957,9 @@ namespace KSPCommunityFixes.Performance
                 Texture2D dst = CreateUninitializedTexture2D(tex.width, tex.height, TextureFormat.RGBA32, mipChain: isPot);
                 dst.wrapMode = TextureWrapMode.Repeat;
 
+                // Wait a frame so we avoid a call to UnshareTextureData within unity
+                yield return null;
+
                 NativeArray<byte> srcData = tex.GetRawTextureData<byte>();
                 NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
                 TextureFormat srcFormat = tex.format;
@@ -1972,7 +1982,8 @@ namespace KSPCommunityFixes.Performance
                 if (isPot)
                 {
                     tex.Apply(updateMipmaps: true);
-                    tex.Compress(highQuality: false);
+                    using (s_pmCompress.Auto())
+                        tex.Compress(highQuality: false);
                 }
                 tex.Apply(updateMipmaps: false, makeNoLongerReadable: true);
 
@@ -2067,6 +2078,9 @@ namespace KSPCommunityFixes.Performance
                 Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
                 dst.wrapMode = TextureWrapMode.Repeat;
 
+                // Avoid UnshareTextureData overhead within Unity by waiting a frame.
+                yield return null;
+
                 NativeArray<byte> srcData = texture.GetRawTextureData<byte>();
                 NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
                 TextureFormat srcFormat = texture.format;
@@ -2089,7 +2103,8 @@ namespace KSPCommunityFixes.Performance
                 if (isPot)
                 {
                     texture.Apply(updateMipmaps: true);
-                    texture.Compress(highQuality: false);
+                    using (s_pmCompress.Auto())
+                        texture.Compress(highQuality: false);
                 }
                 texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
             }
@@ -2152,74 +2167,85 @@ namespace KSPCommunityFixes.Performance
         private static IEnumerator TextureDriverCoroutine(List<TextureLoadRequest> requests, HashSet<string> loadedUrls)
         {
             GameDatabase gdb = GameDatabase.Instance;
-            SemaphoreSlim semaphore = new SemaphoreSlim(MaxConcurrentTextures, MaxConcurrentTextures);
+            Queue<TextureLoadRequest> active = new Queue<TextureLoadRequest>(MaxConcurrentTextures);
             int spawnIdx = 0;
-            int completeIdx = 0;
             int total = requests.Count;
             double nextFrameTime = ElapsedTime + minFrameTimeD;
 
-            while (completeIdx < total)
+            while (spawnIdx < total || active.Count > 0)
             {
-                while (spawnIdx < total && semaphore.Wait(0))
+                // Drain completed requests at the front of the queue.
+                while (active.Count > 0 && active.Peek().Status != TextureLoadRequest.State.Pending)
                 {
-                    TextureLoadRequest req = requests[spawnIdx++];
-                    IEnumerator inner;
-                    switch (req.AssetType)
-                    {
-                        case RawAsset.AssetType.TextureDDS:
-                            inner = LoadDDSCoroutine(req);
-                            break;
-                        case RawAsset.AssetType.TexturePNG:
-                        case RawAsset.AssetType.TextureJPG:
-                            inner = LoadUWRCoroutine(req);
-                            break;
-                        case RawAsset.AssetType.TextureTRUECOLOR:
-                            inner = LoadTRUECOLORCoroutine(req);
-                            break;
-                        case RawAsset.AssetType.TextureMBM:
-                            inner = LoadMBMCoroutine(req);
-                            break;
-                        case RawAsset.AssetType.TextureTGA:
-                            inner = LoadTGACoroutine(req);
-                            break;
-                        case RawAsset.AssetType.TexturePNGCached:
-                            inner = LoadPNGCachedCoroutine(req);
-                            break;
-                        default:
-                            inner = null;
-                            break;
-                    }
-
-                    if (inner == null)
-                    {
-                        req.ErrorMessage = $"Unknown asset type {req.AssetType}";
-                        req.Status = TextureLoadRequest.State.Failed;
-                        semaphore.Release();
-                    }
-                    else
-                    {
-                        Debug.Log($"Load Texture: {req.File.url}");
-                        gdb.StartCoroutine(LoadTextureWrapperCoroutine(req, inner, semaphore));
-                    }
+                    InsertReadyRequest(active.Peek(), loadedUrls);
+                    active.Dequeue();
+                    loadedAssetCount++;
                 }
 
-                TextureLoadRequest head = requests[completeIdx];
-                if (head.Status == TextureLoadRequest.State.Pending)
+                // Spawn new coroutines, bounded by the in-flight cap and the per-frame cap.
+                int spawnsThisFrame = 0;
+                while (spawnIdx < total
+                    && active.Count < MaxConcurrentTextures
+                    && spawnsThisFrame < MaxTextureSpawnsPerFrame)
                 {
-                    if (ElapsedTime > nextFrameTime)
-                    {
-                        nextFrameTime = ElapsedTime + minFrameTimeD;
-                        gdb.progressFraction = (float)(loadedAssetCount + completeIdx) / totalAssetCount;
-                        gdb.progressTitle = $"Loading texture asset {completeIdx}/{total}";
-                    }
-                    yield return null;
-                    continue;
+                    SpawnTextureCoroutine(requests[spawnIdx++], active, gdb);
+                    spawnsThisFrame++;
                 }
 
-                InsertReadyRequest(head, loadedUrls);
-                completeIdx++;
-                loadedAssetCount++;
+                if (active.Count == 0 && spawnIdx >= total)
+                    break;
+
+                if (ElapsedTime > nextFrameTime)
+                {
+                    nextFrameTime = ElapsedTime + minFrameTimeD;
+                    int completed = spawnIdx - active.Count;
+                    gdb.progressFraction = (float)(loadedAssetCount + completed) / totalAssetCount;
+                    gdb.progressTitle = $"Loading texture asset {completed}/{total}";
+                }
+                yield return null;
             }
+        }
+
+        private static void SpawnTextureCoroutine(TextureLoadRequest req, Queue<TextureLoadRequest> active, GameDatabase gdb)
+        {
+            IEnumerator inner;
+            switch (req.AssetType)
+            {
+                case RawAsset.AssetType.TextureDDS:
+                    inner = LoadDDSCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TexturePNG:
+                case RawAsset.AssetType.TextureJPG:
+                    inner = LoadUWRCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTRUECOLOR:
+                    inner = LoadTRUECOLORCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureMBM:
+                    inner = LoadMBMCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTGA:
+                    inner = LoadTGACoroutine(req);
+                    break;
+                case RawAsset.AssetType.TexturePNGCached:
+                    inner = LoadPNGCachedCoroutine(req);
+                    break;
+                default:
+                    inner = null;
+                    break;
+            }
+
+            if (inner == null)
+            {
+                req.ErrorMessage = $"Unknown asset type {req.AssetType}";
+                req.Status = TextureLoadRequest.State.Failed;
+            }
+            else
+            {
+                Debug.Log($"Load Texture: {req.File.url}");
+                gdb.StartCoroutine(LoadTextureWrapperCoroutine(req, inner));
+            }
+            active.Enqueue(req);
         }
 
         private static void InsertReadyRequest(TextureLoadRequest req, HashSet<string> loadedUrls)
