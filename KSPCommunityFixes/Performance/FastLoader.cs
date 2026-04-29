@@ -18,6 +18,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Threading;
 using KSPCommunityFixes.Library;
 using TMPro;
@@ -1602,6 +1603,66 @@ namespace KSPCommunityFixes.Performance
             return AsyncReadManager.Read(path, &cmd, 1);
         }
 
+        // Mirrors UnityEngine.Experimental.Rendering.TextureCreationFlags but with the
+        // additional flag values that exist in Unity's native code but aren't exposed in
+        // the public managed enum. DontInitializePixels skips the zero-fill that the
+        // normal Texture2D constructor performs — pointless work when we're about to
+        // overwrite the bytes via LoadRawTextureData / AsyncReadManager / LoadImage.
+        // Borrowed from KSPTextureLoader (../AsyncTextureLoad/src/KSPTextureLoader/TextureUtils.cs).
+        [Flags]
+        private enum InternalTextureCreationFlags
+        {
+            None = 0,
+            MipChain = 1 << 0,
+            DontInitializePixels = 1 << 2,
+            DontDestroyTexture = 1 << 3,
+            DontCreateSharedTextureData = 1 << 4,
+            APIShareable = 1 << 5,
+            Crunch = 1 << 6,
+        }
+
+        // Allocates a Texture2D without zeroing its pixel buffer. Equivalent to the
+        // standard Texture2D constructor except for the DontInitializePixels flag,
+        // which the public managed API doesn't expose for the TextureFormat overload.
+        private static Texture2D CreateUninitializedTexture2D(
+            int width,
+            int height,
+            TextureFormat format = TextureFormat.RGBA32,
+            bool mipChain = false,
+            bool linear = false,
+            InternalTextureCreationFlags flags = InternalTextureCreationFlags.None)
+        {
+            if (GraphicsFormatUtility.IsCrunchFormat(format))
+                flags |= InternalTextureCreationFlags.Crunch;
+            int mipCount = !mipChain ? 1 : -1;
+            return CreateUninitializedTexture2D(
+                width, height, mipCount,
+                GraphicsFormatUtility.GetGraphicsFormat(format, isSRGB: !linear),
+                flags);
+        }
+
+        private static Texture2D CreateUninitializedTexture2D(
+            int width,
+            int height,
+            int mipCount,
+            GraphicsFormat format,
+            InternalTextureCreationFlags flags = InternalTextureCreationFlags.None)
+        {
+            Texture2D tex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
+            if (!tex.ValidateFormat(GraphicsFormatUtility.GetTextureFormat(format)))
+                return tex;
+
+            flags |= InternalTextureCreationFlags.DontInitializePixels;
+            if (mipCount != 1)
+                flags |= InternalTextureCreationFlags.MipChain;
+
+            Texture2D.Internal_Create(
+                tex, width, height, mipCount, format,
+                (TextureCreationFlags)flags, IntPtr.Zero);
+
+            return tex;
+        }
+
         // Wraps an inner format-specific coroutine with exception capture and semaphore release.
         // C# does not allow yield inside a try/catch, so we manually drive MoveNext() and
         // do the catch around just the MoveNext call.
@@ -1683,8 +1744,10 @@ namespace KSPCommunityFixes.Performance
                 mipChain = false;
             }
 
-            Texture2D tex = new Texture2D(hdr.Width, hdr.Height, hdr.Format,
-                mipChain ? TextureCreationFlags.MipChain : TextureCreationFlags.None);
+            Texture2D tex = CreateUninitializedTexture2D(
+                hdr.Width, hdr.Height,
+                mipChain ? -1 : 1,
+                hdr.Format);
             if (tex.IsNullOrDestroyed())
             {
                 req.ErrorMessage = "DDS: Texture2D allocation failed";
@@ -1766,7 +1829,7 @@ namespace KSPCommunityFixes.Performance
                     bool isPot = Numerics.IsPowerOfTwo(src.width) && Numerics.IsPowerOfTwo(src.height);
                     bool wantMipChain = isPot;
                     TextureFormat dstFormat = isNormalMap ? TextureFormat.RGBA32 : src.format;
-                    Texture2D dst = new Texture2D(src.width, src.height, dstFormat, wantMipChain);
+                    Texture2D dst = CreateUninitializedTexture2D(src.width, src.height, dstFormat, wantMipChain);
                     if (isNormalMap)
                         dst.wrapMode = TextureWrapMode.Repeat;
 
@@ -1871,7 +1934,7 @@ namespace KSPCommunityFixes.Performance
             byte[] managed = data.ToArray();
             data.Dispose();
 
-            Texture2D tex = new Texture2D(2, 2, TextureFormat.ARGB32, false);
+            Texture2D tex = CreateUninitializedTexture2D(2, 2, TextureFormat.ARGB32, mipChain: false);
             if (!ImageConversion.LoadImage(tex, managed, markNonReadable: false))
             {
                 UnityEngine.Object.Destroy(tex);
@@ -1884,7 +1947,7 @@ namespace KSPCommunityFixes.Performance
             if (isNormalMap)
             {
                 bool isPot = Numerics.IsPowerOfTwo(tex.width) && Numerics.IsPowerOfTwo(tex.height);
-                Texture2D dst = new Texture2D(tex.width, tex.height, TextureFormat.RGBA32, mipChain: isPot);
+                Texture2D dst = CreateUninitializedTexture2D(tex.width, tex.height, TextureFormat.RGBA32, mipChain: isPot);
                 dst.wrapMode = TextureWrapMode.Repeat;
 
                 NativeArray<byte> srcData = tex.GetRawTextureData<byte>();
@@ -2001,7 +2064,7 @@ namespace KSPCommunityFixes.Performance
             if (isNormalMap)
             {
                 bool isPot = Numerics.IsPowerOfTwo(texture.width) && Numerics.IsPowerOfTwo(texture.height);
-                Texture2D dst = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
+                Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
                 dst.wrapMode = TextureWrapMode.Repeat;
 
                 NativeArray<byte> srcData = texture.GetRawTextureData<byte>();
@@ -2851,7 +2914,7 @@ namespace KSPCommunityFixes.Performance
             {
                 try
                 {
-                    texture = new Texture2D(width, height, GraphicsFormat.RGBA_DXT5_UNorm, mipCount, mipCount == 1 ? TextureCreationFlags.None : TextureCreationFlags.MipChain);
+                    texture = CreateUninitializedTexture2D(width, height, mipCount, GraphicsFormat.RGBA_DXT5_UNorm);
                     texture.LoadRawTextureData(buffer);
                     texture.Apply(false, true);
                     loaded = true;
