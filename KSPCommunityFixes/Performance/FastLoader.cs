@@ -1970,7 +1970,7 @@ namespace KSPCommunityFixes.Performance
                 yield break;
             }
 
-            Texture2D texture = tgaImage.CreateTexture(mipmap: true, linear: false, compress: true, compressHighQuality: false, allowRead: true);
+            Texture2D texture = tgaImage.CreateTexture(mipmap: true, linear: false, compress: true, compressHighQuality: true, allowRead: true);
             if (texture.IsNullOrDestroyed())
             {
                 req.ErrorMessage = "TGA: CreateTexture failed";
