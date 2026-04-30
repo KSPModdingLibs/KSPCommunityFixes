@@ -8,6 +8,7 @@ using System.Reflection;
 using KSP.Localization;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using System.Text;
 
 namespace KSPCommunityFixes.Modding
 {
@@ -152,7 +153,7 @@ namespace KSPCommunityFixes.Modding
             }
             catch (ReflectionTypeLoadException e)
             {
-                LogReflectionTypeLoadExceptionInfo(__instance);
+                LogReflectionTypeLoadExceptionInfo(__instance, e);
 
                 int loadedTypesCount = e.Types.Length;
                 if (loadedTypesCount > 0)
@@ -173,7 +174,7 @@ namespace KSPCommunityFixes.Modding
             return false;
         }
 
-        static void LogReflectionTypeLoadExceptionInfo(Assembly assembly)
+        static void LogReflectionTypeLoadExceptionInfo(Assembly assembly, ReflectionTypeLoadException ex)
         {
             // do not log if called from a thread that isn't the unity main thread
             if (System.Threading.Thread.CurrentThread.ManagedThreadId != mainThreadId)
@@ -185,10 +186,27 @@ namespace KSPCommunityFixes.Modding
                 failedAssemblies.Add(assembly, failedAssembly);
             }
 
+            var message = new StringBuilder();
+            message.Append(failedAssembly.errorMessage);
+
+            var exceptions = ex.LoaderExceptions;
+            if (exceptions.Length != 0)
+            {
+                message.Append("\nLoader Exceptions:");
+                foreach (var exception in exceptions)
+                {
+                    message.Append("\n  ");
+                    message.Append(exception.Message);
+                }
+            }
+
             if (logStackTrace)
-                Debug.LogWarning($"{failedAssembly.errorMessage}\nStacktrace:\n{new StackTrace(3, false)}");
-            else
-                Debug.LogWarning(failedAssembly.errorMessage);
+            {
+                message.Append("\nStacktrace:\n");
+                message.Append(new StackTrace(3, false));
+            }
+
+            Debug.LogWarning(message.ToString());
         }
     }
 }
