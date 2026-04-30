@@ -2097,7 +2097,7 @@ namespace KSPCommunityFixes.Performance
                 {
                     nextFrameTime = ElapsedTime + minFrameTimeD;
                     int completed = spawnIdx - active.Count;
-                    gdb.progressFraction = (float)(loadedAssetCount + completed) / totalAssetCount;
+                    gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                     gdb.progressTitle = $"Loading texture asset {completed}/{total}";
                 }
                 yield return null;
