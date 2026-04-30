@@ -157,14 +157,8 @@ namespace KSPCommunityFixes.Performance
         // min amount of files to try to keep in memory, regardless of maxBufferSize
         private const int minFileRead = 10;
 
-        // max concurrent per-texture coroutines spawned by TextureDriverCoroutine.
-        // Each in-flight request holds at most one of {ReadHandle, UnityWebRequest, background Task},
-        // so this caps total in-flight resource usage.
-        private const int MaxConcurrentTextures = 16384;
-
-        // max new texture-load coroutines spawned in any single frame, regardless of how
-        // many completions free up queue slots that frame. Bounds per-frame allocation /
-        // dispatch overhead independently of MaxConcurrentTextures.
+        // Max number of new texture load coroutines that will be spawned each frame.
+        // This should roughly limit the max frame time spent on loading textures.
         private const int MaxTextureSpawnsPerFrame = 128;
 
         private static Harmony persistentHarmony;
@@ -2187,7 +2181,7 @@ namespace KSPCommunityFixes.Performance
         private static IEnumerator TextureDriverCoroutine(List<TextureLoadRequest> requests, HashSet<string> loadedUrls)
         {
             GameDatabase gdb = GameDatabase.Instance;
-            Queue<TextureLoadRequest> active = new Queue<TextureLoadRequest>(MaxConcurrentTextures);
+            Queue<TextureLoadRequest> active = new Queue<TextureLoadRequest>();
             int spawnIdx = 0;
             int total = requests.Count;
             double nextFrameTime = ElapsedTime + minFrameTimeD;
@@ -2204,9 +2198,7 @@ namespace KSPCommunityFixes.Performance
 
                 // Spawn new coroutines, bounded by the in-flight cap and the per-frame cap.
                 int spawnsThisFrame = 0;
-                while (spawnIdx < total
-                    && active.Count < MaxConcurrentTextures
-                    && spawnsThisFrame < MaxTextureSpawnsPerFrame)
+                while (spawnIdx < total && spawnsThisFrame < MaxTextureSpawnsPerFrame)
                 {
                     SpawnTextureCoroutine(requests[spawnIdx++], active, gdb);
                     spawnsThisFrame++;
