@@ -159,7 +159,7 @@ namespace KSPCommunityFixes.Performance
         // max concurrent per-texture coroutines spawned by TextureDriverCoroutine.
         // Each in-flight request holds at most one of {ReadHandle, UnityWebRequest, background Task},
         // so this caps total in-flight resource usage.
-        private const int MaxConcurrentTextures = 512;
+        private const int MaxConcurrentTextures = 16384;
 
         // max new texture-load coroutines spawned in any single frame, regardless of how
         // many completions free up queue slots that frame. Bounds per-frame allocation /
@@ -1277,6 +1277,11 @@ namespace KSPCommunityFixes.Performance
         private static readonly ProfilerMarker s_pmFileSize = new ProfilerMarker("KSPCF.Tex.FileSize");
         private static readonly ProfilerMarker s_pmReadAllBytes = new ProfilerMarker("KSPCF.Tex.ReadAllBytes");
         private static readonly ProfilerMarker s_pmCompress = new ProfilerMarker("KSPCF.Tex.Compress");
+        private static readonly ProfilerMarker s_pmGetRawDataDDS = new ProfilerMarker("KSPCF.Tex.LoadDDS.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataUWR = new ProfilerMarker("KSPCF.Tex.LoadUWR.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataTGA = new ProfilerMarker("KSPCF.Tex.LoadTGA.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataPNGCached = new ProfilerMarker("KSPCF.Tex.LoadPNGCached.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataSaveCache = new ProfilerMarker("KSPCF.Tex.SaveCache.GetRawTextureData");
 
         // Result/error carrier for each texture file. Replaces RawAsset for textures.
         private sealed class TextureLoadRequest
@@ -1760,7 +1765,9 @@ namespace KSPCommunityFixes.Performance
             // before AsyncReadManager writes into the staging buffer.
             yield return null;
 
-            NativeArray<byte> dst = tex.GetRawTextureData<byte>();
+            NativeArray<byte> dst;
+            using (s_pmGetRawDataDDS.Auto())
+                dst = tex.GetRawTextureData<byte>();
             long expectedSize = dst.Length;
             if (hdr.FileLength - hdr.DataOffset < expectedSize)
             {
@@ -1837,8 +1844,13 @@ namespace KSPCommunityFixes.Performance
                     // Wait a frame to avoid UnshareTextureData overhead within Unity
                     yield return null;
 
-                    NativeArray<byte> srcData = src.GetRawTextureData<byte>();
-                    NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
+                    NativeArray<byte> srcData;
+                    NativeArray<byte> dstData;
+                    using (s_pmGetRawDataUWR.Auto())
+                    {
+                        srcData = src.GetRawTextureData<byte>();
+                        dstData = dst.GetRawTextureData<byte>();
+                    }
                     TextureFormat srcFormat = src.format;
 
                     Task task;
@@ -1942,7 +1954,7 @@ namespace KSPCommunityFixes.Performance
             data.Dispose();
 
             Texture2D tex = CreateUninitializedTexture2D(2, 2, TextureFormat.ARGB32, mipChain: false);
-            if (!ImageConversion.LoadImage(tex, managed, markNonReadable: false))
+            if (!tex.LoadImage(managed, markNonReadable: false))
             {
                 UnityEngine.Object.Destroy(tex);
                 req.ErrorMessage = "TRUECOLOR: ImageConversion.LoadImage failed";
@@ -1960,8 +1972,13 @@ namespace KSPCommunityFixes.Performance
                 // Wait a frame so we avoid a call to UnshareTextureData within unity
                 yield return null;
 
-                NativeArray<byte> srcData = tex.GetRawTextureData<byte>();
-                NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
+                NativeArray<byte> srcData;
+                NativeArray<byte> dstData;
+                using (s_pmGetRawDataTGA.Auto())
+                {
+                    srcData = tex.GetRawTextureData<byte>();
+                    dstData = dst.GetRawTextureData<byte>();
+                }
                 TextureFormat srcFormat = tex.format;
                 Task swizzleTask = Task.Run(() =>
                 {
@@ -2081,8 +2098,14 @@ namespace KSPCommunityFixes.Performance
                 // Avoid UnshareTextureData overhead within Unity by waiting a frame.
                 yield return null;
 
-                NativeArray<byte> srcData = texture.GetRawTextureData<byte>();
-                NativeArray<byte> dstData = dst.GetRawTextureData<byte>();
+                NativeArray<byte> srcData;
+                NativeArray<byte> dstData;
+                using (s_pmGetRawDataPNGCached.Auto())
+                {
+                    srcData = texture.GetRawTextureData<byte>();
+                    dstData = dst.GetRawTextureData<byte>();
+                }
+
                 TextureFormat srcFormat = texture.format;
                 Task swizzleTask = Task.Run(() =>
                 {
@@ -2932,7 +2955,9 @@ namespace KSPCommunityFixes.Performance
 
             public void SaveRawTextureData(Texture2D texture)
             {
-                byte[] rawData = texture.GetRawTextureData();
+                byte[] rawData;
+                using (s_pmGetRawDataSaveCache.Auto())
+                    rawData = texture.GetRawTextureData();
                 File.WriteAllBytes(Path.Combine(loader.textureCachePath, id.ToString()), rawData);
             }
 
