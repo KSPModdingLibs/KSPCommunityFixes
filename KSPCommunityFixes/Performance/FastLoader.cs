@@ -130,12 +130,6 @@ namespace KSPCommunityFixes.Performance
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal class KSPCFFastLoader : MonoBehaviour
     {
-        public static string LOC_SettingsTitle = "Texture caching optimization";
-        public static string LOC_SettingsTooltip =
-            "Cache PNG textures on disk instead of converting them on every KSP launch." +
-            "\nSpeedup loading time but increase disk space usage." +
-            "\n<i>Changes will take effect after relaunching KSP</i>";
-
         public static string LOC_PopupL1 =
             "KSPCommunityFixes can cache converted PNG textures on disk to speed up loading time.";
         public static string LOC_F_PopupL2 =
@@ -173,22 +167,14 @@ namespace KSPCommunityFixes.Performance
         public static KSPCFFastLoader loader;
 
         public static bool IsPatchEnabled { get; private set; }
-        public static bool TextureCacheEnabled => textureCacheEnabled;
+        // Vestigial: kept so the popup can persist its choice across launches once it is repurposed.
         private static bool textureCacheEnabled;
 
         private static string ModPath => Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
 
         private bool userOptInChoiceDone;
-        private const string textureCacheVersion = "V2";
         private string configPath;
-        private string textureCachePath;
-        private string textureCacheDataPath;
-        private string textureProgressMarkerPath;
-
-        private Dictionary<string, CachedTextureInfo> textureCacheData;
-        private HashSet<uint> textureDataIds;
-        private bool cacheUpdated = false;
 
         internal static Dictionary<string, GameObject> modelsByUrl;
         internal static Dictionary<string, GameObject> modelsByDirectoryUrl;
@@ -257,7 +243,6 @@ namespace KSPCommunityFixes.Performance
             GameEvents.OnGameDatabaseLoaded.Add(OnGameDatabaseLoaded);
 
             configPath = ConfigPath;
-            textureCachePath = Path.Combine(ModPath, "PluginData", "TextureCache");
 
             if (File.Exists(configPath))
             {
@@ -269,17 +254,6 @@ namespace KSPCommunityFixes.Performance
                 if (!config.TryGetValue(nameof(textureCacheEnabled), ref textureCacheEnabled))
                     userOptInChoiceDone = false;
             }
-
-#if DEBUG && !DEBUG_TEXTURE_CACHE
-            userOptInChoiceDone = true;
-            textureCacheEnabled = false;
-#endif
-        }
-
-        void Start()
-        {
-            if (IsPatchEnabled && !userOptInChoiceDone)
-                StartCoroutine(WaitForUserOptIn());
         }
 
         /// <summary>
@@ -468,10 +442,6 @@ namespace KSPCommunityFixes.Performance
             KSPCFFastLoaderReport.wConfigTranslate.Stop();
             yield return null;
 
-            gdb.progressTitle = "Waiting for PNGTextureCache opt-in...";
-            while (!loader.userOptInChoiceDone)
-                yield return null;
-
             // Start load asset bundles in the background while we load other assets.
             PreloadAssetBundleObjects(gdb);
 
@@ -576,9 +546,6 @@ namespace KSPCommunityFixes.Performance
                     yield return null;
                 }
             }
-
-            // PNG/DDS cache temporarily disabled — opt-in popup and settings are still
-            // wired up, but no cache I/O is performed during loading.
 
             gdb.progressTitle = "Loading sound assets...";
             KSPCFFastLoaderReport.wAudioLoading.Restart();
@@ -1022,7 +989,6 @@ namespace KSPCommunityFixes.Performance
                 TextureJPG,
                 TextureMBM,
                 TexturePNG,
-                TexturePNGCached,
                 TextureTGA,
                 TextureTRUECOLOR,
                 ModelMU,
@@ -1035,7 +1001,6 @@ namespace KSPCommunityFixes.Performance
                 "JPG texture",
                 "MBM texture",
                 "PNG texture",
-                "Cached PNG Texture",
                 "TGA texture",
                 "TRUECOLOR texture",
                 "MU model",
@@ -1274,9 +1239,8 @@ namespace KSPCommunityFixes.Performance
         private static readonly ProfilerMarker s_pmCompress = new ProfilerMarker("KSPCF.Tex.Compress");
         private static readonly ProfilerMarker s_pmGetRawDataDDS = new ProfilerMarker("KSPCF.Tex.LoadDDS.GetRawTextureData");
         private static readonly ProfilerMarker s_pmGetRawDataUWR = new ProfilerMarker("KSPCF.Tex.LoadUWR.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataTRUECOLOR = new ProfilerMarker("KSPCF.Tex.LoadTRUECOLOR.GetRawTextureData");
         private static readonly ProfilerMarker s_pmGetRawDataTGA = new ProfilerMarker("KSPCF.Tex.LoadTGA.GetRawTextureData");
-        private static readonly ProfilerMarker s_pmGetRawDataPNGCached = new ProfilerMarker("KSPCF.Tex.LoadPNGCached.GetRawTextureData");
-        private static readonly ProfilerMarker s_pmGetRawDataSaveCache = new ProfilerMarker("KSPCF.Tex.SaveCache.GetRawTextureData");
 
         // Result/error carrier for each texture file. Replaces RawAsset for textures.
         private sealed class TextureLoadRequest
@@ -1286,8 +1250,6 @@ namespace KSPCommunityFixes.Performance
             public UrlFile File;
             public RawAsset.AssetType AssetType;
             public long FileLength;
-            public CachedTextureInfo CachedInfo;
-            public bool CameFromCache;
             public volatile State Status;
             public TextureInfo Result;
             public string ErrorMessage;
@@ -1298,17 +1260,6 @@ namespace KSPCommunityFixes.Performance
                 File = file;
                 AssetType = assetType;
                 Status = State.Pending;
-            }
-
-            // Called from the texture cache reader thread before the driver runs.
-            public void CheckTextureCache()
-            {
-                CachedTextureInfo info = GetCachedTextureInfo(File);
-                if (info == null)
-                    return;
-                AssetType = RawAsset.AssetType.TexturePNGCached;
-                CachedInfo = info;
-                CameFromCache = true;
             }
         }
 
@@ -1933,7 +1884,7 @@ namespace KSPCommunityFixes.Performance
 
                 NativeArray<byte> srcData;
                 NativeArray<byte> dstData;
-                using (s_pmGetRawDataTGA.Auto())
+                using (s_pmGetRawDataTRUECOLOR.Auto())
                 {
                     srcData = tex.GetRawTextureData<byte>();
                     dstData = dst.GetRawTextureData<byte>();
@@ -2059,7 +2010,7 @@ namespace KSPCommunityFixes.Performance
 
                 NativeArray<byte> srcData;
                 NativeArray<byte> dstData;
-                using (s_pmGetRawDataPNGCached.Auto())
+                using (s_pmGetRawDataTGA.Auto())
                 {
                     srcData = texture.GetRawTextureData<byte>();
                     dstData = dst.GetRawTextureData<byte>();
@@ -2093,57 +2044,6 @@ namespace KSPCommunityFixes.Performance
 
             req.Result = new TextureInfo(req.File, texture, isNormalMap, isReadable: !isNormalMap, isCompressed: true);
             req.Status = TextureLoadRequest.State.Ready;
-        }
-
-        private static IEnumerator LoadPNGCachedCoroutine(TextureLoadRequest req)
-        {
-            CachedTextureInfo info = req.CachedInfo;
-            string path = info.FilePath;
-            Task<byte[]> readTask = Task.Run(() =>
-            {
-                using (s_pmReadAllBytes.Auto())
-                    return File.ReadAllBytes(path);
-            });
-            while (!readTask.IsCompleted)
-                yield return null;
-            if (readTask.IsFaulted)
-            {
-                Debug.LogWarning($"[KSPCF] Cached PNG read failed for '{req.File.url}', falling back to fresh load");
-                FallBackFromCache(req, info);
-                IEnumerator fallback = LoadUWRCoroutine(req);
-                while (fallback.MoveNext())
-                    yield return fallback.Current;
-                yield break;
-            }
-
-            byte[] buffer = readTask.Result;
-            req.FileLength = buffer.Length;
-
-            if (info.TryCreateTexture(buffer, out Texture2D texture))
-            {
-                req.Result = new TextureInfo(req.File, texture, info.normal, isReadable: false, isCompressed: true);
-                req.Status = TextureLoadRequest.State.Ready;
-                yield break;
-            }
-
-            Debug.LogWarning($"[KSPCF] Cached PNG TryCreateTexture failed for '{req.File.url}', falling back to fresh load");
-            FallBackFromCache(req, info);
-            IEnumerator fallback2 = LoadUWRCoroutine(req);
-            while (fallback2.MoveNext())
-                yield return fallback2.Current;
-        }
-
-        private static void FallBackFromCache(TextureLoadRequest req, CachedTextureInfo info)
-        {
-            if (loader.textureCacheData.Remove(info.name))
-            {
-                loader.textureDataIds.Remove(info.id);
-                try { File.Delete(info.FilePath); } catch { }
-                loader.cacheUpdated = true;
-            }
-            req.AssetType = RawAsset.AssetType.TexturePNG;
-            req.CameFromCache = false;
-            req.CachedInfo = null;
         }
 
         private static IEnumerator TextureDriverCoroutine(List<TextureLoadRequest> requests, HashSet<string> loadedUrls)
@@ -2206,9 +2106,6 @@ namespace KSPCommunityFixes.Performance
                     break;
                 case RawAsset.AssetType.TextureTGA:
                     inner = LoadTGACoroutine(req);
-                    break;
-                case RawAsset.AssetType.TexturePNGCached:
-                    inner = LoadPNGCachedCoroutine(req);
                     break;
                 default:
                     inner = null;
@@ -2773,220 +2670,12 @@ namespace KSPCommunityFixes.Performance
         }
         #endregion
 
-        #region PNG texture cache
+        #region User opt-in popup (vestigial)
 
-        private static void SetupTextureCacheThread(List<TextureLoadRequest> requests)
-        {
-            loader.SetupTextureCache();
-
-            foreach (TextureLoadRequest req in requests)
-                req.CheckTextureCache();
-        }
-
-        private void SetupTextureCache()
-        {
-            textureCacheDataPath = Path.Combine(textureCachePath, "textureData.json");
-            textureProgressMarkerPath = Path.Combine(textureCachePath, "progressMarker");
-
-            textureCacheData = new Dictionary<string, CachedTextureInfo>(2000);
-            textureDataIds = new HashSet<uint>(2000);
-
-            if (Directory.Exists(textureCachePath))
-            {
-                if (File.Exists(textureProgressMarkerPath))
-                {
-                    // If progress marker is still here, the game somehow crashed during loading on
-                    // the previous run, so we delete the whole cache to avoid orphan cached texture
-                    // files from lying around
-                    Directory.Delete(textureCachePath, true);
-                    Directory.CreateDirectory(textureCachePath);
-                }
-                else if (File.Exists(textureCacheDataPath))
-                {
-                    string[] textureCacheDataContent = File.ReadAllLines(textureCacheDataPath);
-
-                    if (textureCacheDataContent.Length > 0 && textureCacheDataContent[0].StartsWith(textureCacheVersion))
-                    {
-                        for (int i = 1; i < textureCacheDataContent.Length; i++)
-                        {
-                            string json = textureCacheDataContent[i];
-                            CachedTextureInfo cachedTextureInfo = JsonUtility.FromJson<CachedTextureInfo>(json);
-                            textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
-                            textureDataIds.Add(cachedTextureInfo.id);
-                        }
-                    }
-                    else
-                    {
-                        Directory.Delete(textureCachePath, true);
-                        Directory.CreateDirectory(textureCachePath);
-                    }
-                }
-            }
-            else
-            {
-                Directory.CreateDirectory(textureCachePath);
-            }
-
-            File.WriteAllText(textureProgressMarkerPath, string.Empty);
-        }
-
-        private void WriteTextureCache()
-        {
-            if (!userOptInChoiceDone || !textureCacheEnabled)
-            {
-                if (Directory.Exists(textureCachePath))
-                    Directory.Delete(textureCachePath, true);
-            }
-            else
-            {
-                foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
-                {
-                    if (!cachedTextureInfo.loaded)
-                    {
-                        cacheUpdated = true;
-                        File.Delete(cachedTextureInfo.FilePath);
-                    }
-                }
-
-                if (cacheUpdated)
-                {
-                    File.Delete(textureCacheDataPath);
-
-                    List<string> textureCacheDataContent = new List<string>(textureCacheData.Count + 1);
-                    textureCacheDataContent.Add(textureCacheVersion);
-
-                    foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
-                        if (cachedTextureInfo.loaded)
-                            textureCacheDataContent.Add(JsonUtility.ToJson(cachedTextureInfo));
-
-                    File.WriteAllLines(textureCacheDataPath, textureCacheDataContent);
-                }
-
-                File.Delete(textureProgressMarkerPath);
-            }
-        }
-
-        [Serializable]
-        private class CachedTextureInfo
-        {
-            private static readonly System.Random random = new System.Random();
-
-            public string name;
-            public uint id;
-            public long time;
-            public long size;
-            public int width;
-            public int height;
-            public int mipCount;
-            public bool readable;
-            public bool normal;
-            [NonSerialized] public bool loaded = false;
-
-            public string FilePath => Path.Combine(loader.textureCachePath, id.ToString());
-
-            public CachedTextureInfo() { }
-
-            public CachedTextureInfo(UrlFile urlFile, Texture2D texture, bool isNormalMap, long size, long time)
-            {
-                name = urlFile.url;
-                do
-                {
-                    unchecked
-                    {
-                        id = (uint)random.Next();
-                    }
-                }
-                while (loader.textureDataIds.Contains(id));
-
-                this.size = size;
-                this.time = time;
-                width = texture.width;
-                height = texture.height;
-                mipCount = texture.mipmapCount;
-                normal = isNormalMap;
-                // Always non-readable: matches the unified DDS/PNG/JPG readability policy.
-                // The 'readable' field in older cache entries on disk is ignored on read.
-                readable = false;
-                loaded = true;
-            }
-
-            public void SaveRawTextureData(Texture2D texture)
-            {
-                byte[] rawData;
-                using (s_pmGetRawDataSaveCache.Auto())
-                    rawData = texture.GetRawTextureData();
-                File.WriteAllBytes(Path.Combine(loader.textureCachePath, id.ToString()), rawData);
-            }
-
-            public bool TryCreateTexture(byte[] buffer, out Texture2D texture)
-            {
-                try
-                {
-                    texture = CreateUninitializedTexture2D(width, height, mipCount, GraphicsFormat.RGBA_DXT5_UNorm);
-                    texture.LoadRawTextureData(buffer);
-                    texture.Apply(false, true);
-                    loaded = true;
-                    return true;
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[KSPCF] Failed to load cached PNG texture '{name}'\n{e}");
-                    texture = null;
-                    return false;
-                }
-            }
-        }
-
-        private static CachedTextureInfo GetCachedTextureInfo(UrlDir.UrlFile file)
-        {
-            if (!loader.textureCacheData.TryGetValue(file.url, out CachedTextureInfo cachedTextureInfo))
-                return null;
-
-            if (!GetFileStats(file.fullPath, out long size, out long time) || size != cachedTextureInfo.size || time != cachedTextureInfo.time)
-            {
-                loader.textureCacheData.Remove(file.url);
-                loader.textureDataIds.Remove(cachedTextureInfo.id);
-                File.Delete(cachedTextureInfo.FilePath);
-                loader.cacheUpdated = true;
-                return null;
-            }
-
-            return cachedTextureInfo;
-        }
-
-        private static bool GetFileStats(string path, out long size, out long time)
-        {
-            MonoIO.GetFileStat(path, out MonoIOStat stat, out MonoIOError error);
-            if (error == MonoIOError.ERROR_FILE_NOT_FOUND || error == MonoIOError.ERROR_PATH_NOT_FOUND || error == MonoIOError.ERROR_NOT_READY)
-            {
-                size = 0;
-                time = 0;
-                return false;
-            }
-
-            size = stat.Length;
-            time = Math.Max(stat.CreationTime, stat.LastWriteTime);
-            if (size <= 0 || time <= 0)
-                return false;
-
-            return true;
-        }
-
-        private static void SaveCachedTextureFromBytes(UrlDir.UrlFile urlFile, Texture2D texture, bool isNormalMap, byte[] rawData)
-        {
-            if (!GetFileStats(urlFile.fullPath, out long size, out long creationTime))
-            {
-                Debug.LogWarning($"[KSPCF] PNG texture '{urlFile.url}' couldn't be cached : IO error");
-                return;
-            }
-
-            CachedTextureInfo cachedTextureInfo = new CachedTextureInfo(urlFile, texture, isNormalMap, size, creationTime);
-            File.WriteAllBytes(Path.Combine(loader.textureCachePath, cachedTextureInfo.id.ToString()), rawData);
-            loader.textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
-            loader.textureDataIds.Add(cachedTextureInfo.id);
-            loader.cacheUpdated = true;
-            Debug.Log($"[KSPCF] PNG texture '{urlFile.url}' was converted to DXT5 and has been cached for future reloads");
-        }
+        // The popup, opt-in flow, and PNG-cache-size estimator below are intentionally
+        // kept around — the cache they were originally tied to has been removed, but the
+        // popup is going to be repurposed for an upcoming feature. Nothing currently
+        // triggers WaitForUserOptIn; it must be invoked explicitly by the new feature.
 
         private static IEnumerator WaitForUserOptIn()
         {
@@ -3065,15 +2754,6 @@ namespace KSPCommunityFixes.Performance
             if (!Directory.Exists(pluginDataPath))
                 Directory.CreateDirectory(pluginDataPath);
 
-            config.Save(ConfigPath);
-        }
-
-        internal static void OnToggleCacheFromSettings(bool cacheEnabled)
-        {
-            textureCacheEnabled = cacheEnabled;
-            ConfigNode config = new ConfigNode();
-            config.AddValue(nameof(userOptInChoiceDone), true);
-            config.AddValue(nameof(textureCacheEnabled), cacheEnabled);
             config.Save(ConfigPath);
         }
 

@@ -9,6 +9,5 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Style", "IDE0017:Simplify object initialization")]
 [assembly: SuppressMessage("Design", "CA1031:Do not catch general exception types")]
 [assembly: SuppressMessage("Style", "IDE0016:Use 'throw' expression", Justification = "<Pending>", Scope = "member", Target = "~M:KSPCommunityFixes.BasePatch.PatchInfo.#ctor(KSPCommunityFixes.BasePatch.PatchMethodType,System.Reflection.MethodBase,KSPCommunityFixes.BasePatch,System.String,System.Int32)")]
-[assembly: SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "<Pending>", Scope = "type", Target = "~T:KSPCommunityFixes.TextureLoaderOptimizations.CachedTextureInfo")]
 [assembly: SuppressMessage("Style", "IDE0028:Simplify collection initialization", Justification = "<Pending>", Scope = "member", Target = "~M:KSPCommunityFixes.LocalizationUtils.GenerateLocTemplate(System.String)")]
 
