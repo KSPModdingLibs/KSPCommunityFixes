@@ -36,6 +36,7 @@ using Debug = UnityEngine.Debug;
 using UnityEngine.Profiling;
 using System.Threading.Tasks;
 using KSP.UI;
+using System.Security.Cryptography;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -1683,40 +1684,36 @@ namespace KSPCommunityFixes.Performance
         {
             while (true)
             {
-                bool moved;
-                bool failed = false;
-                object current = null;
+                object current;
                 try
                 {
-                    moved = inner.MoveNext();
-                    if (moved)
-                        current = inner.Current;
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
                 }
                 catch (Exception e)
                 {
                     req.Exception = e;
                     req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
                     req.Status = TextureLoadRequest.State.Failed;
-                    moved = false;
-                    failed = true;
-                }
-                if (failed)
                     yield break;
-                if (!moved)
-                    break;
+                }
+
                 yield return current;
             }
 
-            if (req.Status == TextureLoadRequest.State.Pending)
+            if (req.Status != TextureLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result != null)
             {
-                if (req.Result != null)
-                    req.Status = TextureLoadRequest.State.Ready;
-                else
-                {
-                    if (req.ErrorMessage == null)
-                        req.ErrorMessage = "Loader produced no result";
-                    req.Status = TextureLoadRequest.State.Failed;
-                }
+                req.Status = TextureLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.ErrorMessage ??= "Loader produced no result";
+                req.Status = TextureLoadRequest.State.Failed;
             }
         }
 
@@ -1725,8 +1722,8 @@ namespace KSPCommunityFixes.Performance
             string path = req.File.fullPath;
             Task<DDSPreparedHeader> hdrTask = Task.Run(() =>
             {
-                using (s_pmParseDDSHeader.Auto())
-                    return ParseDDSHeader(path);
+                using var scope = s_pmParseDDSHeader.Auto();
+                return ParseDDSHeader(path);
             });
             while (!hdrTask.IsCompleted)
                 yield return null;
