@@ -1366,31 +1366,7 @@ namespace KSPCommunityFixes.Performance
             public static bool IsSupported(GraphicsFormat fmt) => supported != null && supported.Contains(fmt);
         }
 
-        // Block-compressed format check used to ignore mipChain on NPOT textures
-        // (Unity rejects DXT5 + mipmaps on non-power-of-two sources).
-        private static bool IsBlockCompressed(GraphicsFormat fmt)
-        {
-            switch (fmt)
-            {
-                case GraphicsFormat.RGBA_DXT1_UNorm:
-                case GraphicsFormat.RGBA_DXT1_SRGB:
-                case GraphicsFormat.RGBA_DXT5_UNorm:
-                case GraphicsFormat.RGBA_DXT5_SRGB:
-                case GraphicsFormat.R_BC4_UNorm:
-                case GraphicsFormat.R_BC4_SNorm:
-                case GraphicsFormat.RG_BC5_UNorm:
-                case GraphicsFormat.RG_BC5_SNorm:
-                case GraphicsFormat.RGBA_BC7_UNorm:
-                case GraphicsFormat.RGBA_BC7_SRGB:
-                case GraphicsFormat.RGB_BC6H_SFloat:
-                case GraphicsFormat.RGB_BC6H_UFloat:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        // Background DDS header reader. Throws on bad magic or unsupported format.
+// Background DDS header reader. Throws on bad magic or unsupported format.
         // Does not call any Unity API (so it is safe on a worker thread).
         private static DDSPreparedHeader ParseDDSHeader(string path)
         {
@@ -1733,17 +1709,9 @@ namespace KSPCommunityFixes.Performance
                 yield break;
             }
 
-            // Unity rejects mipChain on NPOT textures for block-compressed formats.
-            bool mipChain = hdr.MipChain;
-            if (mipChain && IsBlockCompressed(hdr.Format)
-                && !(Numerics.IsPowerOfTwo(hdr.Width) && Numerics.IsPowerOfTwo(hdr.Height)))
-            {
-                mipChain = false;
-            }
-
             Texture2D tex = CreateUninitializedTexture2D(
                 hdr.Width, hdr.Height,
-                mipChain ? -1 : 1,
+                hdr.MipChain ? -1 : 1,
                 hdr.Format);
             if (tex.IsNullOrDestroyed())
             {
