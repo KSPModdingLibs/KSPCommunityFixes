@@ -1487,8 +1487,8 @@ namespace KSPCommunityFixes.Performance
 
         // Legacy src->dst swizzle, kept for the rare TGA RGB24 path (where source and
         // destination have different pixel sizes so an in-place transform is impossible).
-        // Writes level 0 only; the caller is expected to call Apply(updateMipmaps: true)
-        // afterwards if a mip chain is wanted.
+        // Walks src.Length end-to-end; the caller must size dst with a mip chain that
+        // matches src's so the constant 3:4 (or 4:4) byte-count ratio fills dst exactly.
         private static unsafe void SwizzleNormalMap(NativeArray<byte> src, NativeArray<byte> dst, TextureFormat srcFormat)
         {
             byte* s = (byte*)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(src);
@@ -2019,8 +2019,11 @@ namespace KSPCommunityFixes.Performance
                 else
                 {
                     // RGB24 (24bpp TGA): pixel size differs from RGBA32, so we can't
-                    // swizzle in place. Fall back to the legacy src->dst expansion path.
-                    Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
+                    // swizzle in place. Fall back to the legacy src->dst expansion
+                    // path. dst is allocated with a full mip chain so its byte layout
+                    // matches the mipmapped src (CreateTexture(mipmap: true) populates
+                    // every level), letting the swizzle fill dst end-to-end.
+                    Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: true);
                     dst.wrapMode = TextureWrapMode.Repeat;
 
                     yield return null;
@@ -2052,7 +2055,6 @@ namespace KSPCommunityFixes.Performance
 
                     if (isPot)
                     {
-                        texture.Apply(updateMipmaps: true);
                         using (s_pmCompress.Auto())
                             texture.Compress(highQuality: false);
                     }
