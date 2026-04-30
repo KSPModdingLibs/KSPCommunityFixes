@@ -1233,7 +1233,6 @@ namespace KSPCommunityFixes.Performance
         // appears under that thread in the Unity profiler.
         private static readonly ProfilerMarker s_pmParseDDSHeader = new ProfilerMarker("KSPCF.Tex.ParseDDSHeader");
         private static readonly ProfilerMarker s_pmSwizzleNormalMap = new ProfilerMarker("KSPCF.Tex.SwizzleNormalMap");
-        private static readonly ProfilerMarker s_pmCopyLevel0 = new ProfilerMarker("KSPCF.Tex.CopyLevel0");
         private static readonly ProfilerMarker s_pmFileSize = new ProfilerMarker("KSPCF.Tex.FileSize");
         private static readonly ProfilerMarker s_pmReadAllBytes = new ProfilerMarker("KSPCF.Tex.ReadAllBytes");
         private static readonly ProfilerMarker s_pmCompress = new ProfilerMarker("KSPCF.Tex.Compress");
@@ -1317,7 +1316,7 @@ namespace KSPCommunityFixes.Performance
             public static bool IsSupported(GraphicsFormat fmt) => supported != null && supported.Contains(fmt);
         }
 
-// Background DDS header reader. Throws on bad magic or unsupported format.
+        // Background DDS header reader. Throws on bad magic or unsupported format.
         // Does not call any Unity API (so it is safe on a worker thread).
         private static DDSPreparedHeader ParseDDSHeader(string path)
         {
@@ -1463,10 +1462,33 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // Channel-swizzle for normal maps (extracted from BitmapToCompressedNormalMapFast).
-        // src must hold pixel data in srcFormat; dst is written as RGBA32 (level 0 only —
-        // if dst has a mip chain, higher mip levels are left untouched and are populated
-        // by the caller's Apply(updateMipmaps: true)).
+        // In-place channel-swizzle for RGBA32 normal maps. Operates on the texture's
+        // entire raw byte buffer, which means every populated mip level when the texture
+        // was created with a mip chain.
+        //
+        // Channel swizzle is per-pixel and the box-filter mip generator is linear, so
+        // swizzling pre-built mips matches what stock KSP produced by swizzling level-0
+        // and regenerating from there (BitmapToCompressedNormalMapFast).
+        private static unsafe void SwizzleNormalMap(NativeArray<byte> data)
+        {
+            byte* p = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(data);
+            int len = data.Length;
+            // (r, g, b, a) -> (g, g, g, r)
+            for (int i = 0; i < len; i += 4)
+            {
+                byte r = p[i];
+                byte g = p[i + 1];
+                p[i] = g;
+                p[i + 1] = g;
+                p[i + 2] = g;
+                p[i + 3] = r;
+            }
+        }
+
+        // Legacy src->dst swizzle, kept for the rare TGA RGB24 path (where source and
+        // destination have different pixel sizes so an in-place transform is impossible).
+        // Writes level 0 only; the caller is expected to call Apply(updateMipmaps: true)
+        // afterwards if a mip chain is wanted.
         private static unsafe void SwizzleNormalMap(NativeArray<byte> src, NativeArray<byte> dst, TextureFormat srcFormat)
         {
             byte* s = (byte*)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(src);
@@ -1708,8 +1730,6 @@ namespace KSPCommunityFixes.Performance
             req.Status = TextureLoadRequest.State.Ready;
         }
 
-        private static readonly string flagsPathSep = Path.DirectorySeparatorChar + "Flags" + Path.DirectorySeparatorChar;
-
         private static IEnumerator LoadUWRCoroutine(TextureLoadRequest req)
         {
             string filePath = req.File.fullPath;
@@ -1737,66 +1757,33 @@ namespace KSPCommunityFixes.Performance
                 }
 
                 bool isNormalMap = req.File.name.EndsWith("NRM");
-                bool isFlag = filePath.Contains(flagsPathSep);
                 bool canCompress = src.width % 4 == 0 && src.height % 4 == 0;
 
-                if (isNormalMap || isFlag)
+                // UWR returns a Texture2D with a mipchain already populated, so for normal
+                // maps we swizzle every level of its CPU buffer in place — no dst alloc,
+                // no copy, no Apply(true).
+                if (isNormalMap)
                 {
-                    // Allocate a destination texture with mipchain (when POT) so that
-                    // Apply(true) can generate mipmaps. UWR-loaded textures have no mipchain.
-                    bool isPot = Numerics.IsPowerOfTwo(src.width) && Numerics.IsPowerOfTwo(src.height);
-                    bool wantMipChain = isPot;
-                    TextureFormat dstFormat = isNormalMap ? TextureFormat.RGBA32 : src.format;
-                    Texture2D dst = CreateUninitializedTexture2D(src.width, src.height, dstFormat, wantMipChain);
-                    if (isNormalMap)
-                        dst.wrapMode = TextureWrapMode.Repeat;
+                    src.wrapMode = TextureWrapMode.Repeat;
 
                     // Wait a frame to avoid UnshareTextureData overhead within Unity
                     yield return null;
 
-                    NativeArray<byte> srcData;
-                    NativeArray<byte> dstData;
+                    NativeArray<byte> allLevels;
                     using (s_pmGetRawDataUWR.Auto())
+                        allLevels = src.GetRawTextureData<byte>();
+                    Task swizzleTask = Task.Run(() =>
                     {
-                        srcData = src.GetRawTextureData<byte>();
-                        dstData = dst.GetRawTextureData<byte>();
-                    }
-                    TextureFormat srcFormat = src.format;
-
-                    Task task;
-                    if (isNormalMap)
-                    {
-                        task = Task.Run(() =>
-                        {
-                            using (s_pmSwizzleNormalMap.Auto())
-                                SwizzleNormalMap(srcData, dstData, srcFormat);
-                        });
-                    }
-                    else
-                    {
-                        // Flag: copy level-0 raw data byte-for-byte (formats already match).
-                        int level0Bytes = srcData.Length;
-                        task = Task.Run(() =>
-                        {
-                            using (s_pmCopyLevel0.Auto())
-                                NativeArray<byte>.Copy(srcData, 0, dstData, 0, level0Bytes);
-                        });
-                    }
-
-                    while (!task.IsCompleted)
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(allLevels);
+                    });
+                    while (!swizzleTask.IsCompleted)
                         yield return null;
-                    if (task.IsFaulted)
+                    if (swizzleTask.IsFaulted)
                     {
                         UnityEngine.Object.Destroy(src);
-                        UnityEngine.Object.Destroy(dst);
-                        throw UnwrapFaultedTask(task, "texture pre-process task faulted");
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
                     }
-
-                    UnityEngine.Object.Destroy(src);
-                    src = dst;
-
-                    if (wantMipChain)
-                        src.Apply(updateMipmaps: true);
                 }
 
                 if (canCompress)
@@ -1863,7 +1850,11 @@ namespace KSPCommunityFixes.Performance
             byte[] managed = data.ToArray();
             data.Dispose();
 
-            Texture2D tex = CreateUninitializedTexture2D(2, 2, TextureFormat.ARGB32, mipChain: false);
+            // Create as RGBA32 with mipchain when this is a normal map: LoadImage will
+            // populate every mip level for us, so we can swizzle the whole thing in place.
+            // Non-normals keep the existing single-mip readable behavior.
+            bool isNormalMap = req.File.name.EndsWith("NRM");
+            Texture2D tex = CreateUninitializedTexture2D(2, 2, TextureFormat.RGBA32, mipChain: isNormalMap);
             if (!tex.LoadImage(managed, markNonReadable: false))
             {
                 UnityEngine.Object.Destroy(tex);
@@ -1872,43 +1863,32 @@ namespace KSPCommunityFixes.Performance
                 yield break;
             }
 
-            bool isNormalMap = req.File.name.EndsWith("NRM");
             if (isNormalMap)
             {
                 bool isPot = Numerics.IsPowerOfTwo(tex.width) && Numerics.IsPowerOfTwo(tex.height);
-                Texture2D dst = CreateUninitializedTexture2D(tex.width, tex.height, TextureFormat.RGBA32, mipChain: isPot);
-                dst.wrapMode = TextureWrapMode.Repeat;
+                tex.wrapMode = TextureWrapMode.Repeat;
 
                 // Wait a frame so we avoid a call to UnshareTextureData within unity
                 yield return null;
 
-                NativeArray<byte> srcData;
-                NativeArray<byte> dstData;
+                NativeArray<byte> allLevels;
                 using (s_pmGetRawDataTRUECOLOR.Auto())
-                {
-                    srcData = tex.GetRawTextureData<byte>();
-                    dstData = dst.GetRawTextureData<byte>();
-                }
-                TextureFormat srcFormat = tex.format;
+                    allLevels = tex.GetRawTextureData<byte>();
                 Task swizzleTask = Task.Run(() =>
                 {
                     using (s_pmSwizzleNormalMap.Auto())
-                        SwizzleNormalMap(srcData, dstData, srcFormat);
+                        SwizzleNormalMap(allLevels);
                 });
                 while (!swizzleTask.IsCompleted)
                     yield return null;
                 if (swizzleTask.IsFaulted)
                 {
                     UnityEngine.Object.Destroy(tex);
-                    UnityEngine.Object.Destroy(dst);
                     throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
                 }
-                UnityEngine.Object.Destroy(tex);
-                tex = dst;
 
                 if (isPot)
                 {
-                    tex.Apply(updateMipmaps: true);
                     using (s_pmCompress.Auto())
                         tex.Compress(highQuality: false);
                 }
@@ -2002,44 +1982,82 @@ namespace KSPCommunityFixes.Performance
             if (isNormalMap)
             {
                 bool isPot = Numerics.IsPowerOfTwo(texture.width) && Numerics.IsPowerOfTwo(texture.height);
-                Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
-                dst.wrapMode = TextureWrapMode.Repeat;
 
-                // Avoid UnshareTextureData overhead within Unity by waiting a frame.
-                yield return null;
-
-                NativeArray<byte> srcData;
-                NativeArray<byte> dstData;
-                using (s_pmGetRawDataTGA.Auto())
+                if (texture.format == TextureFormat.RGBA32)
                 {
-                    srcData = texture.GetRawTextureData<byte>();
-                    dstData = dst.GetRawTextureData<byte>();
-                }
+                    // tgaImage.CreateTexture(mipmap: true, ...) already calls Apply(true)
+                    // and the texture is readable, so the CPU buffer holds every populated
+                    // mip level. Swizzle the whole thing in place.
+                    texture.wrapMode = TextureWrapMode.Repeat;
 
-                TextureFormat srcFormat = texture.format;
-                Task swizzleTask = Task.Run(() =>
-                {
-                    using (s_pmSwizzleNormalMap.Auto())
-                        SwizzleNormalMap(srcData, dstData, srcFormat);
-                });
-                while (!swizzleTask.IsCompleted)
+                    // Avoid UnshareTextureData overhead within Unity by waiting a frame.
                     yield return null;
-                if (swizzleTask.IsFaulted)
-                {
-                    UnityEngine.Object.Destroy(texture);
-                    UnityEngine.Object.Destroy(dst);
-                    throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
-                }
-                UnityEngine.Object.Destroy(texture);
-                texture = dst;
 
-                if (isPot)
-                {
-                    texture.Apply(updateMipmaps: true);
-                    using (s_pmCompress.Auto())
-                        texture.Compress(highQuality: false);
+                    NativeArray<byte> allLevels;
+                    using (s_pmGetRawDataTGA.Auto())
+                        allLevels = texture.GetRawTextureData<byte>();
+                    Task swizzleTask = Task.Run(() =>
+                    {
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(allLevels);
+                    });
+                    while (!swizzleTask.IsCompleted)
+                        yield return null;
+                    if (swizzleTask.IsFaulted)
+                    {
+                        UnityEngine.Object.Destroy(texture);
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                    }
+
+                    if (isPot)
+                    {
+                        using (s_pmCompress.Auto())
+                            texture.Compress(highQuality: false);
+                    }
+                    texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
                 }
-                texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+                else
+                {
+                    // RGB24 (24bpp TGA): pixel size differs from RGBA32, so we can't
+                    // swizzle in place. Fall back to the legacy src->dst expansion path.
+                    Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: isPot);
+                    dst.wrapMode = TextureWrapMode.Repeat;
+
+                    yield return null;
+
+                    NativeArray<byte> srcData;
+                    NativeArray<byte> dstData;
+                    using (s_pmGetRawDataTGA.Auto())
+                    {
+                        srcData = texture.GetRawTextureData<byte>();
+                        dstData = dst.GetRawTextureData<byte>();
+                    }
+
+                    TextureFormat srcFormat = texture.format;
+                    Task swizzleTask = Task.Run(() =>
+                    {
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(srcData, dstData, srcFormat);
+                    });
+                    while (!swizzleTask.IsCompleted)
+                        yield return null;
+                    if (swizzleTask.IsFaulted)
+                    {
+                        UnityEngine.Object.Destroy(texture);
+                        UnityEngine.Object.Destroy(dst);
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                    }
+                    UnityEngine.Object.Destroy(texture);
+                    texture = dst;
+
+                    if (isPot)
+                    {
+                        texture.Apply(updateMipmaps: true);
+                        using (s_pmCompress.Auto())
+                            texture.Compress(highQuality: false);
+                    }
+                    texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+                }
             }
 
             req.Result = new TextureInfo(req.File, texture, isNormalMap, isReadable: !isNormalMap, isCompressed: true);
