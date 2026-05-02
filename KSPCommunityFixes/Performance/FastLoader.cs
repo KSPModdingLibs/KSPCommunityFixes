@@ -37,6 +37,7 @@ using UnityEngine.Profiling;
 using System.Threading.Tasks;
 using KSP.UI;
 using System.Security.Cryptography;
+using UnityEngine.Rendering;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -153,7 +154,7 @@ namespace KSPCommunityFixes.Performance
 
         // Max number of new texture load coroutines that will be spawned each frame.
         // This should roughly limit the max frame time spent on loading textures.
-        private const int MaxTextureSpawnsPerFrame = 128;
+        private const int MaxTextureSpawnsPerFrame = 512;
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -1692,9 +1693,9 @@ namespace KSPCommunityFixes.Performance
                 yield break;
             }
 
-            // Wait one frame so Unity's initial GPU resource creation completes
-            // before AsyncReadManager writes into the staging buffer.
-            yield return null;
+            // Wait until the texture is finished uploading so unity doesn't
+            // copy its internal buffer when we call GetRawTextureData
+            yield return WaitForGraphicsThread();
 
             NativeArray<byte> dst;
             using (s_pmGetRawDataDDS.Auto())
@@ -1755,6 +1756,10 @@ namespace KSPCommunityFixes.Performance
                     yield break;
                 }
 
+                // Wait until the texture is finished uploading so unity doesn't
+                // copy its internal buffer when we operate on it.
+                yield return WaitForGraphicsThread();
+
                 bool isNormalMap = req.File.name.EndsWith("NRM");
                 bool canCompress = src.width % 4 == 0 && src.height % 4 == 0;
 
@@ -1764,9 +1769,6 @@ namespace KSPCommunityFixes.Performance
                 if (isNormalMap)
                 {
                     src.wrapMode = TextureWrapMode.Repeat;
-
-                    // Wait a frame to avoid UnshareTextureData overhead within Unity
-                    yield return null;
 
                     NativeArray<byte> allLevels;
                     using (s_pmGetRawDataUWR.Auto())
@@ -1867,8 +1869,9 @@ namespace KSPCommunityFixes.Performance
                 bool isPot = Numerics.IsPowerOfTwo(tex.width) && Numerics.IsPowerOfTwo(tex.height);
                 tex.wrapMode = TextureWrapMode.Repeat;
 
-                // Wait a frame so we avoid a call to UnshareTextureData within unity
-                yield return null;
+                // Wait until the texture is finished uploading so unity doesn't
+                // copy its internal buffer when we call GetRawTextureData
+                yield return WaitForGraphicsThread();
 
                 NativeArray<byte> allLevels;
                 using (s_pmGetRawDataTRUECOLOR.Auto())
@@ -1989,8 +1992,9 @@ namespace KSPCommunityFixes.Performance
                     // mip level. Swizzle the whole thing in place.
                     texture.wrapMode = TextureWrapMode.Repeat;
 
-                    // Avoid UnshareTextureData overhead within Unity by waiting a frame.
-                    yield return null;
+                    // Wait until the texture is finished uploading so unity doesn't
+                    // copy its internal buffer when we call GetRawTextureData
+                    yield return WaitForGraphicsThread();
 
                     NativeArray<byte> allLevels;
                     using (s_pmGetRawDataTGA.Auto())
@@ -2101,7 +2105,7 @@ namespace KSPCommunityFixes.Performance
                 yield return null;
             }
 
-            WINDDOWN:
+        WINDDOWN:
             while (active.TryDequeue(out var pending))
             {
                 while (pending.Status == TextureLoadRequest.State.Pending)
@@ -3036,6 +3040,56 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        // A helper that yields until it has been processed on the render thread.
+        // Use this to delay until the render thread is no longer using a texture
+        // (or any other resource).
+        private unsafe class WaitForGraphicsThreadInst : CustomYieldInstruction
+        {
+            static CommandBuffer DispatchCB;
+            static readonly IntPtr NotifyPtr = (IntPtr)Marshal.GetFunctionPointerForDelegate((Action<int, IntPtr>)Notify);
+            static readonly int GchandleOffset = UnsafeUtility.GetFieldOffset(
+                typeof(WaitForGraphicsThreadInst).GetField(nameof(gchandle), BindingFlags.Instance | BindingFlags.NonPublic));
+            static readonly int ReadyOffset = UnsafeUtility.GetFieldOffset(
+                typeof(WaitForGraphicsThreadInst).GetField(nameof(ready), BindingFlags.Instance | BindingFlags.NonPublic));
+
+            ulong gchandle = 0;
+            bool ready = false;
+
+            public override bool keepWaiting => !ready;
+
+            public WaitForGraphicsThreadInst()
+            {
+                DispatchCB ??= new CommandBuffer()
+                {
+                    name = "KSPCF.WaitForGraphicsThreadCB"
+                };
+
+                void* addr = UnsafeUtility.PinGCObjectAndGetAddress(this, out gchandle);
+                try
+                {
+                    DispatchCB.Clear();
+                    DispatchCB.IssuePluginEventAndData(NotifyPtr, 0, (IntPtr)addr);
+                    Graphics.ExecuteCommandBuffer(DispatchCB);
+                }
+                catch
+                {
+                    UnsafeUtility.ReleaseGCObject(gchandle);
+                    throw;
+                }
+            }
+
+            static void Notify(int _, IntPtr data)
+            {
+                ulong gchandle = *(ulong*)((byte*)data + GchandleOffset);
+                bool* ready = (bool*)((byte*)data + ReadyOffset);
+
+                *ready = true;
+                UnsafeUtility.ReleaseGCObject(gchandle);
+            }
+        }
+
+        private static WaitForGraphicsThreadInst WaitForGraphicsThread() =>
+            new WaitForGraphicsThreadInst();
 
         #endregion
 
