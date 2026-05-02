@@ -1316,8 +1316,6 @@ namespace KSPCommunityFixes.Performance
             public static bool IsSupported(GraphicsFormat fmt) => supported != null && supported.Contains(fmt);
         }
 
-        // Background DDS header reader. Throws on bad magic or unsupported format.
-        // Does not call any Unity API (so it is safe on a worker thread).
         private static DDSPreparedHeader ParseDDSHeader(string path)
         {
             FileInfo fi = new FileInfo(path);
@@ -1336,7 +1334,7 @@ namespace KSPCommunityFixes.Performance
             bool isNormalMap = (hdr.ddspf.dwFlags & 0x80000u) != 0 || (hdr.ddspf.dwFlags & 0x80000000u) != 0;
 
             DDSHeaderDX10 dx10Header = default;
-            bool hasDx10 = (DDSFourCCBg)hdr.ddspf.dwFourCC == DDSFourCCBg.DX10;
+            bool hasDx10 = (DDSFourCC)hdr.ddspf.dwFourCC == DDSFourCC.DX10;
             if (hasDx10)
             {
                 if (fileLength < 148)
@@ -1361,8 +1359,7 @@ namespace KSPCommunityFixes.Performance
             };
         }
 
-        // Background-thread-safe FourCC enum (mirrors RawAsset.DDSFourCC, which is private to RawAsset).
-        private enum DDSFourCCBg : uint
+        private enum DDSFourCC : uint
         {
             DXT1 = 0x31545844,
             DXT2 = 0x32545844,
@@ -1395,26 +1392,26 @@ namespace KSPCommunityFixes.Performance
         private static GraphicsFormat MapDDSFormat(DDSHeader hdr, bool hasDx10, DDSHeaderDX10 dx10, out string error)
         {
             error = null;
-            DDSFourCCBg fourCC = (DDSFourCCBg)hdr.ddspf.dwFourCC;
+            DDSFourCC fourCC = (DDSFourCC)hdr.ddspf.dwFourCC;
             switch (fourCC)
             {
-                case DDSFourCCBg.DXT1: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
-                case DDSFourCCBg.DXT5: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
-                case DDSFourCCBg.BC4U_ATI:
-                case DDSFourCCBg.BC4U: return GraphicsFormat.R_BC4_UNorm;
-                case DDSFourCCBg.BC4S: return GraphicsFormat.R_BC4_SNorm;
-                case DDSFourCCBg.BC5U_ATI:
-                case DDSFourCCBg.BC5U: return GraphicsFormat.RG_BC5_UNorm;
-                case DDSFourCCBg.BC5S: return GraphicsFormat.RG_BC5_SNorm;
-                case DDSFourCCBg.R16G16B16A16_UNORM: return GraphicsFormat.R16G16B16A16_UNorm;
-                case DDSFourCCBg.R16G16B16A16_SNORM: return GraphicsFormat.R16G16B16A16_SNorm;
-                case DDSFourCCBg.R16_FLOAT: return GraphicsFormat.R16_SFloat;
-                case DDSFourCCBg.R16G16_FLOAT: return GraphicsFormat.R16G16_SFloat;
-                case DDSFourCCBg.R16G16B16A16_FLOAT: return GraphicsFormat.R16G16B16A16_SFloat;
-                case DDSFourCCBg.R32_FLOAT: return GraphicsFormat.R32_SFloat;
-                case DDSFourCCBg.R32G32_FLOAT: return GraphicsFormat.R32G32_SFloat;
-                case DDSFourCCBg.R32G32B32A32_FLOAT: return GraphicsFormat.R32G32B32A32_SFloat;
-                case DDSFourCCBg.DX10:
+                case DDSFourCC.DXT1: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
+                case DDSFourCC.DXT5: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
+                case DDSFourCC.BC4U_ATI:
+                case DDSFourCC.BC4U: return GraphicsFormat.R_BC4_UNorm;
+                case DDSFourCC.BC4S: return GraphicsFormat.R_BC4_SNorm;
+                case DDSFourCC.BC5U_ATI:
+                case DDSFourCC.BC5U: return GraphicsFormat.RG_BC5_UNorm;
+                case DDSFourCC.BC5S: return GraphicsFormat.RG_BC5_SNorm;
+                case DDSFourCC.R16G16B16A16_UNORM: return GraphicsFormat.R16G16B16A16_UNorm;
+                case DDSFourCC.R16G16B16A16_SNORM: return GraphicsFormat.R16G16B16A16_SNorm;
+                case DDSFourCC.R16_FLOAT: return GraphicsFormat.R16_SFloat;
+                case DDSFourCC.R16G16_FLOAT: return GraphicsFormat.R16G16_SFloat;
+                case DDSFourCC.R16G16B16A16_FLOAT: return GraphicsFormat.R16G16B16A16_SFloat;
+                case DDSFourCC.R32_FLOAT: return GraphicsFormat.R32_SFloat;
+                case DDSFourCC.R32G32_FLOAT: return GraphicsFormat.R32G32_SFloat;
+                case DDSFourCC.R32G32B32A32_FLOAT: return GraphicsFormat.R32G32B32A32_SFloat;
+                case DDSFourCC.DX10:
                     if (!hasDx10)
                     {
                         error = "DX10 marker without DX10 header";
@@ -1446,14 +1443,14 @@ namespace KSPCommunityFixes.Performance
                             error = $"DXT10 format '{dx10.dxgiFormat}' is not supported";
                             return GraphicsFormat.None;
                     }
-                case DDSFourCCBg.DXT2:
-                case DDSFourCCBg.DXT3:
-                case DDSFourCCBg.DXT4:
-                case DDSFourCCBg.RGBG:
-                case DDSFourCCBg.GRGB:
-                case DDSFourCCBg.UYVY:
-                case DDSFourCCBg.YUY2:
-                case DDSFourCCBg.CxV8U8:
+                case DDSFourCC.DXT2:
+                case DDSFourCC.DXT3:
+                case DDSFourCC.DXT4:
+                case DDSFourCC.RGBG:
+                case DDSFourCC.GRGB:
+                case DDSFourCC.UYVY:
+                case DDSFourCC.YUY2:
+                case DDSFourCC.CxV8U8:
                     error = $"format '{fourCC}' is not supported, use DXT1 for RGB textures or DXT5 for RGBA textures";
                     return GraphicsFormat.None;
                 default:
@@ -1471,6 +1468,8 @@ namespace KSPCommunityFixes.Performance
         // and regenerating from there (BitmapToCompressedNormalMapFast).
         private static unsafe void SwizzleNormalMap(NativeArray<byte> data)
         {
+            using var scope = s_pmSwizzleNormalMap.Auto();
+
             byte* p = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(data);
             int len = data.Length;
             // (r, g, b, a) -> (g, g, g, r)
@@ -1491,6 +1490,8 @@ namespace KSPCommunityFixes.Performance
         // matches src's so the constant 3:4 (or 4:4) byte-count ratio fills dst exactly.
         private static unsafe void SwizzleNormalMap(NativeArray<byte> src, NativeArray<byte> dst, TextureFormat srcFormat)
         {
+            using var scope = s_pmSwizzleNormalMap.Auto();
+
             byte* s = (byte*)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(src);
             byte* d = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(dst);
             int srcLen = src.Length;
@@ -1533,9 +1534,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // Returns the most informative exception from a faulted Task without using the
-        // null-coalescing operator (which the type checker rejects when mixing
-        // AggregateException with concrete subtypes of Exception).
+        // Returns the most informative exception from a faulted Task
         private static Exception UnwrapFaultedTask(Task task, string fallbackMessage)
         {
             AggregateException ae = task.Exception;
@@ -2070,39 +2069,113 @@ namespace KSPCommunityFixes.Performance
         {
             GameDatabase gdb = GameDatabase.Instance;
             Queue<TextureLoadRequest> active = new Queue<TextureLoadRequest>();
-            int spawnIdx = 0;
             int total = requests.Count;
-            double nextFrameTime = ElapsedTime + minFrameTimeD;
+            var iter = requests.GetEnumerator();
+            int completed = 0;
 
-            while (spawnIdx < total || active.Count > 0)
+            while (true)
             {
-                // Drain completed requests at the front of the queue.
-                while (active.Count > 0 && active.Peek().Status != TextureLoadRequest.State.Pending)
+                while (active.TryPeek(out var pending))
                 {
-                    InsertReadyRequest(active.Peek(), loadedUrls);
+                    if (pending.Status == TextureLoadRequest.State.Pending)
+                        break;
+
                     active.Dequeue();
+                    InsertReadyRequest(pending, loadedUrls);
                     loadedAssetCount++;
+                    completed++;
                 }
 
-                // Spawn new coroutines, bounded by the in-flight cap and the per-frame cap.
-                int spawnsThisFrame = 0;
-                while (spawnIdx < total && spawnsThisFrame < MaxTextureSpawnsPerFrame)
+                for (int i = 0; i < MaxTextureSpawnsPerFrame; ++i)
                 {
-                    SpawnTextureCoroutine(requests[spawnIdx++], active, gdb);
-                    spawnsThisFrame++;
+                    if (!iter.MoveNext())
+                        goto WINDDOWN;
+                    var request = iter.Current;
+
+                    gdb.StartCoroutine(LoadTextureCoroutine(request));
+                    active.Enqueue(request);
                 }
 
-                if (active.Count == 0 && spawnIdx >= total)
-                    break;
+                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
+                gdb.progressTitle = $"Loading texture asset {completed}/{total}";
+                yield return null;
+            }
 
-                if (ElapsedTime > nextFrameTime)
+            WINDDOWN:
+            while (active.TryDequeue(out var pending))
+            {
+                while (pending.Status == TextureLoadRequest.State.Pending)
                 {
-                    nextFrameTime = ElapsedTime + minFrameTimeD;
-                    int completed = spawnIdx - active.Count;
                     gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                     gdb.progressTitle = $"Loading texture asset {completed}/{total}";
+                    yield return null;
                 }
-                yield return null;
+
+                InsertReadyRequest(pending, loadedUrls);
+                loadedAssetCount++;
+                completed++;
+            }
+        }
+
+        private static IEnumerator LoadTextureCoroutine(TextureLoadRequest req)
+        {
+            IEnumerator inner;
+            switch (req.AssetType)
+            {
+                case RawAsset.AssetType.TextureDDS:
+                    inner = LoadDDSCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TexturePNG:
+                case RawAsset.AssetType.TextureJPG:
+                    inner = LoadUWRCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTRUECOLOR:
+                    inner = LoadTRUECOLORCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureMBM:
+                    inner = LoadMBMCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTGA:
+                    inner = LoadTGACoroutine(req);
+                    break;
+                default:
+                    req.ErrorMessage = $"Unknown asset type {req.AssetType}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+            }
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    req.Exception = e;
+                    req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                yield return current;
+            }
+
+            if (req.Status != TextureLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result != null)
+            {
+                req.Status = TextureLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.ErrorMessage ??= "Loader produced no result";
+                req.Status = TextureLoadRequest.State.Failed;
             }
         }
 
@@ -2147,6 +2220,8 @@ namespace KSPCommunityFixes.Performance
 
         private static void InsertReadyRequest(TextureLoadRequest req, HashSet<string> loadedUrls)
         {
+            Debug.Log($"Load Texture: {req.File.url}");
+
             if (req.Status == TextureLoadRequest.State.Failed)
             {
                 Debug.LogWarning($"LOAD FAILED: {req.File.url}: {req.ErrorMessage}");
