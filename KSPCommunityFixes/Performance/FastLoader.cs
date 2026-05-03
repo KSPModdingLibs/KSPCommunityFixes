@@ -2079,6 +2079,16 @@ namespace KSPCommunityFixes.Performance
 
             while (true)
             {
+                for (int i = 0; i < MaxTextureSpawnsPerFrame; ++i)
+                {
+                    if (!iter.MoveNext())
+                        goto WINDDOWN;
+                    var request = iter.Current;
+
+                    gdb.StartCoroutine(LoadTextureCoroutine(request));
+                    active.Enqueue(request);
+                }
+
                 while (active.TryPeek(out var pending))
                 {
                     if (pending.Status == TextureLoadRequest.State.Pending)
@@ -2088,16 +2098,6 @@ namespace KSPCommunityFixes.Performance
                     InsertReadyRequest(pending, loadedUrls);
                     loadedAssetCount++;
                     completed++;
-                }
-
-                for (int i = 0; i < MaxTextureSpawnsPerFrame; ++i)
-                {
-                    if (!iter.MoveNext())
-                        goto WINDDOWN;
-                    var request = iter.Current;
-
-                    gdb.StartCoroutine(LoadTextureCoroutine(request));
-                    active.Enqueue(request);
                 }
 
                 gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
