@@ -3,7 +3,7 @@
 // while FixedUpdate is running, so we can save quite a bit of time by caching
 // them.
 //
-// The two main thing we cache are:
+// The things we cache are:
 // * Each and every ModuleResourceHarvester makes two calls to ResourceMap.GetAbundance
 //   every FixedUpdate. The result of this only really depends on the vessel, resource
 //   name, and harvester type, so we cache it so that it only gets done once per
@@ -11,8 +11,12 @@
 // * All 3 drill modules do two raycasts per FixedUpdate to check if they are touching
 //   the target/ground. This doesn't change while they are running so we add a cache
 //   that avoids the duplicate.
+// * ResourceConverter.ProcessRecipe repeatedly ends up formatting a few different
+//   strings using the resource displayName. This is expensive and there are a limited
+//   number of resource display names so we cache the resulting localized strings.
 
 using HarmonyLib;
+using KSP.Localization;
 using KSPCommunityFixes.Library;
 using System;
 using System.Collections.Generic;
@@ -31,6 +35,7 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(ModuleResourceHarvester), nameof(ModuleResourceHarvester.CheckForImpact));
             AddPatch(PatchType.Override, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.CheckForImpact));
             AddPatch(PatchType.Override, typeof(ModuleCometDrill), nameof(ModuleCometDrill.CheckForImpact));
+            AddPatch(PatchType.Transpiler, typeof(ResourceConverter), nameof(ResourceConverter.ProcessRecipe));
         }
 
         #region Abundance Cache
@@ -218,6 +223,64 @@ namespace KSPCommunityFixes.Performance
                 module.impactHitInfo = default;
                 return false;
             }
+        }
+        #endregion
+
+        #region ResourceConverter Format Cache
+        struct FormatCacheKey : IEquatable<FormatCacheKey>
+        {
+            public string template;
+            public string name;
+
+            public readonly bool Equals(FormatCacheKey other)
+                => template == other.template
+                && name == other.name;
+            public readonly override bool Equals(object obj) => obj is FormatCacheKey key && Equals(key);
+            public readonly override int GetHashCode() =>
+                HashCode.Combine(template.GetHashCode(), name.GetHashCode());
+        }
+
+        static readonly Dictionary<FormatCacheKey, string> FormatCache = new Dictionary<FormatCacheKey, string>();
+
+        static string LocalizerFormatCached(string template, string[] list)
+        {
+            switch (template)
+            {
+                case "#autoLOC_261332":
+                    goto default;
+
+                case "#autoLOC_261304":
+                case "#autoLOC_261334":
+                case "#autoLOC_261263":
+                    var key = new FormatCacheKey
+                    {
+                        template = template,
+                        name = list[0]
+                    };
+
+                    if (FormatCache.TryGetValue(key, out var value))
+                        return value;
+
+                    value = Localizer.Format(template, list);
+                    FormatCache.Add(key, value);
+                    return value;
+
+                default:
+                    return Localizer.Format(template, list);
+            }
+        }
+
+        static IEnumerable<CodeInstruction> ResourceConverter_ProcessRecipe_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var formatMethod = SymbolExtensions.GetMethodInfo(() => Localizer.Format("", new string[] { }));
+            var cachedMethod = SymbolExtensions.GetMethodInfo(() => LocalizerFormatCached("", new string[] { }));
+
+            var matcher = new CodeMatcher(instructions);
+            matcher
+                .MatchStartForward(new CodeMatch(OpCodes.Call, formatMethod))
+                .Repeat(matcher => matcher.SetOperandAndAdvance(cachedMethod));
+
+            return matcher.Instructions();
         }
         #endregion
     }
