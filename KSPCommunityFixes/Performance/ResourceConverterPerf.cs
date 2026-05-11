@@ -37,9 +37,6 @@ namespace KSPCommunityFixes.Performance
         protected override void ApplyPatches()
         {
             AddPatch(PatchType.Transpiler, typeof(ModuleResourceHarvester), nameof(ModuleResourceHarvester.PrepareRecipe));
-            AddPatch(PatchType.Override, typeof(ModuleResourceHarvester), nameof(ModuleResourceHarvester.CheckForImpact));
-            AddPatch(PatchType.Override, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.CheckForImpact));
-            AddPatch(PatchType.Override, typeof(ModuleCometDrill), nameof(ModuleCometDrill.CheckForImpact));
             AddPatch(PatchType.Transpiler, typeof(ResourceConverter), nameof(ResourceConverter.ProcessRecipe));
             AddPatch(PatchType.Override, typeof(BaseConverter), nameof(BaseConverter.GetDeltaTime));
         }
@@ -111,124 +108,6 @@ namespace KSPCommunityFixes.Performance
                 );
 
             return matcher.Instructions();
-        }
-        #endregion
-
-        #region Drill Impact Cache
-        static float ImpactCacheTime = float.NaN;
-        static Vector3 ImpactPosition = new Vector3(float.NaN, float.NaN, float.NaN);
-        static Vector3 ImpactDirection = new Vector3(float.NaN, float.NaN, float.NaN);
-        static float ImpactRange = float.NaN;
-        static int ImpactLayerMask = 0;
-
-        static RaycastHit? ImpactCacheValue = null;
-
-        static RaycastHit? CheckForImpactCached(Transform transform, float range, int layerMask = -5)
-        {
-            if (transform.IsNullOrDestroyed())
-                return null;
-
-            var position = transform.position;
-            var direction = transform.forward;
-            var fixedTime = Time.fixedTime;
-            
-            if (ImpactCacheTime == fixedTime
-                && ImpactPosition == position
-                && ImpactDirection == direction
-                && ImpactRange == range
-                && ImpactLayerMask == layerMask)
-            {
-                return ImpactCacheValue;
-            }
-
-            var result = Physics.Raycast(
-                new Ray(position, direction),
-                out var hitInfo,
-                range,
-                layerMask);
-
-            ImpactCacheTime = fixedTime;
-            ImpactPosition = position;
-            ImpactDirection = direction;
-            ImpactRange = range;
-            ImpactLayerMask = layerMask;
-
-            if (result)
-                ImpactCacheValue = hitInfo;
-            else
-                ImpactCacheValue = null;
-
-            return ImpactCacheValue;
-        }
-
-        static bool ModuleResourceHarvester_CheckForImpact_Override(ModuleResourceHarvester module)
-        {
-            if (string.IsNullOrEmpty(module.ImpactTransform))
-                return true;
-            if (module.impactTransformCache.IsNullOrDestroyed())
-                return true;
-
-            var hitInfo = CheckForImpactCached(
-                module.impactTransformCache,
-                module.ImpactRange,
-                1 << 15);
-
-            if (hitInfo is RaycastHit hit)
-            {
-                module.impactHitInfo = hit;
-                return true;
-            }
-            else
-            {
-                module.impactHitInfo = default;
-                return false;
-            }
-        }
-
-        static bool ModuleAsteroidDrill_CheckForImpact_Override(ModuleAsteroidDrill module)
-        {
-            if (string.IsNullOrEmpty(module.ImpactTransform))
-                return true;
-            if (module.impactTransformCache.IsNullOrDestroyed())
-                return true;
-
-            var hitInfo = CheckForImpactCached(
-                module.impactTransformCache,
-                module.ImpactRange);
-
-            if (hitInfo is RaycastHit hit)
-            {
-                module.impactHitInfo = hit;
-                return hit.collider.gameObject.GetComponentUpwards<ModuleAsteroid>() != null;
-            }
-            else
-            {
-                module.impactHitInfo = default;
-                return false;
-            }
-        }
-
-        static bool ModuleCometDrill_CheckForImpact_Override(ModuleCometDrill module)
-        {
-            if (string.IsNullOrEmpty(module.ImpactTransform))
-                return true;
-            if (module.impactTransformCache.IsNullOrDestroyed())
-                return true;
-
-            var hitInfo = CheckForImpactCached(
-                module.impactTransformCache,
-                module.ImpactRange);
-
-            if (hitInfo is RaycastHit hit)
-            {
-                module.impactHitInfo = hit;
-                return hit.collider.gameObject.GetComponentUpwards<ModuleComet>() != null;
-            }
-            else
-            {
-                module.impactHitInfo = default;
-                return false;
-            }
         }
         #endregion
 
