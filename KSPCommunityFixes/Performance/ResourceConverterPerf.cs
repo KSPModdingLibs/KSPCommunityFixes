@@ -14,6 +14,11 @@
 // * ResourceConverter.ProcessRecipe repeatedly ends up formatting a few different
 //   strings using the resource displayName. This is expensive and there are a limited
 //   number of resource display names so we cache the resulting localized strings.
+//
+// In addition, we also fix some other bugs that cause performance issues in stock:
+// * ResourceConverter.GetDeltaTime has a check to tell whether it should be
+//   operating in catchup mode. However, this is always off by ~5e-10 so it never
+//   actually exits catchup mode. We fix that by allowing a 1% margin of error.
 
 using HarmonyLib;
 using KSP.Localization;
@@ -36,6 +41,7 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Override, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.CheckForImpact));
             AddPatch(PatchType.Override, typeof(ModuleCometDrill), nameof(ModuleCometDrill.CheckForImpact));
             AddPatch(PatchType.Transpiler, typeof(ResourceConverter), nameof(ResourceConverter.ProcessRecipe));
+            AddPatch(PatchType.Override, typeof(BaseConverter), nameof(BaseConverter.GetDeltaTime));
         }
 
         #region Abundance Cache
@@ -281,6 +287,49 @@ namespace KSPCommunityFixes.Performance
                 .Repeat(matcher => matcher.SetOperandAndAdvance(cachedMethod));
 
             return matcher.Instructions();
+        }
+        #endregion
+
+        #region Fix GetDeltaTime Comparison Check
+        static double BaseConverter_GetDeltaTime_Override(BaseConverter converter)
+        {
+            if (Time.timeSinceLevelLoad < 1f || !FlightGlobals.ready)
+                return -1d;
+            if (Math.Abs(converter.lastUpdateTime) < 1e-9)
+            {
+                converter.lastUpdateTime = Planetarium.GetUniversalTime();
+                return -1.0;
+            }
+
+            try
+            {
+                double deltaT = Math.Min(
+                    Planetarium.GetUniversalTime() - converter.lastUpdateTime,
+                    ResourceUtilities.GetMaxDeltaTime());
+                double fixedDeltaT = Math.Min(TimeWarp.fixedDeltaTime, 0.02);
+
+                // We multiply fixedDeltaT by 1.01 because otherwise it tends to be
+                // smaller than deltaT by ~5e-10, which makes it so that in stock
+                // GetBestDeltaTime is almost always called.
+                if (deltaT > fixedDeltaT * 1.01 && converter.catchupRetries < 10)
+                {
+                    double bestDeltaT = converter.GetBestDeltaTime(deltaT);
+                    if (bestDeltaT < deltaT)
+                    {
+                        converter.catchupRetries++;
+                        deltaT = Math.Max(fixedDeltaT, bestDeltaT);
+                    }
+                }
+
+                converter.lastUpdateTime += deltaT;
+                return deltaT;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[RESOURCES] Error in BaseConverter.GetDeltaTime");
+                Debug.LogException(ex);
+                return 0.0;
+            }
         }
         #endregion
     }
