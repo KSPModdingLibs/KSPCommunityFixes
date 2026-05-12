@@ -1,12 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <Version>1.0.0</Version>
     <FileVersion>$(Version).0</FileVersion>
     <AssemblyVersion>$(Version.Split('.')[0]).$(Version.Split('.')[1]).0.0</AssemblyVersion>
 
     <TargetFramework>net472</TargetFramework>
-    <!-- AssemblyName differs from $(ProjectName) deliberately (the leading "0_" makes KSP load it first). -->
     <AssemblyName>0_MultipleModuleInPartAPI</AssemblyName>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
@@ -17,11 +15,9 @@
 
   <!-- KSPBuildTools configuration -->
   <PropertyGroup>
-    <!-- This assembly's [KSPAssembly] name is "MultipleModulePartAPI", not "0_MultipleModuleInPartAPI",
-         so the auto-generator (which uses AssemblyName) is disabled and the attribute is kept in AssemblyInfo.cs. -->
     <KSPBT_GenerateAssemblyAttribute>false</KSPBT_GenerateAssemblyAttribute>
     <KSPBT_GenerateDependencyAttributes>false</KSPBT_GenerateDependencyAttributes>
-    <!-- Deployed alongside KSPCommunityFixes via its CopyToKSP target, so nothing to do here. -->
+    <!-- KSPCommunityFixes.csproj takes care of copying this to the output folder -->
     <KSPBT_CopyDLLsToPluginFolder>false</KSPBT_CopyDLLsToPluginFolder>
     <KSPBT_GenerateVersionFile>false</KSPBT_GenerateVersionFile>
     <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
@@ -30,5 +26,4 @@
   <ItemGroup>
     <PackageReference Include="KSPBuildTools" Version="1.1.1" />
   </ItemGroup>
-
 </Project>
