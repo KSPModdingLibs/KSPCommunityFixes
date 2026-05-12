@@ -1,99 +1,97 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props" Condition="Exists('..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props')" />
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{4E405C02-5AEB-4975-B26C-07582BB3FB15}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>KSPCommunityFixes</RootNamespace>
-    <AssemblyName>KSPCommunityFixes</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <LangVersion>8.0</LangVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
+    <!-- Bump this version when making a release. Everything else is defined from it. -->
+    <Version>1.40.1</Version>
+    <FileVersion>$(Version).0</FileVersion>
+    <AssemblyVersion>$(Version.Split('.')[0]).$(Version.Split('.')[1]).0.0</AssemblyVersion>
+
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>12</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DefineConstants>TRACE;DEBUG;ENABLE_PROFILER</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>portable</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <!--Import targets now, which will import KSPCommunityFixes.csproj.user where the path to the KSP install root must be defined in ReferencePath-->
-  <!--This must be done after the main project poperties are defined because it needs the target framework property to be defined -->
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!--Parse KSP platform-specific paths and set the start action-->
+
+  <!-- KSPBuildTools configuration -->
   <PropertyGroup>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64.exe</KSPExecutable>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app</KSPExecutable>
-    <KSPExecutable Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP.x86_64</KSPExecutable>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64_Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app\Contents\Resources\Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP_Data\Managed</ManagedRelativePath>
-    <ManagedPath>$(ReferencePath)\$(ManagedRelativePath)</ManagedPath>
-    <StartAction>Program</StartAction>
-    <StartProgram>$(ReferencePath)\$(KSPExecutable)</StartProgram>
-    <StartWorkingDirectory>$(ReferencePath)</StartWorkingDirectory>
+    <KSPBT_ModRoot>$(MSBuildThisFileDirectory)..\GameData\KSPCommunityFixes</KSPBT_ModRoot>
+    <KSPBT_ModPluginFolder>Plugins</KSPBT_ModPluginFolder>
+    <KSPBT_CopyDLLsToPluginFolder>false</KSPBT_CopyDLLsToPluginFolder>
+    <KSPBT_GenerateAssemblyAttribute>true</KSPBT_GenerateAssemblyAttribute>
+    <KSPBT_GenerateDependencyAttributes>true</KSPBT_GenerateDependencyAttributes>
+    <KSPBT_GenerateVersionFile>true</KSPBT_GenerateVersionFile>
+    <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
   </PropertyGroup>
-  <!--Import references-->
+
+  <PropertyGroup>
+    <RepoRootPath>$(MSBuildThisFileDirectory)..\</RepoRootPath>
+    <GameDataFolderName>KSPCommunityFixes</GameDataFolderName>
+    <AVCFilename>KSPCommunityFixes.version</AVCFilename>
+    <CopyReleaseBinariesToRepo Condition="'$(CopyReleaseBinariesToRepo)' == ''">false</CopyReleaseBinariesToRepo>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="$(ManagedPath)\System.dll">
-      <Name>System (KSP/Mono)</Name>
+    <PackageReference Include="KSPBuildTools" Version="1.1.1" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <KSPVersionFile Include="$(KSPBT_ModRoot)\$(AVCFilename)">
+      <Destination>$(KSPBT_ModRoot)\$(AVCFilename)</Destination>
+      <Version>$(Version)</Version>
+      <URL>https://raw.githubusercontent.com/KSPModdingLibs/KSPCommunityFixes/master/GameData/KSPCommunityFixes/KSPCommunityFixes.version</URL>
+      <Download>https://github.com/KSPModdingLibs/KSPCommunityFixes/releases</Download>
+      <KSP_Version>1.12.5</KSP_Version>
+      <KSP_Version_Min>1.8.0</KSP_Version_Min>
+      <KSP_Version_Max>1.12.5</KSP_Version_Max>
+    </KSPVersionFile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MultipleModuleInPartAPI\MultipleModuleInPartAPI.csproj">
+      <Project>{32b601f4-b648-4c69-aa98-620fe7ba070c}</Project>
+      <Name>MultipleModuleInPartAPI</Name>
+      <KSPAssemblyName>MultipleModulePartAPI</KSPAssemblyName>
+      <KSPAssemblyVersion>1.0.0</KSPAssemblyVersion>
+    </ProjectReference>
+
+    <Reference Include="0Harmony">
+      <HintPath>$(MSBuildThisFileDirectory)lib\0Harmony.dll</HintPath>
       <Private>False</Private>
+      <KSPAssemblyName>HarmonyKSP</KSPAssemblyName>
+      <KSPAssemblyVersion>1.0.0</KSPAssemblyVersion>
+      <GenerateDependencyAttribute>true</GenerateDependencyAttribute>
     </Reference>
-    <Reference Include="$(ManagedPath)\mscorlib.dll">
-      <Name>System.Core (KSP/Mono)</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\System.Xml.dll">
-      <Name>System.Xml (KSP/Mono)</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\UnityEngine*.dll">
-      <Name>UnityEngine</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\Assembly-CSharp.dll">
-      <Name>Assembly-CSharp</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\Assembly-CSharp-firstpass.dll">
-      <Name>Assembly-CSharp-firstpass</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\KSPAssets.dll">
-      <Name>KSPAssets</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ProjectDir)\lib\0Harmony.dll">
-      <Name>Harmony</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ReferencePath)\GameData\ModuleManager.*.dll">
-      <Name>ModuleManager</Name>
+
+    <!-- KSPBT doesn't automatically reference KSPAssets so we do it ourselves. -->
+    <Reference Include="KSPAssets">
+      <HintPath>$(KSPBT_ManagedPath)\KSPAssets.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
-  <!--Krafs.Publicizer items-->
+
+  <!-- Despite being documented in the KSPBT wiki, globs don't seem to work
+       directly in a ModReference. We use an ItemGroup glob instead. -->
+  <ItemGroup>
+    <_ModuleManagerFiles Include="$(KSPBT_GameRoot)\GameData\ModuleManager.*.dll" />
+    <Reference Include="@(_ModuleManagerFiles)">
+      <Private>False</Private>
+      <KSPAssemblyName>ModuleManager</KSPAssemblyName>
+      <KSPAssemblyVersion>1.0.0</KSPAssemblyVersion>
+      <GenerateDependencyAttribute>true</GenerateDependencyAttribute>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Krafs.Publicizer items -->
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
     <Publicize Include="Assembly-CSharp-firstpass" />
@@ -127,349 +125,57 @@
     <Publicize Include="mscorlib:System.Reflection.LocalVariableInfo.type" />
     <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="BasePatch.cs" />
-    <Compile Include="BugFixes\AsteroidInfiniteMining.cs" />
-    <Compile Include="BugFixes\FIUpdateRadiation.cs" />
-    <Compile Include="BugFixes\BlockMapViewPartClick.cs" />
-    <Compile Include="BugFixes\ChutePhantomSymmetry.cs" />
-    <Compile Include="BugFixes\CorrectDragForFlags.cs" />
-    <Compile Include="BugFixes\DebugConsoleDontStealInput.cs" />
-    <Compile Include="BugFixes\WheelInertiaLimit.cs" />
-    <Compile Include="BugFixes\DragCubeLoadException.cs" />
-    <Compile Include="BugFixes\EVAConstructionMass.cs" />
-    <Compile Include="BugFixes\FastAndFixedEnumExtensions.cs" />
-    <Compile Include="BugFixes\InventoryPartMass.cs" />
-    <Compile Include="BugFixes\ModuleActiveRadiatorNoParentException.cs" />
-    <Compile Include="BugFixes\ModulePartVariantsNodePersistence.cs" />
-    <Compile Include="BugFixes\PartBoundsIgnoreDisabledTransforms.cs" />
-    <Compile Include="BugFixes\PropellantFlowDescription.cs" />
-    <Compile Include="BugFixes\LadderToggleableLight.cs" />
-    <Compile Include="BugFixes\MapSOCorrectWrapping.cs" />
-    <Compile Include="BugFixes\FixGetUnivseralTime.cs" />
-    <Compile Include="BugFixes\ModuleAnimateGenericCrewModSpawnIVA.cs" />
-    <Compile Include="BugFixes\ReRootPreserveSurfaceAttach.cs" />
-    <Compile Include="BugFixes\RespawnDeadKerbals.cs" />
-    <Compile Include="BugFixes\ThumbnailSpotlight.cs" />
-    <Compile Include="BugFixes\TimeWarpBodyCollision.cs" />
-    <Compile Include="BugFixes\TimeWarpOrbitShift.cs" />
-    <Compile Include="BugFixes\UpgradeBugs.cs" />
-    <Compile Include="BugFixes\PartTooltipUpgradesApplyToSubstituteParts.cs" />
-    <Compile Include="BugFixes\CometMiningNotRemovingMass.cs" />
-    <Compile Include="BugFixes\EnginePlateAirstreamShieldedTopPart.cs" />
-    <Compile Include="BugFixes\StrategyDuration.cs" />
-    <Compile Include="BugFixes\ZeroCostTechNodes.cs" />
-    <Compile Include="Library\Collections\Deque.cs" />
-    <Compile Include="Library\Collections\FastStack.cs" />
-    <Compile Include="Library\Extensions.cs" />
-    <Compile Include="Library\KSPObjectsExtensions.cs" />
-    <Compile Include="Library\LocalizationUtils.cs" />
-    <Compile Include="Library\Numerics.cs" />
-    <Compile Include="Library\ObjectPool.cs" />
-    <Compile Include="Library\MuParser.cs" />
-    <Compile Include="Library\ShaderHelpers.cs" />
-    <Compile Include="Library\HashCode.cs" />
-    <Compile Include="Modding\KSPFieldEnumDesc.cs" />
-    <Compile Include="Modding\ModUpgradePipeline.cs" />
-    <Compile Include="Performance\CraftBrowserOptimisations.cs" />
-    <Compile Include="Modding\BaseFieldListUseFieldHost.cs" />
-    <Compile Include="Performance\ExpansionBundlePreload.cs" />
-    <Compile Include="Performance\FasterEditorPartList.cs" />
-    <Compile Include="Performance\ForceSyncSceneSwitch.cs" />
-    <Compile Include="Performance\AsteroidAndCometDrillCache.cs" />
-    <Compile Include="BugFixes\DoubleCurvePreserveTangents.cs" />
-    <Compile Include="BugFixes\RestoreMaxPhysicsDT.cs" />
-    <Compile Include="Performance\FloatingOriginPerf.cs" />
-    <Compile Include="Performance\ModuleColorChangerOptimization.cs" />
-    <Compile Include="Performance\OptimisedVectorLines.cs" />
-    <Compile Include="Performance\GameDatabasePerf.cs" />
-    <Compile Include="Performance\PartSystemsFastUpdate.cs" />
-    <Compile Include="Performance\CollisionEnhancerFastUpdate.cs" />
-    <Compile Include="Performance\CollisionManagerFastUpdate.cs" />
-    <Compile Include="Performance\CommNetThrottling.cs" />
-    <Compile Include="Performance\ContractProgressEnumCache.cs" />
-    <Compile Include="Performance\DisableHiddenPortraits.cs" />
-    <Compile Include="Performance\DisableMapUpdateInFlight.cs" />
-    <Compile Include="Performance\DragCubeGeneration.cs" />
-    <Compile Include="Performance\FasterPartFindTransform.cs" />
-    <Compile Include="Performance\FastLoader.cs" />
-    <Compile Include="Performance\FlightIntegratorPerf.cs" />
-    <Compile Include="Performance\PartParsingPerf.cs" />
-    <Compile Include="Performance\IMGUIOptimization.cs" />
-    <Compile Include="Performance\LocalizerPerf.cs" />
-    <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
-    <Compile Include="Performance\MemoryLeaks.cs" />
-    <Compile Include="Performance\ResourceConverterPerf.cs" />
-    <Compile Include="BugFixes\RescaledRoboticParts.cs" />
-    <Compile Include="Modding\DepartmentHeadImage.cs" />
-    <Compile Include="BugFixes\StickySplashedFixer.cs" />
-    <Compile Include="BugFixes\AsteroidSpawnerUniqueFlightId.cs" />
-    <Compile Include="BugFixes\AutoStrutDrift.cs" />
-    <Compile Include="BugFixes\DockingPortConserveMomentum.cs" />
-    <Compile Include="BugFixes\DockingPortRotationDriftAndFixes.cs" />
-    <Compile Include="BugFixes\ExtendedDeployableParts.cs" />
-    <Compile Include="BugFixes\DeltaVHideWhenDisabled.cs" />
-    <Compile Include="BugFixes\EVAKerbalRecovery.cs" />
-    <Compile Include="BugFixes\KerbalTooltipMaxSustainedG.cs" />
-    <Compile Include="BugFixes\LostSoundAfterSceneSwitch.cs" />
-    <Compile Include="BugFixes\PackedPartsRotation.cs" />
-    <Compile Include="BugFixes\PartListTooltipIconSpin.cs" />
-    <Compile Include="BugFixes\PartStartStability.cs" />
-    <Compile Include="BugFixes\PAWItemOrder.cs" />
-    <Compile Include="BugFixes\ReactionWheelsPotentialTorque.cs" />
-    <Compile Include="BugFixes\RoboticsDrift.cs" />
-    <Compile Include="BugFixes\ROCValidationOOR.cs" />
-    <Compile Include="BugFixes\ScatterDistribution.cs" />
-    <Compile Include="BugFixes\StockAlarmDescPreserveLineBreak.cs" />
-    <Compile Include="GlobalSuppressions.cs" />
-    <Compile Include="Modding\PersistentIConfigNode.cs" />
-    <Compile Include="Modding\DockingPortLockedEvents.cs" />
-    <Compile Include="Modding\OnSymmetryFieldChanged.cs" />
-    <Compile Include="Modding\ReflectionTypeLoadExceptionHandler.cs" />
-    <Compile Include="Modding\EventProfilerMarkers.cs" />
-    <Compile Include="Performance\FewerSaves.cs" />
-    <Compile Include="Performance\ConfigNodePerf.cs" />
-    <Compile Include="Performance\MinorPerfTweaks.cs" />
-    <Compile Include="Performance\ModuleDockingNodeFindOtherNodesFaster.cs" />
-    <Compile Include="Performance\OptimizedModuleRaycasts.cs" />
-    <Compile Include="Performance\PQSCoroutineLeak.cs" />
-    <Compile Include="Performance\PQSOnlyStartOnce.cs" />
-    <Compile Include="Performance\PQSUpdateNoMemoryAlloc.cs" />
-    <Compile Include="Performance\ProgressTrackingSpeedBoost.cs" />
-    <Compile Include="QoL\AutostrutActions.cs" />
-    <Compile Include="QoL\BetterEditorUndoRedo.cs" />
-    <Compile Include="QoL\OptionalMakingHistoryDLCFeatures.cs" />
-    <Compile Include="QoL\TargetParentBody.cs" />
-    <Compile Include="QoL\ToolbarShowHide.cs" />
-    <Compile Include="QoL\DisableNewGameIntro.cs" />
-    <Compile Include="QoL\NoIVA.cs" />
-    <Compile Include="Performance\OnDemandPartBuoyancy.cs" />
-    <Compile Include="Performance\SceneLoadSpeedBoost.cs" />
-    <Compile Include="Internal\PatchSettings.cs" />
-    <Compile Include="QoL\AutoSavedCraftNameAtLaunch.cs" />
-    <Compile Include="QoL\ResourceLockActions.cs" />
-    <Compile Include="QoL\ShowContractFinishDates.cs" />
-    <Compile Include="QoL\DisableManeuverTool.cs" />
-    <Compile Include="QoL\FairingMouseOverPersistence.cs" />
-    <Compile Include="QoL\TweakableWheelsAutostrut.cs" />
-    <Compile Include="BugFixes\FlightSceneLoadKraken.cs" />
-    <Compile Include="BugFixes\KerbalInventoryPersistence.cs" />
-    <Compile Include="BugFixes\ModuleIndexingMismatch.cs" />
-    <Compile Include="BugFixes\PAWGroupMemory.cs" />
-    <Compile Include="BugFixes\RefundingOnRecovery.cs" />
-    <Compile Include="BugFixes\StockAlarmCustomFormatterDate.cs" />
-    <Compile Include="KSPCommunityFixes.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="QoL\PAWCollapsedInventories.cs" />
-    <Compile Include="QoL\AltimeterHorizontalPosition.cs" />
-    <Compile Include="QoL\PAWStockGroups.cs" />
-    <Compile Include="QoL\UIFloatEditNumericInput.cs" />
-    <Compile Include="Library\System.Buffers\ArrayPool.cs" />
-    <Compile Include="Library\System.Buffers\ArrayPoolEventSource.cs" />
-    <Compile Include="Library\System.Buffers\DefaultArrayPool.cs" />
-    <Compile Include="Library\System.Buffers\Utilities.cs" />
-    <Compile Include="Library\UnityObjectExtensions.cs" />
-    <Compile Include="Library\StaticHelpers.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\MultipleModuleInPartAPI\MultipleModuleInPartAPI.csproj">
-      <Project>{32b601f4-b648-4c69-aa98-620fe7ba070c}</Project>
-      <Name>MultipleModuleInPartAPI</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup />
-  <!--Project-specfic configuration-->
-  <PropertyGroup>
-    <RepoRootPath>$(SolutionDir)</RepoRootPath>
-    <GameDataFolderName>KSPCommunityFixes</GameDataFolderName>
-    <UsePluginsFolder>true</UsePluginsFolder>
-    <CopyReleaseBinariesToRepo>false</CopyReleaseBinariesToRepo>
-    <AVCFilename>KSPCommunityFixes.version</AVCFilename>
-  </PropertyGroup>
-  <!--MSBuild targets-->
-  <Target Name="BeforeBuild" Condition="'$(Configuration)' == 'Release'">
-    <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
-      <Output PropertyName="AVCFullVersion" TaskParameter="FullVersion" />
-    </GetAVCVersion>
-    <UpdateAssemblyVersion Path="$(MSBuildProjectDirectory)\Properties\AssemblyInfo.cs" Version="$(AVCFullVersion)" />
-  </Target>
-  <Target Name="AfterBuild">
-    <Error Condition="'$(ReferencePath)' == '' OR !Exists('$(ReferencePath)')" Text="ReferencePath=$(ReferencePath) os empty or isn't a valid path" />
+
+  <!-- Deploy DLLs and GameData to the live KSP install, and (on Release) build the release zip. -->
+  <Target Name="DeployToKSP" AfterTargets="Build" DependsOnTargets="KSPBT_GenerateVersionFile">
+    <Error Condition="'$(KSPBT_GameRoot)' == '' OR !Exists('$(KSPBT_GameRoot)')"
+           Text="KSPBT_GameRoot='$(KSPBT_GameRoot)' is empty or does not exist. Set ReferencePath in $(MSBuildProjectName).csproj.user or the KSP_ROOT environment variable." />
     <CallTarget Targets="CopyToKSP" />
     <CallTarget Targets="CopyBinariesToRepo" Condition="'$(Configuration)' == 'Release' AND '$(CopyReleaseBinariesToRepo)' == 'true'" />
     <CallTarget Targets="MakeReleaseZip" Condition="'$(Configuration)' == 'Release'" />
   </Target>
-  <!--Custom targets-->
+
   <Target Name="CopyToKSP">
-    <RemoveDir Condition="Exists('$(ReferencePath)\GameData\$(GameDataFolderName)')" Directories="$(ReferencePath)\GameData\$(GameDataFolderName)" />
+    <RemoveDir Condition="Exists('$(KSPBT_GameRoot)\GameData\$(GameDataFolderName)')"
+               Directories="$(KSPBT_GameRoot)\GameData\$(GameDataFolderName)" />
     <ItemGroup>
-      <GameDataFiles Include="$(RepoRootPath)\GameData\**\*.*" />
+      <_GameDataFiles Include="$(RepoRootPath)GameData\**\*.*" />
+      <_BinariesToCopy Include="$(TargetDir)*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(ReferencePath)\GameData\%(RecursiveDir)" />
-    <PropertyGroup>
-      <BinariesKSPGameDataPath Condition="'$(UsePluginsFolder)' == 'true'">$(ReferencePath)\GameData\$(GameDataFolderName)\Plugins</BinariesKSPGameDataPath>
-      <BinariesKSPGameDataPath Condition="'$(UsePluginsFolder)' == 'false'">$(ReferencePath)\GameData\$(GameDataFolderName)</BinariesKSPGameDataPath>
-    </PropertyGroup>
-    <ItemGroup>
-      <BinariesToCopy Include="$(TargetDir)\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BinariesToCopy)" DestinationFolder="$(BinariesKSPGameDataPath)" />
+    <Copy SourceFiles="@(_GameDataFiles)"
+          DestinationFolder="$(KSPBT_GameRoot)\GameData\%(RecursiveDir)" />
+    <Copy SourceFiles="@(_BinariesToCopy)"
+          DestinationFolder="$(KSPBT_GameRoot)\GameData\$(GameDataFolderName)\$(KSPBT_ModPluginFolder)" />
   </Target>
+
   <Target Name="CopyBinariesToRepo">
-    <PropertyGroup>
-      <BinariesRepoRootPath Condition="'$(UsePluginsFolder)' == 'true'">$(RepoRootPath)\GameData\$(GameDataFolderName)\Plugins</BinariesRepoRootPath>
-      <BinariesRepoRootPath Condition="'$(UsePluginsFolder)' == 'false'">$(RepoRootPath)\GameData\$(GameDataFolderName)</BinariesRepoRootPath>
-    </PropertyGroup>
     <ItemGroup>
-      <BinariesToCopy Include="$(TargetDir)\*.*" />
+      <_BinariesToCopy Include="$(TargetDir)*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(BinariesToCopy)" DestinationFolder="$(BinariesRepoRootPath)" />
+    <Copy SourceFiles="@(_BinariesToCopy)"
+          DestinationFolder="$(KSPBT_ModRoot)\$(KSPBT_ModPluginFolder)" />
   </Target>
+
   <Target Name="MakeReleaseZip">
     <PropertyGroup>
-      <PublishFolder>$(RepoRootPath)\Releases</PublishFolder>
-      <PublishTempFolderPath>$(PublishFolder)\Temp</PublishTempFolderPath>
-      <PublishPluginRootPath>$(PublishTempFolderPath)\GameData\$(GameDataFolderName)</PublishPluginRootPath>
-      <PublishBinariesPath Condition="'$(UsePluginsFolder)' == 'true'">$(PublishPluginRootPath)\Plugins</PublishBinariesPath>
-      <PublishBinariesPath Condition="'$(UsePluginsFolder)' == 'false'">$(PublishPluginRootPath)</PublishBinariesPath>
+      <_PublishFolder>$(RepoRootPath)Releases</_PublishFolder>
+      <_PublishTempFolderPath>$(_PublishFolder)\Temp</_PublishTempFolderPath>
+      <_PublishPluginRootPath>$(_PublishTempFolderPath)\GameData\$(GameDataFolderName)</_PublishPluginRootPath>
+      <_PublishBinariesPath>$(_PublishPluginRootPath)\$(KSPBT_ModPluginFolder)</_PublishBinariesPath>
     </PropertyGroup>
-    <RemoveDir Condition="'$(PublishTempFolderPath)' != '' AND Exists('$(PublishTempFolderPath)')" Directories="$(PublishTempFolderPath)" />
+    <RemoveDir Condition="'$(_PublishTempFolderPath)' != '' AND Exists('$(_PublishTempFolderPath)')"
+               Directories="$(_PublishTempFolderPath)" />
     <ItemGroup>
-      <GameDataFiles Include="$(RepoRootPath)\GameData\**\*.*" />
+      <_GameDataFiles Include="$(RepoRootPath)GameData\**\*.*" />
+      <_BinariesToCopy Include="$(TargetDir)*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(PublishTempFolderPath)\GameData\%(RecursiveDir)" />
-    <ItemGroup>
-      <BinariesToCopy Include="$(TargetDir)\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(BinariesToCopy)" DestinationFolder="$(PublishBinariesPath)" />
-    <Copy SourceFiles="$(RepoRootPath)\README.md" DestinationFolder="$(PublishPluginRootPath)" />
-    <Copy SourceFiles="$(RepoRootPath)\CHANGELOG.md" DestinationFolder="$(PublishPluginRootPath)" />
-    <GetAVCVersion Path="$(RepoRootPath)\GameData\$(GameDataFolderName)\$(AVCFilename)">
-      <Output PropertyName="AVCVersionMajor" TaskParameter="Major" />
-      <Output PropertyName="AVCVersionMinor" TaskParameter="Minor" />
-      <Output PropertyName="AVCVersionPatch" TaskParameter="Patch" />
-    </GetAVCVersion>
-    <ZipDirectory SourceDirectory="$(PublishTempFolderPath)" DestinationFile="$(PublishFolder)\$(AssemblyName)_$(AVCVersionMajor).$(AVCVersionMinor).$(AVCVersionPatch).zip" Overwrite="true" />
+    <Copy SourceFiles="@(_GameDataFiles)" DestinationFolder="$(_PublishTempFolderPath)\GameData\%(RecursiveDir)" />
+    <Copy SourceFiles="@(_BinariesToCopy)" DestinationFolder="$(_PublishBinariesPath)" />
+    <Copy SourceFiles="$(RepoRootPath)README.md" DestinationFolder="$(_PublishPluginRootPath)" />
+    <Copy SourceFiles="$(RepoRootPath)CHANGELOG.md" DestinationFolder="$(_PublishPluginRootPath)" />
+    <ZipDirectory SourceDirectory="$(_PublishTempFolderPath)"
+                  DestinationFile="$(_PublishFolder)\$(AssemblyName)_$(Version).zip"
+                  Overwrite="true" />
   </Target>
-  <UsingTask TaskName="GetAVCVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
-    <ParameterGroup>
-      <Path ParameterType="System.String" Required="true" />
-      <Major ParameterType="System.String" Output="true" />
-      <Minor ParameterType="System.String" Output="true" />
-      <Patch ParameterType="System.String" Output="true" />
-      <Build ParameterType="System.String" Output="true" />
-      <FullVersion ParameterType="System.String" Output="true" />
-    </ParameterGroup>
-    <Task>
-      <Using Namespace="System" />
-      <Using Namespace="System.IO" />
-      <Code Type="Fragment" Language="cs"><![CDATA[
-            string content = File.ReadAllText(Path);
-            content = content.Replace(" ", "").Replace("\r", "").Replace("\n", "").Replace("\t", "");
 
-            string startString = "\"VERSION\"";
-            int start = content.IndexOf(startString, StringComparison.OrdinalIgnoreCase) + startString.Length;
-            start = content.IndexOf('{', start) + 1;
-            int end = content.IndexOf('}', start);
-            content = content.Substring(start, end - start);
-
-            string itemName = "\"MAJOR\":";
-            int current = content.IndexOf(itemName, StringComparison.OrdinalIgnoreCase);
-            if (current >= 0)
-            {
-                current += itemName.Length;
-                while (current < content.Length && char.IsNumber(content[current]))
-                {
-                    Major += content[current];
-                    current++;
-                }
-            }
-            else
-            {
-                Major = "0";
-            }
-
-            itemName = "\"MINOR\":";
-            current = content.IndexOf(itemName, StringComparison.OrdinalIgnoreCase);
-            if (current >= 0)
-            {
-                current += itemName.Length;
-                while (current < content.Length && char.IsNumber(content[current]))
-                {
-                    Minor += content[current];
-                    current++;
-                }
-            }
-            else
-            {
-                Minor = "0";
-            }
-
-            itemName = "\"PATCH\":";
-            current = content.IndexOf(itemName, StringComparison.OrdinalIgnoreCase);
-            if (current >= 0)
-            {
-                current += itemName.Length;
-                while (current < content.Length && char.IsNumber(content[current]))
-                {
-                    Patch += content[current];
-                    current++;
-                }
-            }
-            else
-            {
-                Patch = "0";
-            }
-
-            itemName = "\"BUILD\":";
-            current = content.IndexOf(itemName, StringComparison.OrdinalIgnoreCase);
-            if (current >= 0)
-            {
-                current += itemName.Length;
-                while (current < content.Length && char.IsNumber(content[current]))
-                {
-                    Build += content[current];
-                    current++;
-                }
-            }
-            else
-            {
-                Build = "0";
-            }
-
-            FullVersion = Major + "." + Minor + "." + Patch + "." + Build;
-]]></Code>
-    </Task>
-  </UsingTask>
-  <UsingTask TaskName="UpdateAssemblyVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
-    <ParameterGroup>
-      <Path ParameterType="System.String" Required="true" />
-      <Version ParameterType="System.String" Required="true" />
-    </ParameterGroup>
-    <Task>
-      <Using Namespace="System" />
-      <Using Namespace="System.IO" />
-      <Using Namespace="System.Text.RegularExpressions" />
-      <Code Type="Fragment" Language="cs"><![CDATA[
-            string content = File.ReadAllText(Path);
-            string newContent = Regex.Replace(content, "AssemblyFileVersion\\(\\\"(.*)\\\"\\)", "AssemblyFileVersion(\"" + Version + "\")");
-			string v2 = Version.Replace(".", ", ");
-			v2 = ", " + v2.Remove(v2.LastIndexOf(','));
-            newContent = Regex.Replace(newContent, "KSPAssembly\\(\\\"KSPCommunityFixes\\\"(.*)\\)", "KSPAssembly(\"KSPCommunityFixes\"" + v2 + ")");
-            if (content != newContent)
-                File.WriteAllText(Path, newContent);
-]]></Code>
-    </Task>
-  </UsingTask>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.props'))" />
-    <Error Condition="!Exists('..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.targets'))" />
-  </Target>
-  <Import Project="..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.targets" Condition="Exists('..\packages\Krafs.Publicizer.2.2.1\build\Krafs.Publicizer.targets')" />
 </Project>

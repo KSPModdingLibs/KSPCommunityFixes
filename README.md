@@ -234,7 +234,7 @@ Then close / re-open the solution.
 
 Building in the `Debug` configuration will update the `GameData` folder in your KSP install, building in the `Release` configuration will additionally create a zipped release in the `Releases` repository root folder.
 
-For incrementing the version, edit the `KSPCommunityFixes.version` KSP-AVC file, changes will be propagated to `AssemblyInfo.cs` when building in the `Release` configuration.
+To increment the version change the `<Version>` property in `KSPCommunityFixes.csproj` then build. Changes will be automatically updated everywhere else.
 
 The `Start` action of the IDE will trigger a build, update the `GameData` files in the KSP install and launch KSP.
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
