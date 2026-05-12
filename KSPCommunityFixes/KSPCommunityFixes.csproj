@@ -168,6 +168,7 @@
     <Compile Include="Library\ObjectPool.cs" />
     <Compile Include="Library\MuParser.cs" />
     <Compile Include="Library\ShaderHelpers.cs" />
+    <Compile Include="Library\HashCode.cs" />
     <Compile Include="Modding\KSPFieldEnumDesc.cs" />
     <Compile Include="Modding\ModUpgradePipeline.cs" />
     <Compile Include="Performance\CraftBrowserOptimisations.cs" />
@@ -198,6 +199,7 @@
     <Compile Include="Performance\LocalizerPerf.cs" />
     <Compile Include="Performance\LowerMinPhysicsDTPerFrame.cs" />
     <Compile Include="Performance\MemoryLeaks.cs" />
+    <Compile Include="Performance\ResourceConverterPerf.cs" />
     <Compile Include="BugFixes\RescaledRoboticParts.cs" />
     <Compile Include="Modding\DepartmentHeadImage.cs" />
     <Compile Include="BugFixes\StickySplashedFixer.cs" />
