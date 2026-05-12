@@ -1,62 +1,40 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="$(MSBuildProjectDirectory)\..\KSPCommunityFixes\KSPCommunityFixes.csproj.user" Condition="Exists('$(MSBuildProjectDirectory)\..\KSPCommunityFixes\KSPCommunityFixes.csproj.user')" />
+<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Windows'))">KSP_x64_Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('OSX'))">KSP.app\Contents\Resources\Data\Managed</ManagedRelativePath>
-    <ManagedRelativePath Condition="$([MSBuild]::IsOsPlatform('Linux'))">KSP_Data\Managed</ManagedRelativePath>
-    <ManagedPath>$(ReferencePath)\$(ManagedRelativePath)</ManagedPath>
-  </PropertyGroup>
-  <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{32B601F4-B648-4C69-AA98-620FE7BA070C}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Deterministic>true</Deterministic>
+    <FileAlignment>512</FileAlignment>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>MultipleModuleInPartAPI</RootNamespace>
     <AssemblyName>0_MultipleModuleInPartAPI</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
+    <ProjectGuid>{32B601F4-B648-4C69-AA98-620FE7BA070C}</ProjectGuid>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
+
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+
+  <!-- Inherit the local KSP install location from the sibling project. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\KSPCommunityFixes\KSPCommunityFixes.csproj.user"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\KSPCommunityFixes\KSPCommunityFixes.csproj.user')" />
+
+  <!-- KSPBuildTools configuration -->
+  <PropertyGroup>
+    <!-- This assembly's [KSPAssembly] name is "MultipleModulePartAPI", not "0_MultipleModuleInPartAPI",
+         so the auto-generator (which uses AssemblyName) is disabled and the attribute is kept in AssemblyInfo.cs. -->
+    <KSPBT_GenerateAssemblyAttribute>false</KSPBT_GenerateAssemblyAttribute>
+    <KSPBT_GenerateDependencyAttributes>false</KSPBT_GenerateDependencyAttributes>
+    <!-- Deployed alongside KSPCommunityFixes via its CopyToKSP target, so nothing to do here. -->
+    <KSPBT_CopyDLLsToPluginFolder>false</KSPBT_CopyDLLsToPluginFolder>
+    <KSPBT_GenerateVersionFile>false</KSPBT_GenerateVersionFile>
+    <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>portable</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="$(ManagedPath)\System.dll">
-      <Name>System (KSP/Mono)</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\mscorlib.dll">
-      <Name>System.Core (KSP/Mono)</Name>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="$(ManagedPath)\Assembly-CSharp.dll">
-      <Name>Assembly-CSharp</Name>
-      <Private>False</Private>
-    </Reference>
+    <PackageReference Include="KSPBuildTools" Version="1.1.1" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="IMultipleModuleInPart.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
 </Project>
