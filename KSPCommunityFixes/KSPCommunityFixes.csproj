@@ -10,15 +10,8 @@
     <LangVersion>8.0</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Deterministic>true</Deterministic>
-    <FileAlignment>512</FileAlignment>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>KSPCommunityFixes</RootNamespace>
-    <AssemblyName>KSPCommunityFixes</AssemblyName>
-    <ProjectGuid>{4E405C02-5AEB-4975-B26C-07582BB3FB15}</ProjectGuid>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
-    <NeutralLanguage></NeutralLanguage>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
