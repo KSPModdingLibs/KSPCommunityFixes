@@ -47,6 +47,7 @@
   <ItemGroup>
     <KSPVersionFile Include="$(KSPBT_ModRoot)\$(AVCFilename)">
       <Destination>$(KSPBT_ModRoot)\$(AVCFilename)</Destination>
+      <Version>$(Version)</Version>
       <URL>https://raw.githubusercontent.com/KSPModdingLibs/KSPCommunityFixes/master/GameData/KSPCommunityFixes/KSPCommunityFixes.version</URL>
       <Download>https://github.com/KSPModdingLibs/KSPCommunityFixes/releases</Download>
       <KSP_Version>1.12.5</KSP_Version>
