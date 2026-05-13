@@ -1,5 +1,9 @@
 ### Changelog
 
+##### Unreleased
+**New/Improved patches**
+- New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
+
 ##### 1.40.1
 **Bug Fixes**
 - **PQSOnlyStartOnce** : This patch is now disabled by default as it appears to cause
