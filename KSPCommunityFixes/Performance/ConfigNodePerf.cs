@@ -320,16 +320,36 @@ namespace KSPCommunityFixes.Performance
                         break;
                 }
             }
-            StreamWriter sw = new StreamWriter(File.Open(fileFullName, FileMode.Create), _UTF8NoBOM, _SaveBufferSize);
-            if (indent && !string.IsNullOrEmpty(header))
+
+            bool doTempCopy = false;
+            KSPCommunityFixes.SettingsNode?.TryGetValue("ConfigNodeTempCopy", ref doTempCopy);
+
+            // FileMode.Create will set the file size to 0 immediately.
+            // If KSP or the entire system happens to crash before all writes have been flushed to disk
+            // then the result will be either 0 bytes or a truncated file.
+            // This issue can be solved by first writing to a temporary file and then replacing the original with it.
+            string tmpPath = doTempCopy ? fileFullName + ".tmp" : fileFullName;
+            using (StreamWriter sw = new StreamWriter(File.Open(tmpPath, FileMode.Create), _UTF8NoBOM, _SaveBufferSize))
             {
-                sw.Write("// ");
-                sw.Write(header);
-                sw.Write(_Newline);
-                sw.Write(_Newline);
+                if (indent && !string.IsNullOrEmpty(header))
+                {
+                    sw.Write("// ");
+                    sw.Write(header);
+                    sw.Write(_Newline);
+                    sw.Write(_Newline);
+                }
+                _WriteRootNode(__instance, sw, indent, indent);
             }
-            _WriteRootNode(__instance, sw, indent, indent);
-            sw.Close();
+
+            if (doTempCopy)
+            {
+                // Now that the new file has been fully written, replace the original with it.
+                // Note that replace will throw when the file doesn't exist so need to use Move() in that case.
+                if (File.Exists(fileFullName))
+                    File.Replace(tmpPath, fileFullName, null);
+                else
+                    File.Move(tmpPath, fileFullName);
+            }
 
             __result = true;
             return false;
