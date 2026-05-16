@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using HarmonyLib;
-using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -11,31 +9,17 @@ namespace KSPCommunityFixes.BugFixes
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Transpiler, typeof(DoubleCurve), nameof(DoubleCurve.RecomputeTangents));
+            AddPatch(PatchType.Prefix, typeof(DoubleCurve), nameof(DoubleCurve.RecomputeTangents));
         }
 
-        static IEnumerable<CodeInstruction> DoubleCurve_RecomputeTangents_Transpiler(IEnumerable<CodeInstruction> instructions)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static bool DoubleCurve_RecomputeTangents_Prefix(DoubleCurve __instance)
         {
             // The existing function has a test if ( count == 1 ) and, if true, it
             // will flatten the tangents of the key regardless of if it is
             // set to autotangent or not. Since the tangents of a single-key
-            // curve don't matter, let's just return.
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-            for (int i = 1; i < code.Count; ++i)
-            {
-                if (code[i].opcode == OpCodes.Ldc_I4_1 && code[i - 1].opcode != OpCodes.Ldloc_1)
-                {
-                    code[i] = new CodeInstruction(OpCodes.Ret);
-                    code[i + 1] = new CodeInstruction(OpCodes.Nop);
-                    code[i + 2] = new CodeInstruction(OpCodes.Nop);
-                    code[i + 3] = new CodeInstruction(OpCodes.Nop);
-                    code[i + 4] = new CodeInstruction(OpCodes.Nop);
-                    code[i + 5] = new CodeInstruction(OpCodes.Nop);
-                    break;
-                }
-            }
-
-            return code;
+            // curve don't matter, we skip the function in that case.
+            return __instance.keys.Count != 1;
         }
     }
 }

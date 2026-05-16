@@ -29,7 +29,6 @@ namespace KSPCommunityFixes
         private const string VALUENAME_MODULEPARTCONFIGID = "modulePartConfigId";
         private static readonly HashSet<string> multiModules = new HashSet<string>();
         private static readonly Dictionary<string, Type> allModuleTypes = new Dictionary<string, Type>();
-
         protected override Version VersionMin => new Version(1, 8, 0);
 
         protected override void ApplyPatches()
@@ -44,7 +43,6 @@ namespace KSPCommunityFixes
             {
                 AddPatch(PatchType.Transpiler, typeof(ProtoPartSnapshot), "ConfigurePart");
             }
-
             AddPatch(PatchType.Transpiler, typeof(ShipConstruct), "LoadShip", new Type[] { typeof(ConfigNode), typeof(uint), typeof(bool), typeof(string).MakeByRefType() });
 
             Type multiModuleType = typeof(IMultipleModuleInPart);
@@ -222,6 +220,7 @@ namespace KSPCommunityFixes
             protoModule.moduleRef = module;
         }
 
+
         static void LoadModules(ProtoPartSnapshot protoPart, Part part)
         {
             int protoModuleCount = protoPart.modules.Count;
@@ -348,7 +347,7 @@ namespace KSPCommunityFixes
                 {
                     // see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/236
                     // when persisted type is a derived type of the module type, or when the module type is a derived type of the persisted type, still attempt to load it.
-                    if (protoModuleIdx < partModuleCount && allModuleTypes.TryGetValue(protoModule.moduleName, out Type moduleType) 
+                    if (protoModuleIdx < partModuleCount && allModuleTypes.TryGetValue(protoModule.moduleName, out Type moduleType)
                         && (part.Modules[protoModuleIdx].GetType().IsAssignableFrom(moduleType) || moduleType.IsInstanceOfType(part.Modules[protoModuleIdx])))
                     {
                         LoadProtoPartSnapshotModule(protoPart.modules[protoModuleIdx], part.modules[protoModuleIdx]);
@@ -375,75 +374,69 @@ namespace KSPCommunityFixes
             MethodInfo LoadShipModuleNodes = AccessTools.Method(typeof(ModuleIndexingMismatch), nameof(ModuleIndexingMismatch.LoadShipModuleNodes));
             MethodInfo ConfigNode_get_nodes = AccessTools.PropertyGetter(typeof(ConfigNode), nameof(ConfigNode.nodes));
 
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            var matcher = new CodeMatcher(instructions);
 
             // first, remove the original module load call
-            bool originalFound = false;
-            for (int i = 0; i < code.Count - 6; i++)
-            {
-                //// part.LoadModule(configNode2, ref moduleIndex);
-                // ldloc.s 6
-                // ldloc.3
-                // ldloca.s 39
-                // callvirt instance class PartModule Part::LoadModule(class ConfigNode, int32&)
-                // dup
-                // pop
-                // pop
-                if (code[i].opcode == OpCodes.Ldloc_S
-                    && code[i + 1].opcode == OpCodes.Ldloc_3
-                    && code[i + 2].opcode == OpCodes.Ldloca_S
-                    && code[i + 3].opcode == OpCodes.Callvirt && ReferenceEquals(code[i + 3].operand, Part_LoadModule)
-                    && code[i + 4].opcode == OpCodes.Dup
-                    && code[i + 5].opcode == OpCodes.Pop
-                    && code[i + 6].opcode == OpCodes.Pop)
-                {
-                    originalFound = true;
-                    for (int j = i; j < i + 7; j++)
-                    {
-                        code[j].opcode = OpCodes.Nop;
-                        code[j].operand = null;
-                    }
-                    break;
-                }
-            }
+            //// part.LoadModule(configNode2, ref moduleIndex);
+            // ldloc.s 6
+            // ldloc.3
+            // ldloca.s 39
+            // callvirt instance class PartModule Part::LoadModule(class ConfigNode, int32&)
+            // dup ; only if obfuscated
+            // pop ; only if obfuscated
+            // pop
+            matcher
+                .MatchStartForward(
+                    new CodeMatch(OpCodes.Ldloc_S),
+                    new CodeMatch(OpCodes.Ldloc_3),
+                    new CodeMatch(OpCodes.Ldloca_S),
+                    new CodeMatch(OpCodes.Callvirt, Part_LoadModule)
+                )
+                .ThrowIfInvalid("couldn't find Part.LoadModule() call in ShipConstruct.LoadShip()");
 
-            if (!originalFound)
-            {
-                Debug.LogError($"Error applying ModuleIndexingMismatch patch : couldn't find Part.LoadModule() call in ShipConstruct.LoadShip()");
-                return instructions;
-            }
+            // The dup;pop; pair might not be present in a deobfuscated assembly
+            // so we push a dummy value on the stack instead of deleting them.
+            //
+            // One of these appears to have a label, so removing it causes patching
+            // to fail. The same applies to using SetInstruction.
+            matcher
+                .SetAndAdvance(OpCodes.Nop, null)
+                .SetAndAdvance(OpCodes.Nop, null)
+                .SetAndAdvance(OpCodes.Nop, null)
+                .SetAndAdvance(OpCodes.Ldnull, null);
 
             // then, insert our own module loading call before the original part nodes parsing loop
-            for (int i = 0; i < code.Count - 6; i++)
-            {
-                //// int moduleIndex = 0;
-                // ldc.i4.0 NULL
-                // stloc.s 39(System.Int32)
-                //// int m = 0;
-                // ldc.i4.0 NULL
-                // stloc.s 45(System.Int32)
-                //// int count5 = configNode.nodes.Count
-                // ldloc.2 NULL
-                // callvirt ConfigNodeList ConfigNode::get_nodes()
-                // dup NULL
-                // pop NULL
-                // callvirt System.Int32 ConfigNodeList::get_Count()
+            //// int moduleIndex = 0;
+            // ldc.i4.0 NULL
+            // stloc.s 39(System.Int32)
+            //// int m = 0;
+            // ldc.i4.0 NULL
+            // stloc.s 45(System.Int32)
+            //// int count5 = configNode.nodes.Count
+            // ldloc.2 NULL
+            // callvirt ConfigNodeList ConfigNode::get_nodes()
+            // dup NULL ; only if obfuscated
+            // pop NULL ; only obfuscated
+            // callvirt System.Int32 ConfigNodeList::get_Count()
+            matcher
+                .Start()
+                .MatchStartForward(
+                    new CodeMatch(OpCodes.Ldc_I4_0),
+                    new CodeMatch(OpCodes.Stloc_S),
+                    new CodeMatch(OpCodes.Ldc_I4_0),
+                    new CodeMatch(OpCodes.Stloc_S),
+                    new CodeMatch(OpCodes.Ldloc_2),
+                    new CodeMatch(OpCodes.Callvirt, ConfigNode_get_nodes)
+                )
+                .ThrowIfInvalid("Could not find the call to ConfigNode::get_nodes")
+                .Advance(6)
+                .Insert(
+                    new CodeInstruction(OpCodes.Ldloc_S, 6), // Part local variable
+                    new CodeInstruction(OpCodes.Ldloc_2),    // part ConfigNode variable
+                    new CodeInstruction(OpCodes.Call, LoadShipModuleNodes)
+                );
 
-                if (code[i].opcode == OpCodes.Ldc_I4_0
-                && code[i + 1].opcode == OpCodes.Stloc_S
-                && code[i + 2].opcode == OpCodes.Ldc_I4_0
-                && code[i + 3].opcode == OpCodes.Stloc_S
-                && code[i + 4].opcode == OpCodes.Ldloc_2
-                && code[i + 5].opcode == OpCodes.Callvirt && ReferenceEquals(code[i + 5].operand, ConfigNode_get_nodes))
-                {
-                    code.Insert(i, new CodeInstruction(OpCodes.Ldloc_S, 6)); // ldloc.s 6 is the Part local variable
-                    code.Insert(i + 1, new CodeInstruction(OpCodes.Ldloc_2)); // Ldloc_2 is the part ConfigNode variable
-                    code.Insert(i + 2, new CodeInstruction(OpCodes.Call, LoadShipModuleNodes));
-                    break;
-                }
-            }
-
-            return code;
+            return matcher.Instructions();
         }
 
         private static readonly List<ConfigNode> currentModuleNodes = new List<ConfigNode>();
@@ -589,7 +582,7 @@ namespace KSPCommunityFixes
                 {
                     // see https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/236
                     // when persisted type is a derived type of the module type, or when the module type is a derived type of the persisted type, still attempt to load it.
-                    if (moduleNodeIdx < partModuleCount 
+                    if (moduleNodeIdx < partModuleCount
                         && allModuleTypes.TryGetValue(nodeModuleName, out Type moduleType)
                         && (part.Modules[moduleNodeIdx].GetType().IsAssignableFrom(moduleType) || moduleType.IsInstanceOfType(part.Modules[moduleNodeIdx])))
                     {

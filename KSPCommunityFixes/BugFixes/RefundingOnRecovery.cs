@@ -1,8 +1,10 @@
-﻿using System;
+﻿using HarmonyLib;
+using KSP.UI.Screens;
+using KSP.UI.Screens.SpaceCenter.MissionSummaryDialog;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
-using HarmonyLib;
 
 namespace KSPCommunityFixes.BugFixes
 {
@@ -72,6 +74,7 @@ namespace KSPCommunityFixes.BugFixes
 
             // public static float GetPartCosts(ProtoPartSnapshot protoPart, bool includeModuleCosts, AvailablePart aP, out float dryCost, out float fuelCost)
             MethodInfo getPartCostsMethod = AccessTools.Method(typeof(ShipConstruction), "GetPartCosts", new[] { typeof(ProtoPartSnapshot), typeof(bool), typeof(AvailablePart), typeof(float).MakeByRefType(), typeof(float).MakeByRefType() });
+            MethodInfo getStoredPartsModuleCosts = AccessTools.Method(typeof(RefundingOnRecovery), nameof(GetStoredPartsCosts));
 
             if (getPartCostsMethod == null)
             {
@@ -79,51 +82,36 @@ namespace KSPCommunityFixes.BugFixes
                 return instructions;
             }
 
+            var matcher = new CodeMatcher(instructions);
+            matcher
+                .MatchStartForward(new CodeMatch(OpCodes.Call, getPartCostsMethod))
+                .Advance(-5);
 
-            int insertionIndex = -1;
-            object dryCostVarOperand = default;
-            OpCode protoPartSnapshotOpcode = default;
+            var loadProtoPart = new CodeInstruction(matcher.Instruction);
+            matcher
+                .Advance(1)  // index - 4
+                // change includeModuleCosts from false to true
+                .SetInstruction(new CodeInstruction(OpCodes.Ldc_I4_1))
+                .Advance(2); // index - 2
 
-            for (int i = 4; i < code.Count - 1; i++) 
-            {
-                if (code[i].opcode == OpCodes.Call && (MethodInfo)code[i].operand == getPartCostsMethod)
-                {
-                    // change includeModuleCosts from false to true
-                    code[i - 4].opcode = OpCodes.Ldc_I4_1;
-                    // Insert our method call after "pop"
-                    insertionIndex = i + 1; 
-                    // find the variables we need
-                    dryCostVarOperand = code[i - 2].operand;
-                    protoPartSnapshotOpcode = code[i - 5].opcode;
-                    break;
-                }
-            }
+            var dryCostVarOperand = matcher.Operand;
+            matcher
+                .Advance(3) // index + 1
+                .Insert(
+                    new CodeInstruction(OpCodes.Ldloc_S, dryCostVarOperand),
+                    loadProtoPart,
+                    new CodeInstruction(OpCodes.Call, getStoredPartsModuleCosts),
+                    new CodeInstruction(OpCodes.Sub),
+                    new CodeInstruction(OpCodes.Stloc_S, dryCostVarOperand)
+                );
 
-            if (insertionIndex == -1)
-            {
-                UnityEngine.Debug.LogError("Error patching recovery costs : transpiler patch failed");
-                return instructions;
-            }
-
-            List<CodeInstruction> instructionsToInsert = new List<CodeInstruction>();
-            MethodInfo getStoredPartsModuleCosts = AccessTools.Method(typeof(RefundingOnRecovery), nameof(GetStoredPartsCosts));
-
-            instructionsToInsert.Add(new CodeInstruction(OpCodes.Ldloc_S, dryCostVarOperand));
-            instructionsToInsert.Add(new CodeInstruction(protoPartSnapshotOpcode));
-            instructionsToInsert.Add(new CodeInstruction(OpCodes.Call, getStoredPartsModuleCosts));
-            instructionsToInsert.Add(new CodeInstruction(OpCodes.Sub));
-            instructionsToInsert.Add(new CodeInstruction(OpCodes.Stloc_S, dryCostVarOperand));
-
-            code.InsertRange(insertionIndex, instructionsToInsert);
-
-            return code;
+            return matcher.Instructions();
         }
-
 
         // Derived from the ModuleInventoryPart.OnLoad() code, get stored parts cost
         static float GetStoredPartsCosts(ProtoPartSnapshot protoPart)
         {
-            ConstructorInfo storedPartCtor = AccessTools.Constructor(typeof(StoredPart), new[] {typeof(ConfigNode)});
+            ConstructorInfo storedPartCtor = AccessTools.Constructor(typeof(StoredPart), new[] { typeof(ConfigNode) });
 
             float cost = 0f;
             foreach (ProtoPartModuleSnapshot protoModule in protoPart.modules)
@@ -181,7 +169,6 @@ namespace KSPCommunityFixes.BugFixes
 
             return cost;
         }
-
     }
 
     public class ModulePartCostTest : PartModule, IPartCostModifier

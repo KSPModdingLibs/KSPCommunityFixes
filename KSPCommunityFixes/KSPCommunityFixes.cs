@@ -52,6 +52,30 @@ namespace KSPCommunityFixes
             }
         }
 
+        //returns true if KSP Assembly-CSharp is probably a cleaned/deobfuscated image
+        private static bool? cleanedDllCachedValue = null;
+        public static bool IsCleanedDll
+        {
+            get
+            {
+                if (cleanedDllCachedValue != null)
+                {
+                    return (bool)cleanedDllCachedValue;
+                }
+                else
+                {
+                    String dllPath = typeof(GameDatabase).Assembly.Location;
+                    if ((new FileInfo(dllPath).Length < 10000000) && Versioning.version_minor.Equals(12))
+                    {
+                        cleanedDllCachedValue = true;
+                        return true; //certainly a home-cleaned dll, no official 1.12.x build of Assembly-CSharp is less than 10MBs.
+                    }
+                    cleanedDllCachedValue = false;
+                    return false;
+                }
+            }
+        }
+
         static KSPCommunityFixes()
         {
             Harmony = new Harmony("KSPCommunityFixes");
