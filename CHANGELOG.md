@@ -3,6 +3,7 @@
 ##### Unreleased
 **New/Improved patches**
 - New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
+- New KSP bugfix : [**SymmetryReferenceOnDelete**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/382) Fix deleting a part in the editor leaving stale (destroyed) references in the `symmetryCounterparts` list of surviving parts, which broke ship saving and the editor. Happens when removing symmetry from a parent part that still has children, then deleting it.
 
 ##### 1.40.1
 **Bug Fixes**
