@@ -6,6 +6,7 @@
 - New KSP bugfix : [**MapTargetBodyWithEncounter**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/381) Fix being unable to left-click or double-click a celestial body's icon in the map view (to set it as target) when a maneuver node produces an encounter with that body. Thanks to @JonnyOThan for reporting it.
 - Improved the **ExtendedDeployableParts** patch to fix a `NullReferenceException` ([issue #380](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/380)) thrown when a static (non-animated) solar panel is placed on a part that has other, unrelated animations.
 - New KSP bugfix : [**SymmetryReferenceOnDelete**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/382) Fix deleting a part in the editor leaving stale (destroyed) references in the `symmetryCounterparts` list of surviving parts, which broke ship saving and the editor. Happens when removing symmetry from a parent part that still has children, then deleting it.
+- New KSP bugfix : [**EVAConstructionUninitializedInventory**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/378) Fixes a bug where stock will return parts that are not initialized yet when searching for parts with inventories, causing bugs in downstream mods.
 
 ##### 1.40.1
 **Bug Fixes**
