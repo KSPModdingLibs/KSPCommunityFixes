@@ -3,6 +3,7 @@
 ##### Unreleased
 **New/Improved patches**
 - New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
+- New KSP bugfix : [**MapTargetBodyWithEncounter**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/381) Fix being unable to left-click or double-click a celestial body's icon in the map view (to set it as target) when a maneuver node produces an encounter with that body. Thanks to @JonnyOThan for reporting it.
 
 ##### 1.40.1
 **Bug Fixes**

@@ -97,6 +97,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**FastAndFixedEnumExtensions**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/322) [KSP 1.12.3 - 1.12.5]<br/>Fix exceptions when calling the `EnumExtensions.*Description()` methods with a non-defined enum value, and implement a cache for faster and less allocating execution of those methods.
 - [**DebugConsoleDontStealInput**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/329) [KSP 1.12.3 - 1.12.5]<br/>Fix the Alt+F12 console input field stealing input when a console entry is added
 - [**WheelIntertialLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the minimum inertia limit for wheels from 0.01 to 0.00001. Several small wheels had inertia values below this limit, so this makes them behave more correctly.
+- [**MapTargetBodyWithEncounter**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/381) [KSP 1.12.0 - 1.12.5]<br/>Fix being unable to left-click or double-click a celestial body's icon in the map view (to set it as target) when a maneuver node produces an encounter with that body.
 
 #### Quality of Life tweaks 
 
