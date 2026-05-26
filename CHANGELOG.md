@@ -3,6 +3,7 @@
 ##### Unreleased
 **New/Improved patches**
 - New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
+- Improved the **ExtendedDeployableParts** patch to fix a `NullReferenceException` ([issue #380](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/380)) thrown when a static (non-animated) solar panel is placed on a part that has other, unrelated animations.
 
 ##### 1.40.1
 **Bug Fixes**
