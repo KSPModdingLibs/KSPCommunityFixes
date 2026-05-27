@@ -101,6 +101,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**WheelIntertialLimit**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/341) Reduces the minimum inertia limit for wheels from 0.01 to 0.00001. Several small wheels had inertia values below this limit, so this makes them behave more correctly.
 - [**MapTargetBodyWithEncounter**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/381) [KSP 1.12.0 - 1.12.5]<br/>Fix being unable to left-click or double-click a celestial body's icon in the map view (to set it as target) when a maneuver node produces an encounter with that body.
 - [**HarvesterECConsumption**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/358) [KSP 1.8.0 - 1.12.5]<br/>Make the info panel for `ModuleResourceHarvester` show accurate rates for consumed resources.
+- [**EditorAnimatedPartsShipModified**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/388) [KSP 1.12.0 - 1.12.5]<br/>Fix the Engineer's Report craft dimensions (and other `onEditorShipModified` consumers) lagging one vessel modification behind when an animated part is actuated in the editor (deployable solar panels/radiators/antennas, `ModuleAnimateGeneric` animations, Breaking Ground robotic servos), by re-firing the modification event once the animation has actually finished.
 
 #### Quality of Life tweaks 
 
