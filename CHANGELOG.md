@@ -4,6 +4,7 @@
 **New/Improved patches**
 - New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
 - Improved the **ExtendedDeployableParts** patch to fix a `NullReferenceException` ([issue #380](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/380)) thrown when a static (non-animated) solar panel is placed on a part that has other, unrelated animations.
+- New KSP bugfix : [**SymmetryReferenceOnDelete**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/382) Fix deleting a part in the editor leaving stale (destroyed) references in the `symmetryCounterparts` list of surviving parts, which broke ship saving and the editor. Happens when removing symmetry from a parent part that still has children, then deleting it.
 
 ##### 1.40.1
 **Bug Fixes**
