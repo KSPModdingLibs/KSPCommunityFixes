@@ -16,6 +16,10 @@ namespace KSPCommunityFixes.BugFixes
         // is (suspiciously) only done in two places, in many more cases the stock code is instead keeping AnimationState.enabled = true and
         // setting AnimationState.speed = 0.
         // We patch those two Animation.Stop() call sites, and use that latter method instead.
+        //
+        // The FindAnimations() postfix additionally fixes issue #380 : a NullReferenceException thrown when a static
+        // (non-animated) solar panel is placed on a part model that contains other, unrelated animations. See the
+        // postfix for details.
 
         protected override Version VersionMin => new Version(1, 12, 0);
 
@@ -24,6 +28,8 @@ namespace KSPCommunityFixes.BugFixes
             AddPatch(PatchType.Transpiler, typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.startFSM));
 
             AddPatch(PatchType.Transpiler, typeof(ModuleDeployableSolarPanel), nameof(ModuleDeployablePart.OnStart));
+
+            AddPatch(PatchType.Postfix, typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.FindAnimations));
         }
 
         static IEnumerable<CodeInstruction> ModuleDeployablePart_startFSM_Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -72,38 +78,52 @@ namespace KSPCommunityFixes.BugFixes
 
         static IEnumerable<CodeInstruction> ModuleDeployableSolarPanel_OnStart_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            // here no need to add anything, stock already does
-            //float normalizedTime = ((deployState == DeployState.EXTENDED) ? 1f : 0f);
-            //anim[animationName].normalizedTime = normalizedTime;
-            //anim[animationName].enabled = true;
-            //anim[animationName].weight = 1f;
+            // stock already does (nothing to change here) :
+            // if (HighLogic.LoadedSceneIsFlight && anim != null)
+            // {
+            //     float normalizedTime = ((deployState == DeployState.EXTENDED) ? 1f : 0f);
+            //     anim[animationName].normalizedTime = normalizedTime;
+            //     anim[animationName].enabled = true;
+            //     anim[animationName].weight = 1f;
 
             // but after that it does :
 
-            //if (deployState == DeployState.RETRACTED)
-            //{
-            //    anim.Stop(animationName);
-            //}
+            //     if (deployState == DeployState.RETRACTED)
+            //     {
+            //         anim.Stop(animationName);
+            //     }
+            // }
 
-            // We remove that entire if statement by replacing the if (Brtrue_S) by an unconditional jump (Br_S)
+            // We remove that trailing if statement by turning the leading `ldarg.0` of the `deployState == RETRACTED` test
+            // into an unconditional jump to the same place the `brtrue.s` was jumping to (the end of the block), making the
+            // anim.Stop() call unreachable.
 
             FieldInfo ModuleDeployablePart_deployState = AccessTools.Field(typeof(ModuleDeployablePart), nameof(ModuleDeployablePart.deployState));
 
-            List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+            CodeMatcher matcher = new(instructions);
 
-            for (int i = 0; i < code.Count; i++)
-            {
-                if (code[i].opcode == OpCodes.Ldarg_0
-                    && code[i + 1].opcode == OpCodes.Ldfld && ReferenceEquals(code[i+1].operand, ModuleDeployablePart_deployState)
-                    && code[i + 2].opcode == OpCodes.Brtrue_S)
-                {
-                    code[i].opcode = OpCodes.Br_S;
-                    code[i].operand = code[i + 2].operand; // grab the target instruction from the original jump
-                    break;
-                }
-            }
+            matcher
+                .MatchStartForward(
+                    new CodeMatch(OpCodes.Ldarg_0),
+                    new CodeMatch(OpCodes.Ldfld, ModuleDeployablePart_deployState),
+                    new CodeMatch(OpCodes.Brtrue_S))
+                .ThrowIfInvalid("[ExtendedDeployableParts] could not find the `deployState == RETRACTED` test")
+                .Set(OpCodes.Br_S, matcher.InstructionAt(2).operand); // reuse the brtrue.s target
 
-            return code;
+            return matcher.Instructions();
+        }
+
+        static void ModuleDeployablePart_FindAnimations_Postfix(ModuleDeployablePart __instance, ref Animation ___anim)
+        {
+            // Issue #380 : FindAnimations() falls back to assigning `anim` to the first Animation component on the part
+            // when none of them actually contains a clip named `animationName` (e.g. a static solar panel placed on a part
+            // that has other, unrelated animations). That `anim` is never usable - whenever this fallback fires,
+            // anim[animationName] is null so useAnimation is always forced false - yet it is left non-null. Consumers that
+            // only guard on `anim != null` (such as ModuleDeployableSolarPanel.OnStart) then access the missing clip and
+            // throw a NullReferenceException. We null it out in exactly that case so those `anim != null` guards work, while
+            // leaving a legitimately-assigned `anim` (one that does have the clip) untouched.
+            if (___anim != null && ___anim[__instance.animationName] == null)
+                ___anim = null;
         }
     }
 }
