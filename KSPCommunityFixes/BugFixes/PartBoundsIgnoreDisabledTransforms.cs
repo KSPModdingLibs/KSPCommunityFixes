@@ -9,17 +9,17 @@ namespace KSPCommunityFixes
     {
         static PartBoundsIgnoreDisabledTransforms()
         {
-            PartGeometryUtil.disabledVariantGOs = new List<string>();
+            PartGeometryUtil.disabledVariantGOs = [];
         }
 
-        protected override Version VersionMin => new Version(1, 12, 3);
+        protected override Version VersionMin => new(1, 12, 3);
 
         protected override void ApplyPatches()
         {
             AddPatch(PatchType.Prefix, typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds));
         }
 
-        static readonly List<Renderer> partRenderersBuffer = new List<Renderer>();
+        static readonly List<Renderer> partRenderersBuffer = [];
 
         static bool PartGeometryUtil_GetPartRendererBounds_Prefix(Part p, out Bounds[] __result)
         {
@@ -43,9 +43,20 @@ namespace KSPCommunityFixes
 
             Transform modelTransform = GetPartModelTransform(p);
 
-            try 
+            // Ignore renderers on the TransparentFX layer (layer 1).
+            //
+            // We can't do this unconditionally because when a part is detached in the editor KSP
+            // temporarily moves all its renderers to layer 1. If we were then we'd get 0-sized
+            // bounds. We instead take a cue from DragCubeGeneration and only filter out layer 1
+            // when the part is not frozen.
+            //
+            // This matches the same rule as done in https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150
+            // which isn't really perfect, but is probably good enough for our purposes.
+            bool ignoreTransparentFX = !p.frozen;
+
+            try
             {
-                GetRenderersRecursive(modelTransform, partRenderersBuffer, PartGeometryUtil.disabledVariantGOs);
+                GetRenderersRecursive(modelTransform, partRenderersBuffer, PartGeometryUtil.disabledVariantGOs, ignoreTransparentFX);
 
                 __result = new Bounds[partRenderersBuffer.Count];
                 for (int i = __result.Length; i-- > 0;)
@@ -59,14 +70,17 @@ namespace KSPCommunityFixes
             return false;
         }
 
-        static readonly List<Renderer> rendererBuffer = new List<Renderer>();
+        static readonly List<Renderer> rendererBuffer = [];
 
-        static void GetRenderersRecursive(Transform parent, List<Renderer> renderers, List<string> excludedGOs)
+        static void GetRenderersRecursive(Transform parent, List<Renderer> renderers, List<string> excludedGOs, bool ignoreTransparentFX)
         {
             // note : this will result in a slight change in behavior vs stock
             // as this will exclude childs as well, wereas stock will still include them.
             // But stock behavior could be classified as a bug...
             if (excludedGOs.Contains(parent.name))
+                return;
+
+            if (ignoreTransparentFX && parent.gameObject.layer == 1)
                 return;
 
             try
@@ -89,7 +103,7 @@ namespace KSPCommunityFixes
             {
                 Transform child = parent.GetChild(i);
                 if (child.gameObject.activeSelf)
-                    GetRenderersRecursive(child, renderers, excludedGOs);
+                    GetRenderersRecursive(child, renderers, excludedGOs, ignoreTransparentFX);
             }
         }
 

@@ -9,6 +9,9 @@
 - New KSP bugfix : [**EVAConstructionUninitializedInventory**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/378) Fixes a bug where stock will return parts that are not initialized yet when searching for parts with inventories, causing bugs in downstream mods.
 - New KSP bugfix : [**HarvesterECConsumption**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/358) Show accurate resource consumption info for `ModuleResourceHarvester`.
 
+**Bug Fixes**
+- **PartBoundsIgnoreDisabledTransforms** : This patch now ignores meshes on the TransparentFX layer when computing bounds. This should prevent waterfall effects or other effect-only meshes from affecting the part bounds.
+
 ##### 1.40.1
 **Bug Fixes**
 - **PQSOnlyStartOnce** : This patch is now disabled by default as it appears to cause
