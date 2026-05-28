@@ -8,6 +8,7 @@
 - New KSP bugfix : [**SymmetryReferenceOnDelete**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/382) Fix deleting a part in the editor leaving stale (destroyed) references in the `symmetryCounterparts` list of surviving parts, which broke ship saving and the editor. Happens when removing symmetry from a parent part that still has children, then deleting it.
 - New KSP bugfix : [**EVAConstructionUninitializedInventory**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/378) Fixes a bug where stock will return parts that are not initialized yet when searching for parts with inventories, causing bugs in downstream mods.
 - New KSP bugfix : [**HarvesterECConsumption**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/358) Show accurate resource consumption info for `ModuleResourceHarvester`.
+- New KSP bugfix : [**EditorAnimatedPartsShipModified**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/388) Fix the Engineer's Report craft dimensions lagging one vessel modification behind when an animated part is actuated in the editor (deployable solar panels/radiators/antennas, `ModuleAnimateGeneric`, Breaking Ground robotic servos).
 
 **Bug Fixes**
 - **PartBoundsIgnoreDisabledTransforms** : This patch now ignores meshes on the TransparentFX layer when computing bounds. This should prevent waterfall effects or other effect-only meshes from affecting the part bounds.
