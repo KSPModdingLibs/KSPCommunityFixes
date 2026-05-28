@@ -1,6 +1,8 @@
 ### Changelog
 
 ##### Unreleased
+
+##### 1.41.0
 **New/Improved patches**
 - New performance patch : [**ActiveRadiatorPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/375) Significantly improves the performance of `ModuleActiveRadiator`.
 - New performance patch : [**CargoBayPerf**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/356) Defer `ModuleCargoBay.onVesselModified` callbacks until after the physics update completes. Significantly reduces stutter when a ship with cargo bays crashes.
