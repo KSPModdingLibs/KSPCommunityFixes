@@ -13,6 +13,7 @@
 
 **Bug Fixes**
 - **PartBoundsIgnoreDisabledTransforms** : This patch now ignores meshes on the TransparentFX layer when computing bounds. This should prevent waterfall effects or other effect-only meshes from affecting the part bounds.
+- **UpgradeBugs** : Fixed [issue #340](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/340). Base cost + upgrade cost now actually shows to the part cost, and upgrade  part tooltip cost no longer carries over to other tooltips.
 
 ##### 1.40.1
 **Bug Fixes**

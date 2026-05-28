@@ -21,6 +21,8 @@ namespace KSPCommunityFixes
 
             AddPatch(PatchType.Postfix, typeof(PartListTooltip), nameof(PartListTooltip.Setup), new Type[] { typeof(AvailablePart), typeof(Callback<PartListTooltip>), typeof(RenderTexture) });
 
+            AddPatch(PatchType.Postfix, typeof(PartListTooltip), nameof(PartListTooltip.UpdateVariantText));
+
             AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.DisplayExtendedInfo));
 
             AddPatch(PatchType.Prefix, typeof(PartListTooltip), nameof(PartListTooltip.CreateExtendedInfo));
@@ -50,6 +52,11 @@ namespace KSPCommunityFixes
         // We'll handle everything in CreateExtendedInfo instead.
         static bool PartListTooltip_SetupUpgradeInfo_Prefix(PartListTooltip __instance, ref AvailablePart availablePart)
         {
+            // The tooltip instance is reused across hovers, so clear any stale upgrade state from
+            // the previously-shown part before deciding whether to compute fresh values.
+            __instance.upgradeCost = 0f;
+            __instance.upgradeNode = null;
+
             __instance.upgradeState = PartModule.UpgradesAvailable(__instance.partRef, __instance.upgradeNode);
             if (__instance.upgradeState != PartModule.PartUpgradeState.AVAILABLE)
                 return false;
@@ -81,6 +88,31 @@ namespace KSPCommunityFixes
         static void PartListTooltip_Setup_Postfix(PartListTooltip __instance, ref AvailablePart availablePart)
         {
             __instance.upgrade = null;
+            FixCostText(__instance);
+        }
+
+        // Stock formats the cost line as "√partCost + √upgradeCost", which assumes partCost is the
+        // pre-upgrade cost. Our Part.GetModuleCosts postfix folds upgrade cost into partCost, so the
+        // two displayed numbers no longer add up. Subtract the upgrade portion from the displayed
+        // base so the "+" notation is arithmetically correct again.
+        static void FixCostText(PartListTooltip tooltip)
+        {
+            if (tooltip.upgradeCost == 0f)
+                return;
+
+            float baseCost = tooltip.partCost - tooltip.upgradeCost;
+            if (baseCost < tooltip.partRef.partInfo.minimumCost)
+                baseCost = tooltip.partRef.partInfo.minimumCost;
+
+            tooltip.textCost.text = KSP.Localization.Localizer.Format(
+                "#autoLOC_6002278",
+                "<sprite=\"CurrencySpriteAsset\" name=\"Funds\" tint=1>", baseCost.ToString("N2"),
+                "<sprite=\"CurrencySpriteAsset\" name=\"Funds\" tint=1>", tooltip.upgradeCost.ToString("N2"));
+        }
+
+        static void PartListTooltip_UpdateVariantText_Postfix(PartListTooltip __instance)
+        {
+            FixCostText(__instance);
         }
 
         // This stock method was never using CreateExtendedUpgradeInfo,
