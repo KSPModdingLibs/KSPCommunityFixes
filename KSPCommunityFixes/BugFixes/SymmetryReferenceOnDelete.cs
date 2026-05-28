@@ -24,7 +24,7 @@ internal class SymmetryReferenceOnDelete : BasePatch
         AddPatch(PatchType.Override, typeof(EditorLogic), nameof(EditorLogic.wipeSymmetry));
     }
 
-    private static void EditorLogic_wipeSymmetry_Override(Part selPart)
+    private static void EditorLogic_wipeSymmetry_Override(EditorLogic __instance, Part selPart)
     {
         selPart.symmetryCounterparts ??= [];
         selPart.symmetryCounterparts.Clear();
