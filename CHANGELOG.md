@@ -10,6 +10,7 @@
 - New KSP bugfix : [**EVAConstructionUninitializedInventory**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/378) Fixes a bug where stock will return parts that are not initialized yet when searching for parts with inventories, causing bugs in downstream mods.
 - New KSP bugfix : [**HarvesterECConsumption**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/358) Show accurate resource consumption info for `ModuleResourceHarvester`.
 - New KSP bugfix : [**EditorAnimatedPartsShipModified**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/388) Fix an issue where the engineer's report would be delayed by one edit when enabling/disabling animated parts.
+- New KSP bugfix : [**PatchedConicEncounterFlickering**](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/320) Revert back to the pre-1.8 SOI encounter solver. This is slower but less likely to cause flickering.
 
 **Bug Fixes**
 - **PartBoundsIgnoreDisabledTransforms** : This patch now ignores meshes on the TransparentFX layer when computing bounds. This should prevent waterfall effects or other effect-only meshes from affecting the part bounds.
