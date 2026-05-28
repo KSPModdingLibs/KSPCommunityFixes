@@ -38,9 +38,6 @@ namespace KSPCommunityFixes
             if (disableMHPatch != null)
                 entryCount++;
 
-            if (KSPCFFastLoader.IsPatchEnabled)
-            entryCount++;
-
             // NoIVA is always enabled
             entryCount++;
         }
@@ -104,21 +101,6 @@ namespace KSPCommunityFixes
                 modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                     new DialogGUILabel(AltimeterHorizontalPosition.LOC_SettingsTitle, 150f),
                     slider, new DialogGUIFlexibleSpace());
-                count++;
-            }
-
-            if (KSPCFFastLoader.IsPatchEnabled)
-            {
-                DialogGUIToggle toggle = new DialogGUIToggle(KSPCFFastLoader.TextureCacheEnabled,
-                    () => (KSPCFFastLoader.TextureCacheEnabled) 
-                        ? Localizer.Format("#autoLOC_900889") //"Enabled"
-                        : Localizer.Format("#autoLOC_900890"), //"Disabled"
-                    KSPCFFastLoader.OnToggleCacheFromSettings, 150f);
-                toggle.tooltipText = KSPCFFastLoader.LOC_SettingsTooltip;
-
-                modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
-                    new DialogGUILabel(() => KSPCFFastLoader.LOC_SettingsTitle, 150f),
-                    toggle, new DialogGUIFlexibleSpace());
                 count++;
             }
 
