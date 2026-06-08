@@ -31,6 +31,8 @@ using static UrlDir;
 using Debug = UnityEngine.Debug;
 using UnityEngine.Profiling;
 using System.Threading.Tasks;
+using System.Runtime.Serialization;
+using Unity.Profiling;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -238,6 +240,12 @@ namespace KSPCommunityFixes.Performance
             MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext = AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubes)));
             MethodInfo m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler = AccessTools.Method(typeof(KSPCFFastLoader), nameof(DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
             assetAndPartLoaderHarmony.Patch(m_DragCubeSystem_RenderDragCubes_MoveNext, null, null, new HarmonyMethod(m_DragCubeSystem_RenderDragCubes_MoveNext_Transpiler));
+
+            // ApplicationRootPath isn't thread-safe so we patch it to instead load from a static variable
+            ApplicationRootPath = UrlDir.ApplicationRootPath;
+            MethodInfo m_UrlDir_ApplicationRootPath = AccessTools.PropertyGetter(typeof(UrlDir), nameof(UrlDir.ApplicationRootPath));
+            MethodInfo o_UrlDir_ApplicationRootPath = AccessTools.Method(typeof(KSPCFFastLoader), nameof(UrlDir_ApplicationRootPath_Transpiler));
+            assetAndPartLoaderHarmony.Patch(m_UrlDir_ApplicationRootPath, transpiler: new HarmonyMethod(o_UrlDir_ApplicationRootPath));
 
             expansionsLoaderHarmony = new Harmony(ExpansionsLoaderHarmonyID);
             MethodInfo m_ExpansionsLoader_StartLoad = AccessTools.Method(typeof(ExpansionsLoader), nameof(PartLoader.StartLoad));
@@ -449,7 +457,7 @@ namespace KSPCommunityFixes.Performance
             // the fly from Awake() in a Startup.Instantly KSPAddon and have it being loaded. I've found
             // at least 2 mods doing that, so unfortunately this can't really be optimized...
             KSPCFFastLoaderReport.wSecondConfigLoad.Restart();
-            gdb._root = new UrlDir(gdb.urlConfig.ToArray(), configFileTypes.ToArray());
+            gdb._root = ConstructUrlDir(gdb.urlConfig, configFileTypes);
             KSPCFFastLoaderReport.wSecondConfigLoad.Stop();
 
             // Optimized version of GameDatabase.translateLoadedNodes()
@@ -2637,6 +2645,138 @@ namespace KSPCommunityFixes.Performance
             return true;
         }
 
+        #endregion
+
+        #region Parallel UrlDir Construction
+        private static string ApplicationRootPath;
+
+        // It isn't safe to call UrlDir.ApplicationRootPath on other threads.
+        // This version uses a cached copy of the path.
+        private static IEnumerable<CodeInstruction> UrlDir_ApplicationRootPath_Transpiler(IEnumerable<CodeInstruction> _)
+        {
+            var field = typeof(KSPCFFastLoader)
+                .GetField(nameof(ApplicationRootPath), BindingFlags.Static | BindingFlags.NonPublic);
+
+            return new CodeInstruction[]
+            {
+                new CodeInstruction(OpCodes.Ldsfld, field),
+                new CodeInstruction(OpCodes.Ret)
+            };
+        }
+
+        static readonly ProfilerMarker ConstructUrlDirMarker = new ProfilerMarker("KSPCFFastLoader.ConstructUrlDir");
+
+        private static UrlDir ConstructUrlDir(List<ConfigDirectory> dirConfig, List<ConfigFileType> fileConfig)
+        {
+            using var guard = ConstructUrlDirMarker.Auto();
+
+            var root = (UrlDir)FormatterServices.GetUninitializedObject(typeof(UrlDir));
+            root._files = new List<UrlFile>();
+            root._parent = null;
+            root._root = root;
+            root._name = "root";
+            root._type = DirectoryType.GameData;
+
+            var children = new List<Task<UrlDir>>();
+            foreach (var dir in dirConfig)
+                children.Add(ConstructUrlDir(root, dir));
+
+            var configDict = new Dictionary<string, FileType>();
+            foreach (var config in fileConfig)
+            {
+                foreach (var extension in config.extensions)
+                    configDict.TryAdd(extension, config.type);
+            }
+
+            root._children = new List<UrlDir>(Task.WhenAll(children).Result);
+
+            foreach (var file in root.AllFiles)
+                ConfigureUrlFile(file, configDict);
+
+            return root;
+        }
+
+        private static Task<UrlDir> ConstructUrlDir(UrlDir parent, ConfigDirectory rootInfo)
+        {
+            var urldir = (UrlDir)FormatterServices.GetUninitializedObject(typeof(UrlDir));
+            var info = Directory.CreateDirectory(CreateApplicationPath(rootInfo.directory));
+            urldir._name = rootInfo.urlRoot;
+            urldir._type = rootInfo.type;
+
+            return Task.Run(() => UrlDirCreate(urldir, parent, info, 1));
+        }
+
+        private static Task<UrlDir> ConstructUrlDir(UrlDir parent, DirectoryInfo info, int depth)
+        {
+            var urldir = (UrlDir)FormatterServices.GetUninitializedObject(typeof(UrlDir));
+            urldir._name = info.Name;
+            urldir._type = parent.type;
+
+            if (depth < 3)
+                return UrlDirCreate(urldir, parent, info, depth + 1);
+
+            urldir.Create(parent, info);
+            return Task.FromResult(urldir);
+        }
+
+#if ENABLE_PROFILER
+        static readonly int UrlDirPrefixLength = AppDomain.CurrentDomain.BaseDirectory.Length + 1;
+#endif
+        private static Task<UrlDir> UrlDirCreate(UrlDir urldir, UrlDir parent, DirectoryInfo info, int depth)
+        {
+            urldir._path = info.FullName;
+            urldir._parent = parent;
+            urldir._root = parent.root;
+
+            return Task.Factory.StartNew(
+                () =>
+                {
+#if ENABLE_PROFILER
+                    // Show a profile sample as UrlDirCreate: <KSP dir relative path>
+                    var path = urldir._path.Length > UrlDirPrefixLength
+                        ? urldir._path.Substring(UrlDirPrefixLength)
+                        : urldir._path;
+                    Profiler.BeginSample($"UrlDirCreate: {path}");
+#endif
+
+                    var directories = info.GetDirectories();
+                    var tasks = new List<Task<UrlDir>>(directories.Length);
+                    foreach (var dir in directories)
+                    {
+                        if (dir.Name == ".svn" || dir.Name == "PluginData" || dir.Name == "zDeprecated")
+                            continue;
+                        tasks.Add(ConstructUrlDir(urldir, dir, depth));
+                    }
+
+                    var files = info.GetFiles();
+                    urldir._files = new List<UrlFile>(files.Length);
+                    foreach (var file in files)
+                        urldir._files.Add(new UrlFile(urldir, file));
+
+                    Task.WhenAll(tasks)
+                        .ContinueWith(
+                            children => urldir._children = new List<UrlDir>(children.Result),
+                            TaskContinuationOptions.AttachedToParent
+                        );
+
+#if ENABLE_PROFILER
+                    Profiler.EndSample();
+#endif
+
+                    return urldir;
+                },
+                TaskCreationOptions.AttachedToParent
+            );
+        }
+
+        private static void ConfigureUrlFile(UrlFile file, Dictionary<string, FileType> configDict)
+        {
+            if (file._fileType != 0)
+                return;
+
+            if (configDict.TryGetValue(file.fileExtension, out var type))
+                file._fileType = type;
+        }
         #endregion
 
         #region Utility
