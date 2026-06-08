@@ -285,6 +285,9 @@ internal class ActiveRadiatorPerf : BasePatch
 
     static void ModuleActiveRadiator_Start_Postfix(ModuleActiveRadiator __instance)
     {
+        if (!HighLogic.LoadedSceneIsFlight || __instance.vessel.IsNullOrDestroyed())
+            return;
+
         var data = (ExtraModuleData)__instance.adjusterCache;
         data.integrator = __instance.vessel.gameObject
             .AddOrGetComponent<KSPCFRadiatorHeatIntegrator>();
