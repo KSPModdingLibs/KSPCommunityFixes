@@ -1,8 +1,10 @@
 ### Changelog
 
 ##### Unreleased
+
+##### 1.41.1
 **Bug Fixes**
-- **ActiveRadiatorPerf** : Fixed a `NullReferenceException` ([issue #397](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/397)) thrown from `ModuleActiveRadiator.Start` in the editor (where `part.vessel` is null), most visible as exception spam through SystemHeat's `ModuleSystemHeatRadiator`.
+- **ActiveRadiatorPerf** : Fixed a `NullReferenceException` ([issue #397](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/397)) thrown from `ModuleActiveRadiator.Start` in the editor.
 
 ##### 1.41.0
 **New/Improved patches**

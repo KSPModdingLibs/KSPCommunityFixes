@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- Bump this version when making a release. Everything else is defined from it. -->
-    <Version>1.41.0</Version>
+    <Version>1.41.1</Version>
     <FileVersion>$(Version).0</FileVersion>
     <AssemblyVersion>$(Version.Split('.')[0]).$(Version.Split('.')[1]).0.0</AssemblyVersion>
 

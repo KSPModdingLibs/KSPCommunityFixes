@@ -2,7 +2,7 @@
   "NAME": "KSPCommunityFixes",
   "URL": "https://raw.githubusercontent.com/KSPModdingLibs/KSPCommunityFixes/master/GameData/KSPCommunityFixes/KSPCommunityFixes.version",
   "DOWNLOAD": "https://github.com/KSPModdingLibs/KSPCommunityFixes/releases",
-  "VERSION": "1.41.0",
+  "VERSION": "1.41.1",
   "KSP_VERSION": "1.12.5",
   "KSP_VERSION_MIN": "1.8.0",
   "KSP_VERSION_MAX": "1.12.5"
