@@ -32,7 +32,12 @@ class EditorAnimatedPartsShipModified : BasePatch
             if (scalarModule.OnStop is null)
                 continue;
 
-            listener ??= __instance.gameObject.AddComponent<ScalarModuleStopListener>();
+            if (listener == null)
+            {
+                listener = __instance.gameObject.AddComponent<ScalarModuleStopListener>();
+                listener.part = __instance;
+            }
+
             scalarModule.OnStop.Add(listener.OnScalarModuleStop);
         }
     }
@@ -41,6 +46,9 @@ class EditorAnimatedPartsShipModified : BasePatch
     {
         static Coroutine coroutine = null;
         static ScalarModuleStopListener host = null;
+
+        // The part we are attached to.
+        public Part part;
 
         public void OnScalarModuleStop(float position)
         {
@@ -73,6 +81,16 @@ class EditorAnimatedPartsShipModified : BasePatch
                 return;
 
             GameEvents.onEditorShipModified.Fire(editor.ship);
+        }
+
+        void OnDestroy()
+        {
+            // Make sure to unsubscribe ourselves from the OnStop events.
+            foreach (var module in part.Modules)
+            {
+                if (module is IScalarModule scalarModule)
+                    scalarModule.OnStop?.Remove(OnScalarModuleStop);
+            }
         }
 
         IEnumerator DelayEmit()

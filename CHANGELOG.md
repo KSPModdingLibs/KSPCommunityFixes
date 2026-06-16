@@ -1,6 +1,8 @@
 ### Changelog
 
 ##### Unreleased
+**Bug Fixes**
+- **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 
 ##### 1.41.1
 **Bug Fixes**
