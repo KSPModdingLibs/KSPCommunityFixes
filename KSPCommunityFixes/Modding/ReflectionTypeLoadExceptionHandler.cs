@@ -25,14 +25,13 @@ namespace KSPCommunityFixes.Modding
         private class FailedAssembly
         {
             public string errorMessage;
-            public string guiMessage;
+
+            private readonly string assemblyName;
+            private readonly string assemblyLocation;
+            private readonly List<string> missingDependencies = new List<string>();
 
             public FailedAssembly(Assembly assembly)
             {
-                string assemblyName;
-                string assemblyLocation;
-                List<string> missingDependencies = new List<string>();
-
                 try
                 {
                     assemblyName = assembly.GetName().Name;
@@ -70,24 +69,40 @@ namespace KSPCommunityFixes.Modding
                 errorMessage = $"[KSPCF] A ReflectionTypeLoadException thrown by Assembly.GetTypes() has been handled by KSP Community Fixes." +
                                $"\nThis is usually harmless, but indicates that the \"{assemblyName}\" plugin failed to load (location: \"{assemblyLocation}\")";
 
-                guiMessage = Localizer.Format(LOC_F_PluginLoadFailed_name_in_location, $"<b><color=orange>{assemblyName}</color></b>", $"\"{assemblyLocation}\"");
-
                 if (missingDependencies.Count > 0)
                 {
                     errorMessage += $"\nIt happened because \"{assemblyName}\" is missing the following dependencies : ";
+                    for (int i = 0; i < missingDependencies.Count; i++)
+                    {
+                        if (i > 0)
+                            errorMessage += ", ";
+
+                        errorMessage += "\"" + missingDependencies[i] + "\"";
+                    }
+                }
+            }
+
+            // Build the GUI message lazily at render time. The LOC_ fields are only populated by
+            // LocalizationUtils.ParseLocalization() once KSPCommunityFixes.Start() runs, which can happen
+            // after a FailedAssembly is constructed during early assembly loading. Formatting here (rather
+            // than in the constructor) ensures the localized strings are used. See issue #403.
+            public string GetGuiMessage()
+            {
+                string guiMessage = Localizer.Format(LOC_F_PluginLoadFailed_name_in_location, $"<b><color=orange>{assemblyName}</color></b>", $"\"{assemblyLocation}\"");
+
+                if (missingDependencies.Count > 0)
+                {
                     guiMessage += $"\n{LOC_PluginLoadFailed_missingDep} : ";
                     for (int i = 0; i < missingDependencies.Count; i++)
                     {
                         if (i > 0)
-                        {
-                            errorMessage += ", ";
                             guiMessage += ", ";
-                        }
 
-                        errorMessage += "\"" + missingDependencies[i] + "\"";
                         guiMessage += "<b><color=orange>" + missingDependencies[i] + "</color></b>";
                     }
                 }
+
+                return guiMessage;
             }
         }
 
@@ -139,7 +154,7 @@ namespace KSPCommunityFixes.Modding
             GUILayout.Label(LOC_PluginsLoadFailed, labelStyle);
 
             foreach (FailedAssembly assembly in failedAssemblies.Values)
-                GUILayout.Label(assembly.guiMessage, labelStyle);
+                GUILayout.Label(assembly.GetGuiMessage(), labelStyle);
 
             GUILayout.EndVertical();
             GUILayout.EndArea();
