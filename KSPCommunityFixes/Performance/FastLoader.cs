@@ -1,4 +1,5 @@
 ﻿// #define DEBUG_TEXTURE_CACHE
+// #define DEBUG_MODEL_LOAD_ORDER
 
 using DDSHeaders;
 using Expansions;
@@ -8,6 +9,7 @@ using KSPAssets;
 using KSPAssets.Loaders;
 using KSPCommunityFixes.Library.Buffers;
 using KSPCommunityFixes.Library.Collections;
+using KSPCommunityFixes.Library.Model;
 using KSPCommunityFixes.Library.TextureBundle;
 using System;
 using System.Buffers.Binary;
@@ -157,6 +159,29 @@ namespace KSPCommunityFixes.Performance
         // Max number of new texture load coroutines that will be spawned each frame.
         // This should roughly limit the max frame time spent on loading textures.
         private const int MaxTextureSpawnsPerFrame = 64;
+
+        // Max number of new model load coroutines that will be spawned each frame.
+        // This roughly limits the max frame time spent replaying models / loading their meshes.
+        private const int MaxModelSpawnsPerFrame = 12;
+
+        // v1 tuning knob: cap on native mesh-bundle bytes resident at once. The pump waits before kicking off a
+        // group's LoadFromMemoryAsync while at least this many bytes are already resident, so the driver can
+        // Unload earlier groups first. Restores the old streaming loader's ~50 MB-capped bounded-memory
+        // behavior (regression guard vs loading every group's native copy up front).
+        private const long MaxResidentModelBundleBytes = 96L * 1024 * 1024; // 96 MB
+
+        private const int ModelGroupQueueCapacity = 4;  // groups the compile task may run ahead of the pump; bounds managed bundle-byte pressure (tuning knob)
+
+        // Native mesh-bundle bytes currently resident: the pump ADDS a group's size when it kicks off the
+        // load, the driver SUBTRACTS it on Unload. Both the pump and the driver are main-thread Unity
+        // coroutines that never run concurrently, so this plain field needs no lock. Reset when the model
+        // pipeline is kicked off.
+        private static long residentModelBundleBytes;
+
+        // Set by CompileModelGroups' last-resort outer catch on the background Task thread; logged ONCE on the
+        // main thread by ModelDriverCoroutine at termination. NEVER Debug.* from the Task thread (the mod
+        // handlers chained onto Application.logMessageReceived aren't thread-safe).
+        private static volatile Exception modelCompileFault;
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -570,6 +595,21 @@ namespace KSPCommunityFixes.Performance
             BundleState bundleState = new();
             gdb.StartCoroutine(LoadBundledAssets(bundleState, bundleRequests, textureQueue));
 
+            // Kick off the background model compile + bundle pump NOW so it overlaps texture loading.
+            // CompileModelGroups classifies/compiles every .mu off-thread and folds the ordered results into
+            // count-capped ModelGroups; ModelBundlePumpCoroutine kicks off each group's mesh-bundle
+            // LoadFromMemoryAsync and forwards its requests (in order) into modelQueue. The DRIVER is NOT
+            // started here: replaying a model's CreateMaterial.Execute needs every texture registered, which
+            // is only true after InsertBundledTextures below, so the driver is started at the model stage.
+            var groupQueue = new BlockingCollection<ModelGroup>(ModelGroupQueueCapacity);
+            var modelQueue = new BlockingCollection<ModelLoadRequest>();
+            // Reset the shared pump<->driver state before the pipeline starts (both are static, so a prior
+            // load in this process could have left them non-zero/non-null).
+            residentModelBundleBytes = 0;
+            modelCompileFault = null;
+            Task.Run(() => CompileModelGroups(modelAssets, groupQueue));
+            gdb.StartCoroutine(ModelBundlePumpCoroutine(groupQueue, modelQueue));
+
             gdb.progressTitle = "Loading sound assets...";
             KSPCFFastLoaderReport.wAudioLoading.Restart();
             yield return null;
@@ -731,8 +771,25 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            // call our custom loader
-            yield return gdb.StartCoroutine(FilesLoader(modelAssets, allModelFiles, "Loading model asset"));
+            // call our custom loader: drain the model pipeline (compiled meshes replayed from their group
+            // bundle, skinned/dae fallbacks, failures) in strict modelAssets order. The compile task + pump
+            // started overlapping texture loading above; the driver only registers models now that every
+            // texture is in the database (CreateMaterial replay resolves textures via GameDatabase).
+            yield return gdb.StartCoroutine(ModelDriverCoroutine(modelQueue, allModelFiles, modelAssets.Count));
+
+#if DEBUG_MODEL_LOAD_ORDER
+            // Optional load-order dump for an old-vs-new diff (enable via the #define at the top of the file).
+            {
+                var sb = new System.Text.StringBuilder(1024);
+                sb.Append("[KSPCF:FastLoader] model load order (").Append(gdb.databaseModelFiles.Count).Append(" files):\n");
+                for (int i = 0; i < gdb.databaseModelFiles.Count; i++)
+                    sb.Append(gdb.databaseModelFiles[i].url).Append('\n');
+                sb.Append("[KSPCF:FastLoader] modelsByDirectoryUrl first-wins (").Append(modelsByDirectoryUrl.Count).Append(" dirs):\n");
+                foreach (var kvp in modelsByDirectoryUrl)
+                    sb.Append(kvp.Key).Append(" -> ").Append(kvp.Value.IsNotNullOrDestroyed() ? kvp.Value.transform.name : "<null>").Append('\n');
+                Debug.Log(sb.ToString());
+            }
+#endif
 
             // all done, do some cleanup
             arrayPool = null;
@@ -1190,28 +1247,12 @@ namespace KSPCommunityFixes.Performance
                 return MuParser.Parse(file.parent.url, buffer, dataLength);
             }
 
+            // Body extracted into the shared static KSPCFFastLoader.LoadDAE(UrlFile) so the new model
+            // pipeline's Dae path can reuse it. This wrapper (and its only caller, LoadAndDisposeMainThread's
+            // model path) is dead once the driver replaces FilesLoader; task #6 removes it.
             private GameObject LoadDAE()
             {
-                // given that this is a quite obsolete thing and that it's mess to reimplement, just call the stock
-                // stuff and re-load the file
-
-                GameObject gameObject = new DatabaseLoaderModel_DAE.DAE().Load(file, new FileInfo(file.fullPath));
-                if (gameObject.IsNotNullOrDestroyed())
-                {
-                    MeshFilter[] componentsInChildren = gameObject.GetComponentsInChildren<MeshFilter>();
-                    foreach (MeshFilter meshFilter in componentsInChildren)
-                    {
-                        if (meshFilter.gameObject.name == "node_collider")
-                        {
-                            meshFilter.gameObject.AddComponent<MeshCollider>().sharedMesh = meshFilter.mesh;
-                            MeshRenderer component = meshFilter.gameObject.GetComponent<MeshRenderer>();
-                            UnityEngine.Object.Destroy(meshFilter);
-                            UnityEngine.Object.Destroy(component);
-                        }
-                    }
-                }
-
-                return gameObject;
+                return KSPCFFastLoader.LoadDAE(file);
             }
 
         }
@@ -1492,6 +1533,651 @@ namespace KSPCommunityFixes.Performance
                 if (frameTime > 0.1)
                     yield return null;
             }
+        }
+        #endregion
+
+        #region Model bundle loader
+
+        // Outcome of compiling one model file off-thread. Mutually-exclusive shapes: a .dae marker
+        // (IsDae), a file-read failure (Compiled == null, ReadFailure set), or a compiled model (Compiled
+        // set, Data retained for the skinned fallback). The compile SUCCESS/SKINNED/COMPILE-FAILED split is
+        // decided in the fold from Compiled's flags.
+        private struct CompileResult
+        {
+            public UrlFile File;
+            public bool IsDae;
+            public string ReadFailure;
+            public CompiledModel Compiled;
+            public byte[] Data;
+            public int DataLength;
+            public long FileLength;
+        }
+
+        // Compile one model file. MUST NOT throw (a faulted PLINQ Select would abort the whole enumeration):
+        // the only thrower here is File.ReadAllBytes, caught into a ReadFailure marker; MuModelCompiler.Compile
+        // never throws.
+        private static CompileResult CompileOne(RawAsset asset, ThreadLocal<MuModelCompiler> tl)
+        {
+            UrlFile file = asset.File;
+
+            // .dae/.DAE never touch the compiler; the main-thread Dae path reloads them via the stock loader.
+            string ext = file.fileExtension;
+            if (ext == "dae" || ext == "DAE")
+                return new CompileResult { File = file, IsDae = true };
+
+            byte[] data;
+            try
+            {
+                // Plain managed array (NOT arrayPool): avoids cross-thread pool contention with the disk reader.
+                data = System.IO.File.ReadAllBytes(file.fullPath);
+            }
+            catch (Exception e)
+            {
+                return new CompileResult { File = file, ReadFailure = e.Message };
+            }
+
+            // Args mirror MuParser.Parse(file.parent.url, buffer, dataLength): fileUrl == file.url,
+            // directoryUrl == file.parent.url. Per-thread compiler (ResetState makes reuse safe).
+            CompiledModel cm = tl.Value.Compile(file.url, file.parent.url, data, data.Length);
+
+            return new CompileResult
+            {
+                File = file,
+                Compiled = cm,
+                Data = data,
+                DataLength = data.Length,
+                FileLength = data.Length,
+            };
+        }
+
+        // Phase 1/2 background task (analogue of BuildDDSBundle): a parallel ORDERED PLINQ query compiles
+        // every model off-thread, and a serial fold on THIS single background thread groups the ordered
+        // results into count-capped ModelGroups, baking each group's static meshes into one mesh bundle via
+        // MeshBundleBuilder.BuildMany. AsOrdered + in-order span append is the first link of the load-order
+        // chain (pump forward + FIFO drain are the rest). Always CompleteAdding(groupQueue) in finally so the
+        // consumer terminates even on fault.
+        private static void CompileModelGroups(
+            List<RawAsset> modelAssets,
+            BlockingCollection<ModelGroup> groupQueue)
+        {
+            // Tuning knob: max compiled (non-skinned) .mu models per bundle. Larger groups amortize
+            // LoadFromMemoryAsync overhead; smaller groups start spawning sooner and drain native bundle
+            // copies more often.
+            const int GroupModelCap = 512;
+
+            // m9: the WHOLE body runs inside this try so groupQueue.CompleteAdding() (finally, below) fires even
+            // if the pre-loop setup (ThreadLocal / list allocations, PLINQ query construction) throws under OOM.
+            // Otherwise the pump and driver would hang forever on a queue that never completes.
+            try
+            {
+                // Per-thread compiler: MuModelCompiler holds mutable per-file accumulators, so it is NEVER
+                // shared/static; ResetState (top of Compile) makes reuse across files on one worker safe.
+                using var tl = new ThreadLocal<MuModelCompiler>(() => new MuModelCompiler());
+
+                var span = new List<ModelLoadRequest>();
+                var blobs = new List<MeshBlob>();
+                var groupKeys = new HashSet<string>(StringComparer.Ordinal);
+                int modelCount = 0;
+
+                // Seal the current span+blobs into a group, build its bundle, free per-request geometry, hand
+                // it off, then start fresh. Never runs on an empty span in practice (all call sites guard it).
+                void Flush()
+                {
+                    int compiledCount = 0;
+                    for (int i = 0; i < span.Count; i++)
+                        if (span[i].ModelKind == ModelLoadRequest.Kind.CompiledMu)
+                            compiledCount++;
+
+                    var group = new ModelGroup
+                    {
+                        Requests = span,
+                        PendingBundleRefs = compiledCount,
+                    };
+
+                    try
+                    {
+                        // BuildMany reads the blob list now (throws on duplicate canonical keys; prevented by
+                        // the per-group key-set split below). Null bundle when the span has no static meshes.
+                        group.BundleBytes = blobs.Count == 0 ? null : MeshBundleBuilder.BuildMany(blobs);
+
+                        for (int i = 0; i < span.Count; i++)
+                        {
+                            ModelLoadRequest r = span[i];
+                            if (r.ModelKind == ModelLoadRequest.Kind.CompiledMu)
+                            {
+                                r.Group = group;
+                                r.Compiled.Blobs = null; // geometry now lives in the bundle; free managed copy
+                            }
+                        }
+                    }
+                    catch (Exception buildEx)
+                    {
+                        // M2: isolate a mesh-bundle build failure to THIS group instead of aborting the whole
+                        // fold. HARD-FAIL every CompiledMu request in the group (surfaced by InsertReadyModel's
+                        // LOAD FAILED path — no MuParser fallback, so a real compiler/mesh bug is discovered
+                        // during in-KSP validation), drop the (absent) bundle and its ref-count, and still
+                        // forward the group IN ORDER so load order is preserved.
+                        string msg = "mesh bundle build failed: " + buildEx.Message;
+                        for (int i = 0; i < span.Count; i++)
+                        {
+                            ModelLoadRequest r = span[i];
+                            if (r.ModelKind == ModelLoadRequest.Kind.CompiledMu)
+                            {
+                                r.ModelKind = ModelLoadRequest.Kind.Failed;
+                                r.FailureMessage = msg;
+                                if (r.Compiled != null)
+                                    r.Compiled.Blobs = null;
+                            }
+                        }
+                        group.BundleBytes = null;
+                        group.PendingBundleRefs = 0;
+                    }
+
+                    groupQueue.Add(group);
+
+                    span = new List<ModelLoadRequest>();
+                    blobs = new List<MeshBlob>();
+                    groupKeys.Clear();
+                    modelCount = 0;
+                }
+
+                // AsOrdered() => the fold observes results in modelAssets order (load-order parity link #1).
+                foreach (CompileResult rec in modelAssets
+                    .AsParallel()
+                    .AsOrdered()
+                    .Select(asset => CompileOne(asset, tl)))
+                {
+                    var req = new ModelLoadRequest
+                    {
+                        File = rec.File,
+                        FileLength = rec.FileLength,
+                    };
+
+                    if (rec.IsDae)
+                    {
+                        req.ModelKind = ModelLoadRequest.Kind.Dae;
+                        span.Add(req); // rides the span for ordering; contributes no blobs
+                    }
+                    else if (rec.Compiled == null)
+                    {
+                        // File read failed: hard failure (no Compiled to flush).
+                        req.ModelKind = ModelLoadRequest.Kind.Failed;
+                        req.FailureMessage = rec.ReadFailure;
+                        span.Add(req);
+                    }
+                    else
+                    {
+                        CompiledModel cm = rec.Compiled;
+                        req.Compiled = cm; // carried for FlushLogs (and, for CompiledMu, replay)
+
+                        if (cm.Failed)
+                        {
+                            // Compilation failed: hard failure. cm carries its buffered diagnostics; its baked
+                            // geometry is never used.
+                            req.ModelKind = ModelLoadRequest.Kind.Failed;
+                            req.FailureMessage = cm.FailureMessage;
+                            cm.Blobs = null;
+                            span.Add(req);
+                        }
+                        else if (cm.ContainsSkinnedMesh)
+                        {
+                            // v1 skinned fallback to synchronous MuParser.Parse on the main thread; retain the
+                            // raw bytes. cm carries only its diagnostics (the skinned-notice log); baked geometry
+                            // is unused.
+                            req.ModelKind = ModelLoadRequest.Kind.Skinned;
+                            req.RawBytes = rec.Data;
+                            req.RawLength = rec.DataLength;
+                            cm.Blobs = null;
+                            span.Add(req);
+                        }
+                        else
+                        {
+                            req.ModelKind = ModelLoadRequest.Kind.CompiledMu;
+
+                            // Per-group duplicate-canonical-key split: two model files sharing a url (the reason
+                            // the whole dedup machinery exists) emit identical mesh names ("{url}#i"), which would
+                            // make BuildMany throw and fail the ENTIRE group. Flush first so each duplicate lands
+                            // in its own bundle; the duplicate is then dropped first-wins at registration.
+                            // MeshBlob.Name is already canonical (idempotent under Canonicalize), so we key on it
+                            // directly, matching BuildMany's canonical-key dedup.
+                            MeshBlob[] cmBlobs = cm.Blobs;
+                            bool collides = false;
+                            for (int i = 0; i < cmBlobs.Length; i++)
+                            {
+                                if (groupKeys.Contains(cmBlobs[i].Name))
+                                {
+                                    collides = true;
+                                    break;
+                                }
+                            }
+                            if (collides)
+                                Flush();
+
+                            for (int i = 0; i < cmBlobs.Length; i++)
+                            {
+                                blobs.Add(cmBlobs[i]);
+                                groupKeys.Add(cmBlobs[i].Name);
+                            }
+                            span.Add(req);
+
+                            if (++modelCount == GroupModelCap)
+                                Flush();
+                        }
+                    }
+                }
+
+                // Trailing partial group (may carry a null bundle if it is all dae/skinned/failed).
+                if (span.Count > 0)
+                    Flush();
+            }
+            catch (Exception e)
+            {
+                // M2 last resort: with per-group Flush isolation this should almost never fire (a faulted PLINQ
+                // enumeration surfaces as AggregateException at the foreach above). Do NOT Debug.* from this
+                // background Task thread — the mod handlers chained onto Application.logMessageReceived aren't
+                // thread-safe (the exact hazard DeferredLog exists to avoid). Stash it for ModelDriverCoroutine
+                // to log ONCE on the main thread when it terminates.
+                modelCompileFault = e;
+            }
+            finally
+            {
+                // Guarantees the pump (and therefore the driver) terminates even on fault. Mirrors
+                // BuildDDSBundle's textureQueue.CompleteAdding().
+                groupQueue.CompleteAdding();
+            }
+        }
+
+        // Phase 3 main-thread pump: drains finished ModelGroups, kicks off each group's mesh-bundle load, and
+        // forwards its requests (in order) into modelQueue for the driver. Poll form (TryTake) so it never
+        // blocks a coroutine thread on GetConsumingEnumerable. Completes modelQueue in finally.
+        private static IEnumerator ModelBundlePumpCoroutine(
+            BlockingCollection<ModelGroup> groupQueue,
+            BlockingCollection<ModelLoadRequest> modelQueue)
+        {
+            try
+            {
+                while (!groupQueue.IsCompleted)
+                {
+                    while (groupQueue.TryTake(out ModelGroup group))
+                    {
+                        if (group.BundleBytes != null)
+                        {
+                            // Capture the native size before nulling the managed copy; BundleSize feeds the
+                            // resident-memory accounting here and the driver's Unload adjust.
+                            group.BundleSize = group.BundleBytes.Length;
+
+                            // M1 backpressure: bound resident native bundle memory. Wait until the driver has
+                            // Unloaded enough earlier groups to make room before kicking this one off. The
+                            // residentModelBundleBytes > 0 guard guarantees a single oversized group still loads
+                            // once everything before it has drained (no deadlock). This yield loop sits OUTSIDE
+                            // the LoadFromMemoryAsync try/catch below on purpose — a try with a catch may not
+                            // contain a yield.
+                            while (residentModelBundleBytes > 0 &&
+                                   residentModelBundleBytes + group.BundleSize > MaxResidentModelBundleBytes)
+                                yield return null;
+
+                            bool loadFailed = false;
+                            string loadFailMsg = null;
+                            try
+                            {
+                                group.CreateRequest = AssetBundle.LoadFromMemoryAsync(group.BundleBytes);
+                                // Match the texture bundle: low priority so third-party bundle loads aren't
+                                // starved.
+                                group.CreateRequest.priority = -10;
+                            }
+                            catch (Exception e)
+                            {
+                                // M4: isolate a LoadFromMemoryAsync failure to this group. HARD-FAIL its
+                                // CompiledMu requests (no MuParser fallback) and still forward ALL requests in
+                                // order below so load order is preserved.
+                                loadFailed = true;
+                                loadFailMsg = "bundle load failed: " + e.Message;
+                            }
+
+                            group.BundleBytes = null; // drop the managed copy either way; the bundle owns it now
+
+                            if (loadFailed)
+                            {
+                                group.CreateRequest = null;
+                                List<ModelLoadRequest> greqs = group.Requests;
+                                for (int i = 0; i < greqs.Count; i++)
+                                {
+                                    ModelLoadRequest r = greqs[i];
+                                    if (r.ModelKind == ModelLoadRequest.Kind.CompiledMu)
+                                    {
+                                        r.ModelKind = ModelLoadRequest.Kind.Failed;
+                                        r.FailureMessage = loadFailMsg;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Reserve the resident bytes now that the load is in flight; the driver frees
+                                // them when the group's last CompiledMu registers and it Unload(false)s.
+                                residentModelBundleBytes += group.BundleSize;
+                            }
+                        }
+
+                        List<ModelLoadRequest> reqs = group.Requests;
+                        for (int i = 0; i < reqs.Count; i++)
+                            modelQueue.Add(reqs[i]); // in-order forward (load-order parity link #3)
+
+                        yield return null;
+                    }
+
+                    yield return null;
+                }
+            }
+            finally
+            {
+                modelQueue.CompleteAdding();
+            }
+        }
+
+        // Phase 3 driver (clone of TextureDriverCoroutine): spawns up to MaxModelSpawnsPerFrame per-request
+        // loaders per frame and inserts finished ones in STRICT FIFO order. The FIFO drain (peek head; if
+        // still Pending, WAIT — never skip/reorder) is what preserves modelAssets load order.
+        private static IEnumerator ModelDriverCoroutine(
+            BlockingCollection<ModelLoadRequest> modelQueue,
+            HashSet<string> loadedUrls,
+            int totalModelCount)
+        {
+            GameDatabase gdb = GameDatabase.Instance;
+            Queue<ModelLoadRequest> active = new();
+            int completed = 0;
+
+            while (true)
+            {
+                for (int i = 0; i < MaxModelSpawnsPerFrame; ++i)
+                {
+                    if (!modelQueue.TryTake(out ModelLoadRequest request))
+                        break;
+
+                    gdb.StartCoroutine(LoadModelCoroutine(request));
+                    active.Enqueue(request);
+                }
+
+                while (active.TryPeek(out ModelLoadRequest pending))
+                {
+                    if (pending.Status == ModelLoadRequest.State.Pending)
+                        break; // head not done yet: WAIT, never reorder (load-order parity link #4)
+
+                    active.Dequeue();
+                    // A throw in InsertReadyModel's body must not kill the driver (that would halt ALL further
+                    // model registration). Its finally still runs on the throwing path (ref-count/Unload/resident
+                    // release), so we just log the one bad model and skip it. The bookkeeping below runs
+                    // regardless so counts/progress don't stall on a skipped model.
+                    try { InsertReadyModel(pending, loadedUrls); }
+                    catch (Exception e) { Debug.LogException(e); }
+                    loadedAssetCount++;
+                    completed++;
+                }
+
+                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
+                gdb.progressTitle = $"Loading model asset {completed}/{totalModelCount}";
+
+                // Done when the producers have finished and everything spawned has been drained.
+                if (modelQueue.IsCompleted && active.Count == 0)
+                    break;
+
+                yield return null;
+            }
+
+            // M2: surface any last-resort compile-task fault ONCE, here on the MAIN thread (the fold stashed it
+            // rather than calling Debug.* off the Task thread).
+            Exception fault = modelCompileFault;
+            if (fault != null)
+            {
+                modelCompileFault = null;
+                Debug.LogException(fault);
+            }
+        }
+
+        // Exception-wrapping driver for one request (clone of LoadTextureCoroutine): drives the inner
+        // per-Kind enumerator, mapping any thrown exception to a Failed status + message.
+        private static IEnumerator LoadModelCoroutine(ModelLoadRequest req)
+        {
+            IEnumerator inner;
+            switch (req.ModelKind)
+            {
+                case ModelLoadRequest.Kind.CompiledMu:
+                    inner = LoadCompiledModelCoroutine(req);
+                    break;
+                case ModelLoadRequest.Kind.Skinned:
+                    inner = LoadSkinnedModelCoroutine(req);
+                    break;
+                case ModelLoadRequest.Kind.Dae:
+                    inner = LoadDaeModelCoroutine(req);
+                    break;
+                default:
+                    inner = LoadFailedModelCoroutine(req);
+                    break;
+            }
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    req.FailureMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = ModelLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                yield return current;
+            }
+
+            if (req.Status != ModelLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result.IsNotNullOrDestroyed())
+            {
+                req.Status = ModelLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.FailureMessage ??= "Loader produced no result";
+                req.Status = ModelLoadRequest.State.Failed;
+            }
+        }
+
+        // CompiledMu: load this model's meshes from the group bundle (per-name LoadAssetAsync, NOT
+        // LoadAllAssetsAsync), then replay the compiled instructions on the main thread. Textures/shaders are
+        // resolved inside Execute, which is why the driver only runs after all textures are registered.
+        private static IEnumerator LoadCompiledModelCoroutine(ModelLoadRequest req)
+        {
+            CompiledModel cm = req.Compiled;
+            MeshBinding[] bindings = cm.Bindings;
+            var locals = new UnityEngine.Object[cm.LocalCount];
+
+            // A model with meshes always sits in a group with a bundle (its blobs made BundleBytes non-null),
+            // so waiting for CreateRequest can't deadlock. A mesh-less model (no bindings) may be in a
+            // bundle-less group whose CreateRequest stays null forever, so it MUST skip the wait entirely.
+            if (bindings.Length > 0)
+            {
+                ModelGroup g = req.Group;
+                while (g.CreateRequest == null)
+                    yield return null;
+
+                if (!g.CreateRequest.isDone)
+                    yield return g.CreateRequest;
+
+                AssetBundle bundle = g.CreateRequest.assetBundle;
+                if (bundle == null)
+                {
+                    req.FailureMessage = "mesh bundle failed to load";
+                    req.Status = ModelLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                for (int i = 0; i < bindings.Length; i++)
+                {
+                    MeshBinding b = bindings[i];
+                    AssetBundleRequest ar = bundle.LoadAssetAsync<Mesh>(b.CanonicalName);
+                    ar.priority = -10;
+                    yield return ar;
+                    // A missing mesh yields a null asset -> null mesh, matching MuParser's null-mesh handling.
+                    locals[b.Slot] = ar.asset;
+                }
+            }
+
+            IModelInstruction[] instructions = cm.Instructions;
+            for (int i = 0; i < instructions.Length; i++)
+                instructions[i].Execute(locals);
+
+            req.Result = (GameObject)locals[0];
+            req.Status = ModelLoadRequest.State.Ready;
+        }
+
+        // Skinned v1 fallback: synchronous MuParser.Parse on the main thread. Parse uses static buffers and
+        // never yields, so two skinned parses can't interleave. Never yields here either (runs to completion
+        // inside the driver's spawn loop).
+        private static IEnumerator LoadSkinnedModelCoroutine(ModelLoadRequest req)
+        {
+            GameObject go = MuParser.Parse(req.File.parent.url, req.RawBytes, req.RawLength);
+            req.RawBytes = null;
+
+            if (go.IsNullOrDestroyed())
+            {
+                req.FailureMessage = "MU model load error";
+                req.Status = ModelLoadRequest.State.Failed;
+                yield break;
+            }
+
+            req.Result = go;
+            req.Status = ModelLoadRequest.State.Ready;
+        }
+
+        // Dae fallback: reload via the stock DAE loader (see the shared LoadDAE helper).
+        private static IEnumerator LoadDaeModelCoroutine(ModelLoadRequest req)
+        {
+            GameObject go = LoadDAE(req.File);
+
+            if (go.IsNullOrDestroyed())
+            {
+                req.FailureMessage = "DAE model load error";
+                req.Status = ModelLoadRequest.State.Failed;
+                yield break;
+            }
+
+            req.FileLength = new FileInfo(req.File.fullPath).Length;
+            req.Result = go;
+            req.Status = ModelLoadRequest.State.Ready;
+        }
+
+        // Failed: hard failure. Message was already set in the fold (read or compile failure); keep it.
+        private static IEnumerator LoadFailedModelCoroutine(ModelLoadRequest req)
+        {
+            req.FailureMessage ??= req.Compiled?.FailureMessage;
+            req.Status = ModelLoadRequest.State.Failed;
+            yield break;
+        }
+
+        // Main-thread registration (clone of InsertReadyRequest; replicates RawAsset.LoadAndDisposeMainThread's
+        // model registration). Called ONLY from the driver's FIFO drain, so it walks modelAssets order.
+        private static void InsertReadyModel(ModelLoadRequest req, HashSet<string> loadedUrls)
+        {
+            // m5: the ENTIRE body (FlushLogs, the Debug.* calls, and every registration branch) runs inside this
+            // try so the finally below runs on EVERY path — it guarantees the exactly-once PendingBundleRefs
+            // decrement + resident-bytes release + Unload for each CompiledMu, so even a throw in the body still
+            // frees the group's native bundle copy and never strands the resident cap. The throw itself is NOT
+            // swallowed here; ModelDriverCoroutine's FIFO drain wraps this call and logs+skips the one bad model,
+            // so a single failure can't kill the driver.
+            try
+            {
+                // On the MAIN THREAD: emit the compiler's buffered diagnostics (KSP's log handler and the mod
+                // handlers chained onto Application.logMessageReceived are not thread-safe, so they could not be
+                // flushed off-thread). Null-safe: Dae has no Compiled.
+                req.Compiled?.FlushLogs();
+
+                Debug.Log($"Load Model: {req.File.url}");
+
+                if (req.Status == ModelLoadRequest.State.Failed)
+                {
+                    Debug.LogWarning($"LOAD FAILED: {req.File.url}: {req.FailureMessage}");
+                    if (req.Result.IsNotNullOrDestroyed())
+                        UnityEngine.Object.Destroy(req.Result);
+                    return;
+                }
+
+                // Built-before-check (like the texture dup path): a duplicate url means we already built the
+                // GameObject, so it must be destroyed. First-wins, matching stock FilesLoader.
+                if (!loadedUrls.Add(req.File.url))
+                {
+                    Debug.LogWarning($"Duplicate model asset '{req.File.url}' with extension '{req.File.fileExtension}' won't be loaded");
+                    if (req.Result.IsNotNullOrDestroyed())
+                        UnityEngine.Object.Destroy(req.Result);
+                    return;
+                }
+
+                // Exact replication of RawAsset.LoadAndDisposeMainThread's model registration.
+                GameObject model = req.Result;
+                model.transform.name = req.File.url;
+                model.transform.parent = Instance.transform;
+                model.transform.localPosition = Vector3.zero;
+                model.transform.localRotation = Quaternion.identity;
+                model.SetActive(false);
+                Instance.databaseModel.Add(model);
+                Instance.databaseModelFiles.Add(req.File);
+                modelsByUrl[req.File.url] = model;
+                // if multiple models in the same dir, we only add the first
+                // to ensure identical behavior as the GameDatabase.GetModelPrefabIn() method
+                modelsByDirectoryUrl.TryAdd(req.File.parent.url, model);
+                urlFilesByModel.Add(model, req.File);
+                KSPCFFastLoaderReport.modelsBytesLoaded += req.FileLength;
+                KSPCFFastLoaderReport.modelsLoaded++;
+            }
+            finally
+            {
+                if (req.ModelKind == ModelLoadRequest.Kind.CompiledMu && --req.Group.PendingBundleRefs == 0)
+                {
+                    // M1: release this group's resident-bytes reservation so the pump can load more groups.
+                    // Done BEFORE the Unload below on purpose: if Unload ever threw, skipping the release would
+                    // strand the cap. BundleSize is 0 for a bundle-less group (pump never reserved for it), so
+                    // this is a no-op there; it exactly reverses the pump's single += for a group whose bundle
+                    // was loaded.
+                    residentModelBundleBytes -= req.Group.BundleSize;
+
+                    // false: keep the loaded meshes (now owned by the built GameObjects); free the bundle's
+                    // native copy.
+                    AssetBundle b = req.Group.CreateRequest?.assetBundle;
+                    if (b != null)
+                        b.Unload(false);
+                }
+            }
+        }
+
+        // Shared body of the (now-wrapped) RawAsset.LoadDAE, reused by the new Dae path. Reloads the file via
+        // the stock DAE loader and reproduces the node_collider fixup.
+        private static GameObject LoadDAE(UrlFile file)
+        {
+            // given that this is a quite obsolete thing and that it's mess to reimplement, just call the stock
+            // stuff and re-load the file
+
+            GameObject gameObject = new DatabaseLoaderModel_DAE.DAE().Load(file, new FileInfo(file.fullPath));
+            if (gameObject.IsNotNullOrDestroyed())
+            {
+                MeshFilter[] componentsInChildren = gameObject.GetComponentsInChildren<MeshFilter>();
+                foreach (MeshFilter meshFilter in componentsInChildren)
+                {
+                    if (meshFilter.gameObject.name == "node_collider")
+                    {
+                        meshFilter.gameObject.AddComponent<MeshCollider>().sharedMesh = meshFilter.mesh;
+                        MeshRenderer component = meshFilter.gameObject.GetComponent<MeshRenderer>();
+                        UnityEngine.Object.Destroy(meshFilter);
+                        UnityEngine.Object.Destroy(component);
+                    }
+                }
+            }
+
+            return gameObject;
         }
         #endregion
 
