@@ -51,9 +51,8 @@ namespace KSPCommunityFixes.Library.Model
             public int[][] SubMeshTriangles;
 
             // ---- Skinning (all three present together, or the mesh is treated as static) --------
-            // Populated by the model compiler and the offline mesh harness, not within this assembly,
-            // so CS0649 ("never assigned") is expected here — it is not a defect.
-#pragma warning disable CS0649
+            // Assigned by MuModelCompiler (in-assembly) when it reads a skinned .mu mesh, and by the
+            // offline mesh harness for the synthetic skinned case.
             /// <summary>Per-vertex bone weights (<c>weight0..3</c>) and indices (<c>boneIndex0..3</c>).</summary>
             public BoneWeight[] BoneWeights;
 
@@ -64,10 +63,10 @@ namespace KSPCommunityFixes.Library.Model
             /// One name per bone, index-aligned with <see cref="BindPoses"/>, used to compute
             /// <c>m_BoneNameHashes</c>. To reproduce Unity's exact stored hash the name must be the
             /// bone's full transform path from the model root (e.g. <c>globalMove01/joints01/bn_spA01</c>);
-            /// see <see cref="BoneNameHash"/>.
+            /// see <see cref="BoneNameHash"/>. The model compiler passes the <c>.mu</c>'s leaf bone names
+            /// (what the runtime binds by), so the stored hash is cosmetic — only the array count matters.
             /// </summary>
             public string[] BoneNames;
-#pragma warning restore CS0649
         }
 
         /// <summary>Build a <see cref="MeshBlob"/> from a live <c>UnityEngine.Mesh</c> (main thread only).</summary>

@@ -65,8 +65,12 @@ namespace KSPCommunityFixes.Library.Model
         // Skinned renderers awaiting a ResolveBones step (mirrors MuParser's boneDummies).
         private readonly List<SkinnedEntry> skinnedRenderers = new List<SkinnedEntry>();
 
-        private bool containsSkinnedMesh;
-        private bool skinnedLogged;
+        // Bone names for the SkinnedMeshRenderer currently being parsed. ReadSkinnedMeshRenderer sets
+        // this to the SMR's bone-name list immediately BEFORE it calls ReadMesh (which reads the matching
+        // bind poses) and clears it (null) right AFTER, so ReadMesh can attach the index-aligned bone-name
+        // list to the skinned mesh blob it builds. Null whenever a mesh is read outside a skinned renderer
+        // (MeshFilter / collider meshes), which never carry bind poses.
+        private string[] currentBoneNames;
 
         // Diagnostics buffered during compilation. Compile runs on background worker threads (via a
         // parallel PLINQ query over all models), and KSP's ILogHandler plus the mod handlers chained onto
@@ -137,7 +141,10 @@ namespace KSPCommunityFixes.Library.Model
                     Blobs = blobs.ToArray(),
                     Bindings = bindings.ToArray(),
                     LocalCount = nextSlot,
-                    ContainsSkinnedMesh = containsSkinnedMesh,
+                    // Skinned meshes are now fully serialized (blend channels + bind pose + bone
+                    // metadata) and flow through the background bundle path like any static model, so
+                    // this is never set — the FastLoader skinned/MuParser fallback is no longer taken.
+                    ContainsSkinnedMesh = false,
                     Failed = false,
                     Logs = logs, // flushed on the main thread by the replay pipeline (see FlushLogs)
                 };
@@ -173,8 +180,7 @@ namespace KSPCommunityFixes.Library.Model
             pendingMaterials.Clear();
             textureSlots.Clear();
             skinnedRenderers.Clear();
-            containsSkinnedMesh = false;
-            skinnedLogged = false;
+            currentBoneNames = null;
             // Fresh list per Compile so a returned CompiledModel keeps its own buffered diagnostics even
             // after this instance is reused for the next file. warnSink closes over this field, so it
             // automatically targets the new list.
@@ -571,13 +577,14 @@ namespace KSPCommunityFixes.Library.Model
             }
         }
 
-        /// <summary>Mirror of <c>MuParser.ReadSkinnedMeshRenderer</c> (opcode 9). Marks the model as
-        /// containing a skinned mesh (v1 pipeline falls back to MuParser) but still parses everything so
-        /// the cursor stays valid, and records a deferred <see cref="ResolveBones"/> step.</summary>
+        /// <summary>Mirror of <c>MuParser.ReadSkinnedMeshRenderer</c> (opcode 9): reads the material
+        /// fan-out, local bounds / quality / updateWhenOffscreen, the bone NAMES and the mesh; emits an
+        /// <see cref="AddSkinnedMeshRenderer"/> and records a deferred <see cref="ResolveBones"/> step. The
+        /// bone names are threaded into <see cref="ReadMesh"/> (via <see cref="currentBoneNames"/>) so the
+        /// skinned mesh blob carries them index-aligned with its bind poses; the SAME list also drives the
+        /// bone binding in <see cref="ResolveBones"/>, so hashes and binding stay consistent.</summary>
         private void ReadSkinnedMeshRenderer(int goSlot)
         {
-            MarkSkinned();
-
             int smrSlot = nextSlot++;
 
             int rendererCount = reader.ReadInt();
@@ -599,7 +606,13 @@ namespace KSPCommunityFixes.Library.Model
             for (int j = 0; j < boneCount; j++)
                 boneNames[j] = reader.ReadString();
 
+            // Hand the SMR's bone names to ReadMesh so the skinned mesh blob it builds attaches them
+            // index-aligned with the bind poses it reads (BoneNames[i] <-> BindPoses[i]). MuParser reads
+            // this SMR's mesh immediately after its bone names, so the pairing matches the oracle. Cleared
+            // right after so a later non-skinned ReadMesh can't pick up stale names.
+            currentBoneNames = boneNames;
             int meshSlot = ReadMesh();
+            currentBoneNames = null;
 
             instructions.Add(new AddSkinnedMeshRenderer
             {
@@ -964,8 +977,10 @@ namespace KSPCommunityFixes.Library.Model
 
         /// <summary>Mirror of <c>MuParser.ReadMesh</c> (opcode MeshStart): reads the sub-blocks in file
         /// order into a <see cref="MeshBlobBuilder.Arrays"/>, builds a <see cref="MeshBlob"/>, records a
-        /// <see cref="MeshBinding"/> and returns the allocated mesh slot. Bone weights / bind poses are
-        /// consumed (cursor parity) but discarded, and mark the model skinned.</summary>
+        /// <see cref="MeshBinding"/> and returns the allocated mesh slot. Bone weights / bind poses (when
+        /// present) are stored into the arrays; together with the SMR bone names threaded in via
+        /// <see cref="currentBoneNames"/> they let <see cref="MeshBlobBuilder.FromArrays"/> emit a fully
+        /// skinned mesh (blend channels, bind pose and bone metadata).</summary>
         private int ReadMesh()
         {
             EntryType entryType = (EntryType)reader.ReadInt();
@@ -1044,25 +1059,43 @@ namespace KSPCommunityFixes.Library.Model
                     }
                     case EntryType.MeshBoneWeights:
                     {
-                        // Skinned seam: consume exactly (one BoneWeight per vertex) so the cursor stays
-                        // valid, but discard — Arrays has no bone fields and this model falls back.
-                        MarkSkinned();
+                        // Skinned seam: one BoneWeight per vertex (four weights + four bone indices).
+                        // Stored now (was discarded before skin support) so MeshBlobBuilder emits the
+                        // BlendWeights (ch12) and BlendIndices (ch13) vertex channels. Same read order and
+                        // count as the oracle, so cursor parity is preserved.
+                        var boneWeights = new BoneWeight[size];
                         for (int i = 0; i < size; i++)
-                            reader.ReadBoneWeight();
+                            boneWeights[i] = reader.ReadBoneWeight();
+                        arrays.BoneWeights = boneWeights;
                         break;
                     }
                     case EntryType.MeshBindPoses:
                     {
-                        MarkSkinned();
+                        // One bind pose per bone; its length defines the bone count. Stored now (was
+                        // discarded before skin support) so the blob carries m_BindPose and its bone
+                        // metadata. Same read order and count as the oracle, so cursor parity is preserved.
                         int bindPosesCount = reader.ReadInt();
+                        var bindPoses = new Matrix4x4[bindPosesCount];
                         for (int i = 0; i < bindPosesCount; i++)
-                            reader.ReadMatrix4x4();
+                            bindPoses[i] = reader.ReadMatrix4x4();
+                        arrays.BindPoses = bindPoses;
                         break;
                     }
                 }
             }
 
             arrays.SubMeshTriangles = triangles.ToArray();
+
+            // Skinned mesh: attach the SMR's bone names (set by ReadSkinnedMeshRenderer just before this
+            // call) index-aligned with the bind poses just read, so BoneNames.Length == BindPoses.Length.
+            // FromArrays hashes them into m_BoneNameHashes. These are the .mu's LEAF bone names — exactly
+            // what ResolveBones/FindChildByName binds SkinnedMeshRenderer.bones by at replay. Unity
+            // natively hashes each bone's FULL transform path, so the emitted hash won't byte-match Unity's
+            // stored value; that is COSMETIC (binding is by name, and only the per-bone array COUNT is
+            // structurally required). Full-path reconstruction is a possible future refinement, only if an
+            // in-KSP issue ever implicates the hash value.
+            if (arrays.BindPoses != null)
+                arrays.BoneNames = ReconcileBoneNames(currentBoneNames, arrays.BindPoses.Length, canonicalName);
 
             MeshBlob blob = MeshBlobBuilder.FromArrays(canonicalName, in arrays, warnSink);
             blobs.Add(blob);
@@ -1150,6 +1183,42 @@ namespace KSPCommunityFixes.Library.Model
             }
         }
 
+        /// <summary>
+        /// Returns a bone-name array whose length equals the mesh's bind-pose count — the count
+        /// <see cref="MeshBlobBuilder.FromArrays"/> requires to satisfy Unity's per-bone invariant
+        /// (<c>m_BindPose</c> / <c>m_BoneNameHashes</c> / <c>m_BonesAABB</c> all equal). In the normal
+        /// case the SkinnedMeshRenderer supplies exactly one bone name per bind pose and the same array is
+        /// returned unchanged (no allocation). A few stock/mod <c>.mu</c> files export a
+        /// <c>SkinnedMeshRenderer</c> whose bone-name list is shorter than (often empty relative to) the
+        /// mesh's bind poses; MuParser tolerates this (it simply sets a shorter — possibly empty —
+        /// <c>SkinnedMeshRenderer.bones</c>, so the mesh is not actually deformed), so rather than fail the
+        /// whole model we pad the mesh's (cosmetic, leaf-name) hash source with empty names to keep the
+        /// count invariant. Binding is unaffected: <see cref="FinalizeBones"/> still emits
+        /// <see cref="ResolveBones"/> from the ORIGINAL SMR name list, so the runtime
+        /// <c>SkinnedMeshRenderer.bones</c> stays byte-for-byte MuParser-equivalent — only the mesh's
+        /// ignored hash values gain padding entries.
+        /// </summary>
+        private string[] ReconcileBoneNames(string[] smrBoneNames, int boneCount, string meshName)
+        {
+            int have = smrBoneNames?.Length ?? 0;
+            if (have == boneCount)
+                return smrBoneNames ?? Array.Empty<string>();
+
+            var names = new string[boneCount];
+            int copy = Math.Min(have, boneCount);
+            for (int i = 0; i < copy; i++)
+                names[i] = smrBoneNames[i];
+            for (int i = copy; i < boneCount; i++)
+                names[i] = string.Empty;
+
+            logs.Add(new DeferredLog(LogType.Log,
+                $"[MuModelCompiler] Model '{fileUrl}' mesh '{meshName}': SkinnedMeshRenderer declares " +
+                $"{have} bone name(s) but the mesh has {boneCount} bind pose(s). This is an unusual but " +
+                "valid .mu; reconciling by padding the mesh's cosmetic bone-name/hash list to preserve " +
+                "Unity's per-bone count invariant. This is benign - bone binding is unaffected."));
+            return names;
+        }
+
         // ---- Small helpers -------------------------------------------------------------------------
 
         private void EnsureMatRef(int index)
@@ -1166,25 +1235,6 @@ namespace KSPCommunityFixes.Library.Model
 
         private static void AddVector(PendingMaterial pm, string name, Vector4 value) =>
             pm.Values.Add(new ValueProp { Name = name, Kind = ValueProp.KindVector, VecVal = value });
-
-        private void MarkSkinned()
-        {
-            containsSkinnedMesh = true;
-            if (!skinnedLogged)
-            {
-                skinnedLogged = true;
-                // This notice, like the compiler's other diagnostics (the mesh-error log and the
-                // texCount-mismatch guard), is BUFFERED into the CompiledModel rather than logged here.
-                // Compile runs on background worker threads (a parallel PLINQ query over all models), and
-                // KSP's ILogHandler plus the mod handlers chained onto Application.logMessageReceived are
-                // NOT thread-safe — calling Debug.Log* off-thread could corrupt their state or crash. The
-                // buffered messages are emitted safely on the main thread by CompiledModel.FlushLogs during
-                // replay. (MeshBlobBuilder's attribute-length warnings are likewise routed through warnSink.)
-                logs.Add(new DeferredLog(LogType.Log,
-                    $"[MuModelCompiler] Model '{fileUrl}' contains a skinned mesh; the v1 pipeline " +
-                    "will fall back to MuParser.Parse for this file."));
-            }
-        }
 
         // ---- Private accumulator types -------------------------------------------------------------
 
