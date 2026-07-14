@@ -1412,6 +1412,10 @@ namespace KSPCommunityFixes.Performance
                 throw new Exception("failed to load texture asset bundle");
 
             var request = bundle.LoadAllAssetsAsync();
+
+            // This should (maybe?) allow other concurrent asset bundle requests
+            // to not be blocked by this one.
+            request.priority = -10;
             while (!request.isDone)
             {
                 state.Progress = request.progress;
