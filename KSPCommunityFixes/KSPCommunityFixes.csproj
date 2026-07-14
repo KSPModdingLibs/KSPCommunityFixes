@@ -44,6 +44,12 @@
     <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
   </ItemGroup>
 
+  <!-- Reference type-tree bytes spliced into the in-memory bundles KSPCFFastLoader builds to
+       stream DDS textures. Regenerate with Tools/GenerateTextureTypeTrees.py. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Library\TextureBundle\TextureTypeTrees.bin" />
+  </ItemGroup>
+
   <ItemGroup>
     <KSPVersionFile Include="$(KSPBT_ModRoot)\$(AVCFilename)">
       <Destination>$(KSPBT_ModRoot)\$(AVCFilename)</Destination>

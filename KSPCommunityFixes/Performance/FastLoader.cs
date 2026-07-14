@@ -8,6 +8,7 @@ using KSPAssets;
 using KSPAssets.Loaders;
 using KSPCommunityFixes.Library.Buffers;
 using KSPCommunityFixes.Library.Collections;
+using KSPCommunityFixes.Library.TextureBundle;
 using System;
 using System.Buffers.Binary;
 using System.Collections;
@@ -38,6 +39,7 @@ using System.Threading.Tasks;
 using KSP.UI;
 using System.Security.Cryptography;
 using UnityEngine.Rendering;
+using System.Collections.Concurrent;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -154,7 +156,7 @@ namespace KSPCommunityFixes.Performance
 
         // Max number of new texture load coroutines that will be spawned each frame.
         // This should roughly limit the max frame time spent on loading textures.
-        private const int MaxTextureSpawnsPerFrame = 512;
+        private const int MaxTextureSpawnsPerFrame = 64;
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -454,13 +456,15 @@ namespace KSPCommunityFixes.Performance
 
             // Files loaded by our custom loaders
             List<UrlFile> audioFiles = new List<UrlFile>(1000);
-            List<TextureLoadRequest> textureRequests = new List<TextureLoadRequest>(10000);
-            List<RawAsset> modelAssets = new List<RawAsset>(5000);
+            // Textures that need to be loaded on the main thread go through here.
+            BlockingCollection<TextureLoadRequest> textureQueue = [];
+            List<TextureLoadRequest> bundleRequests = new(10000);
+            List<RawAsset> modelAssets = new(5000);
 
             // Files loaded by mod-defined loaders (ex : Shabby *.shab files)
-            List<UrlFile> unsupportedAudioFiles = new List<UrlFile>(100);
-            List<UrlFile> unsupportedTextureFiles = new List<UrlFile>(100);
-            List<UrlFile> unsupportedModelFiles = new List<UrlFile>(100);
+            List<UrlFile> unsupportedAudioFiles = new(100);
+            List<UrlFile> unsupportedTextureFiles = new(100);
+            List<UrlFile> unsupportedModelFiles = new(100);
 
             // Keeping track of already loaded files to avoid loading duplicates.
             // Note that to replicate stock behavior, we can't populate those
@@ -500,23 +504,23 @@ namespace KSPCommunityFixes.Performance
                             switch (file.fileExtension)
                             {
                                 case "dds":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureDDS));
+                                    bundleRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureDDS));
                                     break;
                                 case "jpg":
                                 case "jpeg":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureJPG));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureJPG));
                                     break;
                                 case "mbm":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureMBM));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureMBM));
                                     break;
                                 case "png":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TexturePNG));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TexturePNG));
                                     break;
                                 case "tga":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTGA));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTGA));
                                     break;
                                 case "truecolor":
-                                    textureRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTRUECOLOR));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTRUECOLOR));
                                     break;
                                 default:
                                     unsupportedTextureFiles.Add(file);
@@ -547,6 +551,18 @@ namespace KSPCommunityFixes.Performance
                     yield return null;
                 }
             }
+
+            SupportedFormatCache.Build();
+
+            // Tune the AUP for much better throughput
+            QualitySettings.asyncUploadTimeSlice = 10;   // ms per frame spent on async uploads (default 2)
+            QualitySettings.asyncUploadBufferSize = 128; // MB ring buffer for async uploads (default 16)
+
+            int textureCount = bundleRequests.Count + textureQueue.Count;
+
+            // Kick off the background bundle build
+            BundleState bundleState = new();
+            gdb.StartCoroutine(LoadBundledAssets(bundleState, bundleRequests, textureQueue));
 
             gdb.progressTitle = "Loading sound assets...";
             KSPCFFastLoaderReport.wAudioLoading.Restart();
@@ -638,9 +654,9 @@ namespace KSPCommunityFixes.Performance
             // start texture loading
             gdb.progressFraction = 0.25f;
             KSPCFFastLoaderReport.wAudioLoading.Stop();
-            SupportedFormatCache.Build();
             KSPCFFastLoaderReport.wTextureLoading.Restart();
             gdb.progressTitle = "Loading texture assets...";
+
             yield return null;
 
             // call non-stock texture loaders
@@ -688,8 +704,11 @@ namespace KSPCommunityFixes.Performance
             }
 
             // call our custom loader
+            yield return gdb.StartCoroutine(TextureDriverCoroutine(textureQueue, allTextureFiles, bundleState, textureCount));
 
-            yield return gdb.StartCoroutine(TextureDriverCoroutine(textureRequests, allTextureFiles));
+            while (!bundleState.Done)
+                yield return null;
+            InsertBundledTextures(bundleState, allTextureFiles);
 
             // start model loading
             gdb.progressFraction = 0.75f;
@@ -1227,6 +1246,222 @@ namespace KSPCommunityFixes.Performance
 
         #endregion
 
+        #region Texture bundle loader
+        private struct BundleItem
+        {
+            public TextureLoadRequest Request;
+            public bool IsNormalMap;
+        }
+
+        // Result of the background DDS bucketing + bundle-building task.
+        private sealed class BundleBuildResult
+        {
+            // The combined bundle bytes, or null when no DDS texture was bundle-eligible.
+            public byte[] Bytes;
+            // The eligible textures, to be looked up in the loaded bundle by File.url.
+            public List<BundleItem> Items;
+        }
+
+        private sealed class BundleState
+        {
+            // How many textures are getting loaded from the bundle?
+            public int Count => Items.Count;
+            // What's the current progress of the bundle
+            public float Progress;
+            // Did the bundle load fail?
+            public bool Failed;
+            public bool Done;
+            public Dictionary<string, Texture2D> Map = [];
+            public List<BundleItem> Items = [];
+        }
+
+        // Background task: parse every DDS header in parallel, route the bundle-eligible textures into
+        // one combined bundle (assembled here on this thread) and push the rest onto textureQueue for
+        // the per-request driver. Returns the combined bundle bytes (null when none were eligible) plus
+        // the eligible items, which the main thread resolves against the loaded bundle afterwards.
+        private static BundleBuildResult BuildDDSBundle(
+            List<TextureLoadRequest> ddsRequests,
+            BlockingCollection<TextureLoadRequest> textureQueue)
+        {
+            // One (TextureEntry for the writer, BundleItem for the resolve) pair per eligible texture.
+            ConcurrentQueue<(TextureBundleBuilder.TextureEntry entry, BundleItem item)> eligible =
+                new();
+
+            // The reads are tiny (a 128-148 byte header each) but there are tens of thousands of them,
+            // so parse them across the thread pool. ParseDDSHeader opens its own stream per call and
+            // only touches thread-safe GraphicsFormatUtility APIs, so this is safe to run concurrently;
+            // each request is written by exactly one iteration, and textureQueue/eligible are both
+            // thread-safe producers.
+            try
+            {
+                Parallel.ForEach(ddsRequests, req =>
+                {
+                    DDSPreparedHeader hdr;
+                    try
+                    {
+                        using (s_pmParseDDSHeader.Auto())
+                            hdr = ParseDDSHeader(req.File.fullPath);
+                    }
+                    catch
+                    {
+                        // Couldn't parse: let the per-request DDS loader re-parse and surface the error.
+                        textureQueue.Add(req);
+                        return;
+                    }
+
+                    req.FileLength = hdr.FileLength;
+
+                    if (hdr.BundleEligible && SupportedFormatCache.IsSupported(hdr.Format))
+                    {
+                        req.Bundled = true;
+                        TextureBundleBuilder.TextureEntry entry = new(
+                            req.File.url,
+                            hdr.Width, hdr.Height, hdr.MipCount,
+                            hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
+                            req.File.fullPath, hdr.DataOffset, hdr.StreamedSize);
+                        eligible.Enqueue((entry, new BundleItem { Request = req, IsNormalMap = hdr.IsNormalMap }));
+                    }
+                    else
+                    {
+                        textureQueue.Add(req);
+                    }
+                });
+            }
+            finally
+            {
+                // The main thread finished adding non-DDS before dispatch and this task is the only
+                // other producer, so once bucketing is done nothing else will be added. This runs even
+                // if bucketing throws unexpectedly, so the driver's IsCompleted wait can never hang.
+                textureQueue.CompleteAdding();
+            }
+
+            List<TextureBundleBuilder.TextureEntry> entries = new List<TextureBundleBuilder.TextureEntry>(eligible.Count);
+            List<BundleItem> items = new List<BundleItem>(eligible.Count);
+            foreach ((TextureBundleBuilder.TextureEntry entry, BundleItem item) in eligible)
+            {
+                entries.Add(entry);
+                items.Add(item);
+            }
+
+            return new BundleBuildResult
+            {
+                Bytes = entries.Count == 0 ? null : TextureBundleBuilder.BuildMany(entries),
+                Items = items,
+            };
+        }
+
+        private static IEnumerator LoadBundledAssets(
+            BundleState state,
+            List<TextureLoadRequest> requests,
+            BlockingCollection<TextureLoadRequest> textureQueue
+        )
+        {
+            var inner = LoadBundledAssetsImpl(state, requests, textureQueue);
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    if (e is AggregateException agg)
+                        e = agg.InnerException ?? e;
+
+                    Debug.LogError("Failed to load bundled textres");
+                    Debug.LogException(e);
+
+                    state.Progress = 1f;
+                    state.Failed = true;
+                    break;
+                }
+
+                yield return current;
+            }
+
+            state.Done = true;
+        }
+
+        private static IEnumerator LoadBundledAssetsImpl(
+            BundleState state,
+            List<TextureLoadRequest> requests,
+            BlockingCollection<TextureLoadRequest> textureQueue)
+        {
+            var task = Task.Run(() => BuildDDSBundle(requests, textureQueue));
+            while (!task.IsCompleted)
+                yield return null;
+
+            var built = task.Result;
+            state.Items = built.Items;
+            if (state.Count == 0)
+            {
+                state.Progress = 1f;
+                yield break;
+            }
+
+            var bundleRequest = AssetBundle.LoadFromMemoryAsync(built.Bytes);
+            yield return bundleRequest;
+
+            var bundle = bundleRequest.assetBundle;
+            if (bundle == null)
+                throw new Exception("failed to load texture asset bundle");
+
+            var request = bundle.LoadAllAssetsAsync();
+            while (!request.isDone)
+            {
+                state.Progress = request.progress;
+                yield return null;
+            }
+            state.Progress = 1f;
+
+            UnityEngine.Object[] assets = request.allAssets;
+            Dictionary<string, Texture2D> map = new(assets.Length);
+            for (int i = 0; i < assets.Length; ++i)
+            {
+                if (assets[i] is Texture2D tex)
+                    map[tex.name] = tex;
+            }
+
+            state.Map = map;
+        }
+
+        private static void InsertBundledTextures(
+            BundleState state,
+            HashSet<string> loadedUrls)
+        {
+            List<BundleItem> items = state.Items;
+            if (items == null || items.Count == 0)
+                return;
+
+            Dictionary<string, Texture2D> map = state.Map;
+
+            foreach (var item in items)
+            {
+                TextureLoadRequest req = item.Request;
+
+                if (!state.Failed && map != null
+                    && map.TryGetValue(req.File.url, out Texture2D tex) && tex.IsNotNullOrDestroyed())
+                {
+                    req.Result = new TextureInfo(req.File, tex, item.IsNormalMap, isReadable: false, isCompressed: true);
+                    req.Status = TextureLoadRequest.State.Ready;
+                }
+                else
+                {
+                    req.ErrorMessage ??= "DDS: streamed texture missing from combined bundle";
+                    req.Status = TextureLoadRequest.State.Failed;
+                }
+
+                InsertReadyRequest(req, loadedUrls);
+                loadedAssetCount++;
+            }
+        }
+        #endregion
+
         #region Per-texture coroutine loader
 
         // Profiling markers for the work scheduled on background threads via Task.Run.
@@ -1254,6 +1489,7 @@ namespace KSPCommunityFixes.Performance
             public TextureInfo Result;
             public string ErrorMessage;
             public Exception Exception;
+            public bool Bundled;
 
             public TextureLoadRequest(UrlFile file, RawAsset.AssetType assetType)
             {
@@ -1273,6 +1509,14 @@ namespace KSPCommunityFixes.Performance
             public GraphicsFormat Format;
             public long DataOffset;
             public long FileLength;
+
+            // Whether this texture can be loaded through the streamed asset-bundle path (see
+            // LoadDDSCoroutine). When true, the fields below are populated for the bundle body.
+            public bool BundleEligible;
+            public int ClassicTextureFormat; // legacy TextureFormat as int
+            public int ColorSpace; // 0 == linear, 1 == sRGB
+            public int MipCount; // full mip count Unity will allocate
+            public long StreamedSize; // total mip-chain byte size read from the file
         }
 
         // Probes which GraphicsFormats are actually usable on the running GPU.
@@ -1348,15 +1592,35 @@ namespace KSPCommunityFixes.Performance
                 throw new IOException($"DDS: {error ?? "unknown format"}");
 
             long dataOffset = hasDx10 ? 148 : 128;
+            int width = (int)hdr.dwWidth;
+            int height = (int)hdr.dwHeight;
+            int mipCount = mipChain ? ComputeMipCount(width, height) : 1;
+
+            // Can we load this texture directly through an asset bundle?
+            bool bundleEligible = TryGetClassicFormat(fmt, out int classicFormat, out int colorSpace)
+                && IsBlockAligned(fmt, width, height);
+            long streamedSize = 0;
+            if (bundleEligible)
+            {
+                streamedSize = ComputeMipChainSize(fmt, width, height, mipCount);
+                if (streamedSize > int.MaxValue || fileLength - dataOffset < streamedSize)
+                    bundleEligible = false;
+            }
+
             return new DDSPreparedHeader
             {
-                Width = (int)hdr.dwWidth,
-                Height = (int)hdr.dwHeight,
+                Width = width,
+                Height = height,
                 MipChain = mipChain,
                 IsNormalMap = isNormalMap,
                 Format = fmt,
                 DataOffset = dataOffset,
                 FileLength = fileLength,
+                BundleEligible = bundleEligible,
+                ClassicTextureFormat = classicFormat,
+                ColorSpace = colorSpace,
+                MipCount = mipCount,
+                StreamedSize = streamedSize,
             };
         }
 
@@ -1460,13 +1724,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // In-place channel-swizzle for RGBA32 normal maps. Operates on the texture's
-        // entire raw byte buffer, which means every populated mip level when the texture
-        // was created with a mip chain.
-        //
-        // Channel swizzle is per-pixel and the box-filter mip generator is linear, so
-        // swizzling pre-built mips matches what stock KSP produced by swizzling level-0
-        // and regenerating from there (BitmapToCompressedNormalMapFast).
+        // In-place swizzle for RGBA32 normal maps. Goes from rgba -> gggr.
         private static unsafe void SwizzleNormalMap(NativeArray<byte> data)
         {
             using var scope = s_pmSwizzleNormalMap.Auto();
@@ -1485,10 +1743,7 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // Legacy src->dst swizzle, kept for the rare TGA RGB24 path (where source and
-        // destination have different pixel sizes so an in-place transform is impossible).
-        // Walks src.Length end-to-end; the caller must size dst with a mip chain that
-        // matches src's so the constant 3:4 (or 4:4) byte-count ratio fills dst exactly.
+        // Channel swizzle for RGB24, allocates and goes from rgb -> gggr.
         private static unsafe void SwizzleNormalMap(NativeArray<byte> src, NativeArray<byte> dst, TextureFormat srcFormat)
         {
             using var scope = s_pmSwizzleNormalMap.Auto();
@@ -1559,12 +1814,8 @@ namespace KSPCommunityFixes.Performance
             return AsyncReadManager.Read(path, &cmd, 1);
         }
 
-        // Mirrors UnityEngine.Experimental.Rendering.TextureCreationFlags but with the
-        // additional flag values that exist in Unity's native code but aren't exposed in
-        // the public managed enum. DontInitializePixels skips the zero-fill that the
-        // normal Texture2D constructor performs — pointless work when we're about to
-        // overwrite the bytes via LoadRawTextureData / AsyncReadManager / LoadImage.
-        // Borrowed from KSPTextureLoader (../AsyncTextureLoad/src/KSPTextureLoader/TextureUtils.cs).
+        // An extended version of TextureCreationFlags that contains additional values
+        // that are not exposed publically by unity.
         [Flags]
         private enum InternalTextureCreationFlags
         {
@@ -1660,19 +1911,74 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        // The classic Texture2D object serializes a legacy TextureFormat plus a colour space; only
+        // graphics formats that survive the round-trip can go through the bundle path.
+        private static bool TryGetClassicFormat(GraphicsFormat format, out int textureFormat, out int colorSpace)
+        {
+            TextureFormat tf = GraphicsFormatUtility.GetTextureFormat(format);
+            bool srgb = GraphicsFormatUtility.IsSRGBFormat(format);
+            textureFormat = (int)tf;
+            colorSpace = srgb ? 1 : 0;
+            return GraphicsFormatUtility.GetGraphicsFormat(tf, srgb) == format;
+        }
+
+        // A texture is "block aligned" when it is uncompressed (block size 1x1, always aligned) or
+        // its dimensions are a multiple of the compression block size. Only misaligned compressed
+        // textures must avoid the background-upload bundle path.
+        private static bool IsBlockAligned(GraphicsFormat format, int width, int height)
+        {
+            if (!GraphicsFormatUtility.IsCompressedFormat(format))
+                return true;
+            int blockWidth = (int)GraphicsFormatUtility.GetBlockWidth(format);
+            int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
+            return width % blockWidth == 0 && height % blockHeight == 0;
+        }
+
+        // The number of mip levels Unity allocates for a full mip chain.
+        private static int ComputeMipCount(int width, int height)
+        {
+            int size = Math.Max(width, height);
+            int count = 1;
+            while (size > 1)
+            {
+                size >>= 1;
+                count++;
+            }
+            return count;
+        }
+
+        // Total byte size of the mip chain as laid out in a Texture2D's raw data: for each level,
+        // ceil(w/blockW) * ceil(h/blockH) * blockSize. Matches Unity's GetRawTextureData layout.
+        private static long ComputeMipChainSize(GraphicsFormat format, int width, int height, int mipCount)
+        {
+            int blockWidth = (int)GraphicsFormatUtility.GetBlockWidth(format);
+            int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
+            int blockSize = (int)GraphicsFormatUtility.GetBlockSize(format);
+            long total = 0;
+            for (int mip = 0; mip < mipCount; ++mip)
+            {
+                int mipWidth = Math.Max(1, width >> mip);
+                int mipHeight = Math.Max(1, height >> mip);
+                int blocksX = Math.Max(1, (mipWidth + blockWidth - 1) / blockWidth);
+                int blocksY = Math.Max(1, (mipHeight + blockHeight - 1) / blockHeight);
+                total += (long)blocksX * blocksY * blockSize;
+            }
+            return total;
+        }
+
         private static IEnumerator LoadDDSCoroutine(TextureLoadRequest req)
         {
             string path = req.File.fullPath;
-            Task<DDSPreparedHeader> hdrTask = Task.Run(() =>
+            Task<DDSPreparedHeader> prepTask = Task.Run(() =>
             {
-                using var scope = s_pmParseDDSHeader.Auto();
-                return ParseDDSHeader(path);
+                using (s_pmParseDDSHeader.Auto())
+                    return ParseDDSHeader(path);
             });
-            while (!hdrTask.IsCompleted)
+            while (!prepTask.IsCompleted)
                 yield return null;
-            if (hdrTask.IsFaulted)
-                throw UnwrapFaultedTask(hdrTask, "DDS header parse failed");
-            DDSPreparedHeader hdr = hdrTask.Result;
+            if (prepTask.IsFaulted)
+                throw UnwrapFaultedTask(prepTask, "DDS header parse failed");
+            DDSPreparedHeader hdr = prepTask.Result;
             req.FileLength = hdr.FileLength;
 
             if (!SupportedFormatCache.IsSupported(hdr.Format))
@@ -2069,21 +2375,26 @@ namespace KSPCommunityFixes.Performance
             req.Status = TextureLoadRequest.State.Ready;
         }
 
-        private static IEnumerator TextureDriverCoroutine(List<TextureLoadRequest> requests, HashSet<string> loadedUrls)
+        // Drains the shared texture queue, spawning up to MaxTextureSpawnsPerFrame concurrent
+        // per-request loaders per frame and inserting finished ones in FIFO order. The queue is fed
+        // by the enumeration loop (non-DDS) and the background bucketer (non-bundled DDS); the
+        // bucketer calls CompleteAdding when done, so IsCompleted && empty means no more will arrive.
+        private static IEnumerator TextureDriverCoroutine(
+            BlockingCollection<TextureLoadRequest> requests,
+            HashSet<string> loadedUrls,
+            BundleState state,
+            int totalTextureCount)
         {
             GameDatabase gdb = GameDatabase.Instance;
-            Queue<TextureLoadRequest> active = new Queue<TextureLoadRequest>();
-            int total = requests.Count;
-            var iter = requests.GetEnumerator();
+            Queue<TextureLoadRequest> active = new();
             int completed = 0;
 
             while (true)
             {
                 for (int i = 0; i < MaxTextureSpawnsPerFrame; ++i)
                 {
-                    if (!iter.MoveNext())
-                        goto WINDDOWN;
-                    var request = iter.Current;
+                    if (!requests.TryTake(out var request))
+                        break;
 
                     gdb.StartCoroutine(LoadTextureCoroutine(request));
                     active.Enqueue(request);
@@ -2100,24 +2411,16 @@ namespace KSPCommunityFixes.Performance
                     completed++;
                 }
 
+                int progress = completed + (int)(state.Progress * state.Count);
+
                 gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                gdb.progressTitle = $"Loading texture asset {completed}/{total}";
+                gdb.progressTitle = $"Loading texture asset {progress}/{totalTextureCount}";
+
+                // Done when the producers have finished and everything spawned has been drained.
+                if (requests.IsCompleted && active.Count == 0)
+                    break;
+
                 yield return null;
-            }
-
-        WINDDOWN:
-            while (active.TryDequeue(out var pending))
-            {
-                while (pending.Status == TextureLoadRequest.State.Pending)
-                {
-                    gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                    gdb.progressTitle = $"Loading texture asset {completed}/{total}";
-                    yield return null;
-                }
-
-                InsertReadyRequest(pending, loadedUrls);
-                loadedAssetCount++;
-                completed++;
             }
         }
 
@@ -2181,45 +2484,6 @@ namespace KSPCommunityFixes.Performance
                 req.ErrorMessage ??= "Loader produced no result";
                 req.Status = TextureLoadRequest.State.Failed;
             }
-        }
-
-        private static void SpawnTextureCoroutine(TextureLoadRequest req, Queue<TextureLoadRequest> active, GameDatabase gdb)
-        {
-            IEnumerator inner;
-            switch (req.AssetType)
-            {
-                case RawAsset.AssetType.TextureDDS:
-                    inner = LoadDDSCoroutine(req);
-                    break;
-                case RawAsset.AssetType.TexturePNG:
-                case RawAsset.AssetType.TextureJPG:
-                    inner = LoadUWRCoroutine(req);
-                    break;
-                case RawAsset.AssetType.TextureTRUECOLOR:
-                    inner = LoadTRUECOLORCoroutine(req);
-                    break;
-                case RawAsset.AssetType.TextureMBM:
-                    inner = LoadMBMCoroutine(req);
-                    break;
-                case RawAsset.AssetType.TextureTGA:
-                    inner = LoadTGACoroutine(req);
-                    break;
-                default:
-                    inner = null;
-                    break;
-            }
-
-            if (inner == null)
-            {
-                req.ErrorMessage = $"Unknown asset type {req.AssetType}";
-                req.Status = TextureLoadRequest.State.Failed;
-            }
-            else
-            {
-                Debug.Log($"Load Texture: {req.File.url}");
-                gdb.StartCoroutine(LoadTextureWrapperCoroutine(req, inner));
-            }
-            active.Enqueue(req);
         }
 
         private static void InsertReadyRequest(TextureLoadRequest req, HashSet<string> loadedUrls)
