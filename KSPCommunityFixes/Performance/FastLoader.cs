@@ -2006,8 +2006,13 @@ namespace KSPCommunityFixes.Performance
                 while (g.CreateRequest == null)
                     yield return null;
 
-                if (!g.CreateRequest.isDone)
-                    yield return g.CreateRequest;
+                // POLL isDone; do NOT `yield return g.CreateRequest`. This AssetBundleCreateRequest is SHARED by
+                // every model coroutine in the group (created once by ModelBundlePumpCoroutine), and the driver
+                // runs up to MaxModelSpawnsPerFrame of them concurrently. Unity forbids yielding one async op
+                // from more than one coroutine ("...already being yielded from another coroutine"), so each
+                // coroutine waits independently by yielding null until the shared op reports done.
+                while (!g.CreateRequest.isDone)
+                    yield return null;
 
                 AssetBundle bundle = g.CreateRequest.assetBundle;
                 if (bundle == null)
