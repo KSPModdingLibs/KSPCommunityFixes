@@ -448,6 +448,13 @@ namespace KSPCommunityFixes.Performance
             // Start load asset bundles in the background while we load other assets.
             PreloadAssetBundleObjects(gdb);
 
+            // If the user hasn't chosen yet then wati for the opt-in
+            if (!loader.userOptInChoiceDone)
+            {
+                gdb.progressTitle = "Waiting for texture cache opt-in...";
+                yield return gdb.StartCoroutine(WaitForUserOptIn());
+            }
+
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
 
@@ -455,7 +462,7 @@ namespace KSPCommunityFixes.Performance
             double nextFrameTime = ElapsedTime + minFrameTimeD;
 
             // Files loaded by our custom loaders
-            List<UrlFile> audioFiles = new List<UrlFile>(1000);
+            List<UrlFile> audioFiles = new(1000);
             // Textures that need to be loaded on the main thread go through here.
             BlockingCollection<TextureLoadRequest> textureQueue = [];
             List<TextureLoadRequest> bundleRequests = new(10000);
@@ -472,9 +479,9 @@ namespace KSPCommunityFixes.Performance
             // before flaging a same-url file as duplicate. Not doing this can break
             // mods relying on that implementation detail, looking at you, Shabby
             // and ConformalDecals
-            HashSet<string> allAudioFiles = new HashSet<string>(1000);
-            HashSet<string> allTextureFiles = new HashSet<string>(10000);
-            HashSet<string> allModelFiles = new HashSet<string>(5000);
+            HashSet<string> allAudioFiles = new(1000);
+            HashSet<string> allTextureFiles = new(10000);
+            HashSet<string> allModelFiles = new(5000);
 
             foreach (UrlDir dir in gdb.root.AllDirectories)
             {
@@ -514,7 +521,7 @@ namespace KSPCommunityFixes.Performance
                                     textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureMBM));
                                     break;
                                 case "png":
-                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TexturePNG));
+                                    bundleRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TexturePNG));
                                     break;
                                 case "tga":
                                     textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTGA));
@@ -1275,72 +1282,32 @@ namespace KSPCommunityFixes.Performance
             public List<BundleItem> Items = [];
         }
 
-        // Background task: parse every DDS header in parallel, route the bundle-eligible textures into
-        // one combined bundle (assembled here on this thread) and push the rest onto textureQueue for
-        // the per-request driver. Returns the combined bundle bytes (null when none were eligible) plus
-        // the eligible items, which the main thread resolves against the loaded bundle afterwards.
         private static BundleBuildResult BuildDDSBundle(
-            List<TextureLoadRequest> ddsRequests,
+            List<TextureLoadRequest> bundleRequests,
             BlockingCollection<TextureLoadRequest> textureQueue)
         {
-            // One (TextureEntry for the writer, BundleItem for the resolve) pair per eligible texture.
-            ConcurrentQueue<(TextureBundleBuilder.TextureEntry entry, BundleItem item)> eligible =
-                new();
+            List<TextureBundleBuilder.TextureEntry> entries = new(bundleRequests.Count);
+            List<BundleItem> items = new(bundleRequests.Count);
 
-            // The reads are tiny (a 128-148 byte header each) but there are tens of thousands of them,
-            // so parse them across the thread pool. ParseDDSHeader opens its own stream per call and
-            // only touches thread-safe GraphicsFormatUtility APIs, so this is safe to run concurrently;
-            // each request is written by exactly one iteration, and textureQueue/eligible are both
-            // thread-safe producers.
             try
             {
-                Parallel.ForEach(ddsRequests, req =>
+                foreach (BundleClassification result in bundleRequests.AsParallel().AsOrdered().Select(ClassifyBundleRequest))
                 {
-                    DDSPreparedHeader hdr;
-                    try
+                    if (result.Eligible)
                     {
-                        using (s_pmParseDDSHeader.Auto())
-                            hdr = ParseDDSHeader(req.File.fullPath);
-                    }
-                    catch
-                    {
-                        // Couldn't parse: let the per-request DDS loader re-parse and surface the error.
-                        textureQueue.Add(req);
-                        return;
-                    }
-
-                    req.FileLength = hdr.FileLength;
-
-                    if (hdr.BundleEligible && SupportedFormatCache.IsSupported(hdr.Format))
-                    {
-                        req.Bundled = true;
-                        TextureBundleBuilder.TextureEntry entry = new(
-                            req.File.url,
-                            hdr.Width, hdr.Height, hdr.MipCount,
-                            hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
-                            req.File.fullPath, hdr.DataOffset, hdr.StreamedSize);
-                        eligible.Enqueue((entry, new BundleItem { Request = req, IsNormalMap = hdr.IsNormalMap }));
+                        entries.Add(result.Entry);
+                        items.Add(result.Item);
                     }
                     else
                     {
-                        textureQueue.Add(req);
+                        textureQueue.Add(result.Request);
                     }
-                });
+                }
             }
             finally
             {
-                // The main thread finished adding non-DDS before dispatch and this task is the only
-                // other producer, so once bucketing is done nothing else will be added. This runs even
-                // if bucketing throws unexpectedly, so the driver's IsCompleted wait can never hang.
+                // Signal to the main thread that no new requests are coming
                 textureQueue.CompleteAdding();
-            }
-
-            List<TextureBundleBuilder.TextureEntry> entries = new List<TextureBundleBuilder.TextureEntry>(eligible.Count);
-            List<BundleItem> items = new List<BundleItem>(eligible.Count);
-            foreach ((TextureBundleBuilder.TextureEntry entry, BundleItem item) in eligible)
-            {
-                entries.Add(entry);
-                items.Add(item);
             }
 
             return new BundleBuildResult
@@ -1348,6 +1315,86 @@ namespace KSPCommunityFixes.Performance
                 Bytes = entries.Count == 0 ? null : TextureBundleBuilder.BuildMany(entries),
                 Items = items,
             };
+        }
+
+        // Outcome of classifying one bundle candidate: either it is bundle-eligible (Entry + Item are set and
+        // it goes into the combined bundle) or it isn't (only Request is set and it goes to the driver queue).
+        private readonly struct BundleClassification
+        {
+            public readonly TextureLoadRequest Request;
+            public readonly bool Eligible;
+            public readonly TextureBundleBuilder.TextureEntry Entry;
+            public readonly BundleItem Item;
+
+            public BundleClassification(TextureLoadRequest request)
+            {
+                Request = request;
+                Eligible = false;
+                Entry = default;
+                Item = default;
+            }
+
+            public BundleClassification(TextureBundleBuilder.TextureEntry entry, BundleItem item)
+            {
+                Request = item.Request;
+                Eligible = true;
+                Entry = entry;
+                Item = item;
+            }
+        }
+
+        /// <summary>
+        /// Can we include this request in the asset bundle?
+        /// </summary>
+        private static BundleClassification ClassifyBundleRequest(TextureLoadRequest req)
+        {
+            // Resolve the file whose pixels this request streams from. DDS streams from its own file; a PNG
+            // streams from its DXT cache, but only when caching is on and a valid, up-to-date cache exists. A
+            // PNG without one goes to the regular decode path (which rebuilds the cache), so its normal-map
+            // status comes from the file name, not a header.
+            string sourcePath;
+            bool isNormalMap;
+            if (req.AssetType == RawAsset.AssetType.TexturePNG)
+            {
+                if (!textureCacheEnabled || !TryGetValidPngCache(req.File, out sourcePath))
+                    return new BundleClassification(req);
+                isNormalMap = req.File.name.EndsWith("NRM");
+            }
+            else
+            {
+                sourcePath = req.File.fullPath;
+                isNormalMap = false;
+            }
+
+            DDSPreparedHeader hdr;
+            try
+            {
+                using (s_pmParseDDSHeader.Auto())
+                    hdr = ParseDDSHeader(sourcePath);
+            }
+            catch
+            {
+                // Couldn't parse: let the per-request loader re-parse (rebuilding the cache for a PNG) and
+                // surface the error.
+                return new BundleClassification(req);
+            }
+
+            req.FileLength = hdr.FileLength;
+            if (req.AssetType != RawAsset.AssetType.TexturePNG)
+                isNormalMap = hdr.IsNormalMap;
+
+            if (hdr.BundleEligible && SupportedFormatCache.IsSupported(hdr.Format))
+            {
+                req.Bundled = true;
+                TextureBundleBuilder.TextureEntry entry = new(
+                    req.File.url,
+                    hdr.Width, hdr.Height, hdr.MipCount,
+                    hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
+                    sourcePath, hdr.DataOffset, hdr.StreamedSize);
+                return new BundleClassification(entry, new BundleItem { Request = req, IsNormalMap = isNormalMap });
+            }
+
+            return new BundleClassification(req);
         }
 
         private static IEnumerator LoadBundledAssets(
@@ -1464,6 +1511,207 @@ namespace KSPCommunityFixes.Performance
                 loadedAssetCount++;
             }
         }
+        #endregion
+
+        #region PNG texture cache
+
+        // If the user opts into it, we cache compressed versions of PNG files as DDS files under
+        // GameData/KSPCommunityFixes/PluginData/TextureCache. Later, when textures are loaded from
+        // the cache, they can go through the asset bundle path.
+
+        // Marker written into dwReserved1[4] so a cache file is recognisably ours and not some unrelated DDS
+        // that happens to hash to the same name.
+        private const uint PngCacheMarker = 0x4643_534Bu; // "KSCF"
+
+        private static string PngCacheDir => Path.Combine(ModPath, "PluginData", "TextureCache");
+
+        // Deterministic, collision-free (SHA1) and length-safe cache path for a texture URL.
+        private static string GetPngCachePath(string url)
+        {
+            byte[] hash;
+            using (SHA1 sha = SHA1.Create())
+                hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(url));
+            return Path.Combine(PngCacheDir, BitConverter.ToString(hash).Replace("-", "") + ".dds");
+        }
+
+        // Source-file identity stamp: byte size + last-write-time. A cache is valid only while both still match.
+        private static bool GetPngStamp(string path, out long size, out long time)
+        {
+            size = 0;
+            time = 0;
+            try
+            {
+                FileInfo fi = new FileInfo(path);
+                if (!fi.Exists)
+                    return false;
+                size = fi.Length;
+                time = fi.LastWriteTimeUtc.ToFileTimeUtc();
+                return size > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Reads the (size, time) stamp embedded in a cache file's DDS reserved header. Returns false if the
+        // file is missing, too small, isn't a DDS, or wasn't written by us.
+        private static bool TryReadPngCacheStamp(string path, out long size, out long time)
+        {
+            size = 0;
+            time = 0;
+            try
+            {
+                using FileStream fs = File.OpenRead(path);
+                if (fs.Length < 148)
+                    return false;
+                using BinaryReader br = new BinaryReader(fs);
+                if (br.ReadUInt32() != DDSValues.uintMagic)
+                    return false;
+                // dwReserved1 starts 28 bytes into the 124-byte header, i.e. at file offset 32.
+                fs.Position = 32;
+                long s = br.ReadInt64();               // dwReserved1[0..1]
+                long t = br.ReadInt64();               // dwReserved1[2..3]
+                if (br.ReadUInt32() != PngCacheMarker) // dwReserved1[4]
+                    return false;
+                size = s;
+                time = t;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // True when a valid, up-to-date cache DDS exists for the given PNG. cachePath is set to the resolved
+        // cache location on success so the caller can stream from it.
+        private static bool TryGetValidPngCache(UrlFile file, out string cachePath)
+        {
+            cachePath = GetPngCachePath(file.url);
+            if (!GetPngStamp(file.fullPath, out long size, out long time))
+                return false;
+            return TryReadPngCacheStamp(cachePath, out long cachedSize, out long cachedTime)
+                && cachedSize == size && cachedTime == time;
+        }
+
+        // Maps the four DXT graphics formats the PNG loader can produce to their DXGI equivalents. Returns
+        // false for anything else (e.g. uncompressed), which is never cached.
+        private static bool TryGetCacheDxgiFormat(GraphicsFormat format, out uint dxgiFormat)
+        {
+            switch (format)
+            {
+                case GraphicsFormat.RGBA_DXT1_UNorm: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM; return true;
+                case GraphicsFormat.RGBA_DXT1_SRGB: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB; return true;
+                case GraphicsFormat.RGBA_DXT5_UNorm: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM; return true;
+                case GraphicsFormat.RGBA_DXT5_SRGB: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB; return true;
+                default: dxgiFormat = 0; return false;
+            }
+        }
+
+        // Captures the compressed pixels of a just-loaded PNG (main thread) and writes them to the on-disk
+        // cache as a DDS on a background thread. No-op unless the texture is in a cacheable DXT format with a
+        // round-trippable mip layout. Must be called before Apply(makeNoLongerReadable) frees the pixels.
+        private static void TryWritePngCache(UrlFile file, Texture2D src)
+        {
+            try
+            {
+                if (!TryGetCacheDxgiFormat(src.graphicsFormat, out uint dxgiFormat))
+                    return;
+
+                int width = src.width;
+                int height = src.height;
+                int mipCount = src.mipmapCount;
+                // The bundle path reconstructs either a full mip chain or a single level; anything else
+                // (a partial chain) can't be round-tripped, so don't cache it.
+                if (mipCount != 1 && mipCount != ComputeMipCount(width, height))
+                    return;
+
+                if (!GetPngStamp(file.fullPath, out long size, out long time))
+                    return;
+
+                byte[] data = src.GetRawTextureData<byte>().ToArray();
+                string path = GetPngCachePath(file.url);
+                Task.Run(() => WritePngCacheFile(path, width, height, mipCount, dxgiFormat, size, time, data));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[KSPCFFastLoader] Couldn't cache PNG '{file.url}': {e.Message}");
+            }
+        }
+
+        private static void WritePngCacheFile(
+            string path, int width, int height, int mipCount, uint dxgiFormat, long srcSize, long srcTime, byte[] data)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                using FileStream fs = File.Create(path);
+                using BinaryWriter bw = new BinaryWriter(fs);
+                WriteDdsCacheHeader(bw, width, height, mipCount, dxgiFormat, srcSize, srcTime);
+                bw.Write(data, 0, data.Length);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[KSPCFFastLoader] Couldn't write PNG cache '{path}': {e.Message}");
+            }
+        }
+
+        // Writes a DX10 DDS header (magic + 124-byte DDS_HEADER + 20-byte DDS_HEADER_DXT10 = 148 bytes) that
+        // ParseDDSHeader reads back to the exact GraphicsFormat / dimensions / mip count. The source PNG's
+        // (size, time) stamp plus our marker live in the otherwise-unused dwReserved1 words; Unity streams
+        // only the pixel bytes past offset 148 and never parses this header, so those words are free to use.
+        private static void WriteDdsCacheHeader(
+            BinaryWriter bw, int width, int height, int mipCount, uint dxgiFormat, long srcSize, long srcTime)
+        {
+            bool hasMips = mipCount > 1;
+
+            const uint DDSD_CAPS = 0x1, DDSD_HEIGHT = 0x2, DDSD_WIDTH = 0x4, DDSD_PIXELFORMAT = 0x1000;
+            const uint DDSD_MIPMAPCOUNT = 0x20000, DDSD_LINEARSIZE = 0x80000;
+            const uint DDPF_FOURCC = 0x4;
+            const uint DDSCAPS_TEXTURE = 0x1000, DDSCAPS_COMPLEX = 0x8, DDSCAPS_MIPMAP = 0x400000;
+
+            bool isBc1 = dxgiFormat == (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM
+                         || dxgiFormat == (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB;
+            int blockBytes = isBc1 ? 8 : 16;
+            uint topLinearSize = (uint)(Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * blockBytes);
+
+            bw.Write(DDSValues.uintMagic);                 // "DDS "
+            bw.Write(124u);                                // dwSize
+            uint flags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT | DDSD_LINEARSIZE;
+            if (hasMips) flags |= DDSD_MIPMAPCOUNT;
+            bw.Write(flags);                               // dwFlags
+            bw.Write((uint)height);                        // dwHeight
+            bw.Write((uint)width);                         // dwWidth
+            bw.Write(topLinearSize);                       // dwPitchOrLinearSize
+            bw.Write(0u);                                  // dwDepth
+            bw.Write((uint)mipCount);                      // dwMipMapCount
+            // dwReserved1[11]: source stamp + marker, rest zero.
+            bw.Write(srcSize);                             // [0..1]
+            bw.Write(srcTime);                             // [2..3]
+            bw.Write(PngCacheMarker);                      // [4]
+            for (int i = 5; i < 11; i++)
+                bw.Write(0u);                              // [5..10]
+            // DDS_PIXELFORMAT (32 bytes): FourCC "DX10".
+            bw.Write(32u);                                 // dwSize
+            bw.Write(DDPF_FOURCC);                         // dwFlags
+            bw.Write(DDSValues.uintDX10);                  // dwFourCC
+            bw.Write(0u); bw.Write(0u); bw.Write(0u); bw.Write(0u); bw.Write(0u); // bit count + channel masks
+            uint caps = DDSCAPS_TEXTURE;
+            if (hasMips) caps |= DDSCAPS_COMPLEX | DDSCAPS_MIPMAP;
+            bw.Write(caps);                                // dwCaps
+            bw.Write(0u);                                  // dwCaps2
+            bw.Write(0u);                                  // dwCaps3
+            bw.Write(0u);                                  // dwCaps4
+            bw.Write(0u);                                  // dwReserved2
+            // DDS_HEADER_DXT10 (20 bytes).
+            bw.Write(dxgiFormat);                          // dxgiFormat
+            bw.Write(3u);                                  // resourceDimension = D3D10_RESOURCE_DIMENSION_TEXTURE2D
+            bw.Write(0u);                                  // miscFlag
+            bw.Write(1u);                                  // arraySize
+            bw.Write(0u);                                  // miscFlags2
+        }
+
         #endregion
 
         #region Per-texture coroutine loader
@@ -2104,6 +2352,11 @@ namespace KSPCommunityFixes.Performance
                 }
                 else if (!isNormalMap)
                     Debug.LogWarning($"Texture '{req.File.url}' isn't eligible for DXT compression, width and height must be multiples of 4");
+
+                // Persist the compressed PNG to the on-disk cache (before the pixels are freed below) so
+                // future loads can stream it straight from the combined bundle instead of decoding again.
+                if (textureCacheEnabled && req.AssetType == RawAsset.AssetType.TexturePNG)
+                    TryWritePngCache(req.File, src);
 
                 src.Apply(updateMipmaps: false, makeNoLongerReadable: true);
 
@@ -3037,12 +3290,12 @@ namespace KSPCommunityFixes.Performance
         }
         #endregion
 
-        #region User opt-in popup (vestigial)
+        #region User opt-in popup
 
-        // The popup, opt-in flow, and PNG-cache-size estimator below are intentionally
-        // kept around — the cache they were originally tied to has been removed, but the
-        // popup is going to be repurposed for an upcoming feature. Nothing currently
-        // triggers WaitForUserOptIn; it must be invoked explicitly by the new feature.
+        // Shown once on first launch (from FastAssetLoader, gated on userOptInChoiceDone) to let the user
+        // enable the on-disk PNG texture cache. The choice is persisted to PNGTextureCache.cfg and drives
+        // textureCacheEnabled; the popup also estimates the loading-time saving and disk cost from the
+        // install's PNG textures.
 
         private static IEnumerator WaitForUserOptIn()
         {
