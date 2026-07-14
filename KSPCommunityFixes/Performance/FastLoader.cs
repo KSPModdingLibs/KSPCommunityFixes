@@ -470,7 +470,6 @@ namespace KSPCommunityFixes.Performance
 
             // Files loaded by mod-defined loaders (ex : Shabby *.shab files)
             List<UrlFile> unsupportedAudioFiles = new(100);
-            List<UrlFile> unsupportedTextureFiles = new(100);
             List<UrlFile> unsupportedModelFiles = new(100);
 
             // Keeping track of already loaded files to avoid loading duplicates.
@@ -530,7 +529,7 @@ namespace KSPCommunityFixes.Performance
                                     textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTRUECOLOR));
                                     break;
                                 default:
-                                    unsupportedTextureFiles.Add(file);
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureCUSTOM));
                                     break;
                             }
                             break;
@@ -562,8 +561,8 @@ namespace KSPCommunityFixes.Performance
             SupportedFormatCache.Build();
 
             // Tune the AUP for much better throughput
-            QualitySettings.asyncUploadTimeSlice = 10;   // ms per frame spent on async uploads (default 2)
-            QualitySettings.asyncUploadBufferSize = 128; // MB ring buffer for async uploads (default 16)
+            QualitySettings.asyncUploadTimeSlice = 25;
+            QualitySettings.asyncUploadBufferSize = 128;
 
             int textureCount = bundleRequests.Count + textureQueue.Count;
 
@@ -666,49 +665,11 @@ namespace KSPCommunityFixes.Performance
 
             yield return null;
 
-            // call non-stock texture loaders
-
             // note : we could use the StringComparer.OrdinalIgnoreCase comparer as the dictionary key comparer,
             // as this is the comparison that stock is doing. However, profiling show that casing mismatches rarely happen
             // (never in stock, 0.22% of calls in a very heavily modded install with a bunch of part mods of varying quality)
             // and the overhead of the OrdinalIgnoreCase comparer is offsetting the gains (but a small margin, but still). 
             texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count);
-            unsupportedFilesCount = unsupportedTextureFiles.Count;
-            loadersCount = gdb.loadersTexture.Count;
-
-            if (loadersCount > 0 && unsupportedFilesCount > 0)
-            {
-                for (int i = 0; i < unsupportedFilesCount; i++)
-                {
-                    UrlFile file = unsupportedTextureFiles[i];
-
-                    if (allTextureFiles.Contains(file.url))
-                    {
-                        Debug.LogWarning($"Duplicate texture asset '{file.url}' with extension '{file.fileExtension}' won't be loaded");
-                        continue;
-                    }
-
-                    Debug.Log($"Load Texture: {file.url}");
-                    for (int k = 0; k < loadersCount; k++)
-                    {
-                        DatabaseLoader<TextureInfo> loader = gdb.loadersTexture[k];
-                        if (!loader.extensions.Contains(file.fileExtension))
-                            continue;
-
-                        yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
-                        if (loader.successful)
-                        {
-                            loader.obj.name = file.url;
-                            loader.obj.texture.name = file.url;
-                            gdb.databaseTexture.Add(loader.obj);
-                            allTextureFiles.Add(file.url);
-                            loadedAssetCount++;
-                            gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                        }
-                        break;
-                    }
-                }
-            }
 
             // call our custom loader
             yield return gdb.StartCoroutine(TextureDriverCoroutine(textureQueue, allTextureFiles, bundleState, textureCount));
@@ -716,6 +677,8 @@ namespace KSPCommunityFixes.Performance
             while (!bundleState.Done)
                 yield return null;
             InsertBundledTextures(bundleState, allTextureFiles);
+
+            QualitySettings.asyncUploadTimeSlice = 2;
 
             // start model loading
             gdb.progressFraction = 0.75f;
@@ -1018,6 +981,7 @@ namespace KSPCommunityFixes.Performance
                 TexturePNG,
                 TextureTGA,
                 TextureTRUECOLOR,
+                TextureCUSTOM,
                 ModelMU,
                 ModelDAE
             }
@@ -1732,7 +1696,15 @@ namespace KSPCommunityFixes.Performance
         // Result/error carrier for each texture file. Replaces RawAsset for textures.
         private sealed class TextureLoadRequest
         {
-            public enum State : byte { Pending, Ready, Failed }
+            public enum State : byte
+            {
+                Pending,
+                Ready,
+                Failed,
+                // Used for custom loaders, they are responsible for printing
+                // their own error messages on failure (unless they throw).
+                Skip
+            }
 
             public UrlFile File;
             public RawAsset.AssetType AssetType;
@@ -1815,7 +1787,7 @@ namespace KSPCommunityFixes.Performance
 
         private static DDSPreparedHeader ParseDDSHeader(string path)
         {
-            FileInfo fi = new FileInfo(path);
+            FileInfo fi = new(path);
             long fileLength = fi.Length;
             if (fileLength < 128)
                 throw new IOException($"DDS file '{path}' is too small ({fileLength} bytes)");
@@ -2057,7 +2029,7 @@ namespace KSPCommunityFixes.Performance
         // pointer setup goes through this static helper.
         private static unsafe ReadHandle BeginAsyncRead(string path, NativeArray<byte> dst, long offset, long size)
         {
-            ReadCommand cmd = new ReadCommand
+            ReadCommand cmd = new()
             {
                 Buffer = NativeArrayUnsafeUtility.GetUnsafePtr(dst),
                 Offset = offset,
@@ -2347,6 +2319,16 @@ namespace KSPCommunityFixes.Performance
 
                 if (canCompress)
                 {
+                    // Avoid making the compress call if the frame time is already > 25ms
+                    while (true)
+                    {
+                        float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                        if (frameTime < 0.025)
+                            break;
+
+                        yield return null;
+                    }
+
                     using (s_pmCompress.Auto())
                         src.Compress(highQuality: !isNormalMap);
                 }
@@ -2454,6 +2436,16 @@ namespace KSPCommunityFixes.Performance
 
                 if (isPot)
                 {
+                    // Avoid making the compress call if the frame time is already > 25ms
+                    while (true)
+                    {
+                        float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                        if (frameTime < 0.025)
+                            break;
+
+                        yield return null;
+                    }
+
                     using (s_pmCompress.Auto())
                         tex.Compress(highQuality: false);
                 }
@@ -2577,6 +2569,16 @@ namespace KSPCommunityFixes.Performance
 
                     if (isPot)
                     {
+                        // Avoid making the compress call if the frame time is already > 25ms
+                        while (true)
+                        {
+                            float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                            if (frameTime < 0.025)
+                                break;
+
+                            yield return null;
+                        }
+
                         using (s_pmCompress.Auto())
                             texture.Compress(highQuality: false);
                     }
@@ -2621,15 +2623,108 @@ namespace KSPCommunityFixes.Performance
 
                     if (isPot)
                     {
+                        // Avoid making the compress call if the frame time is already > 25ms
+                        while (true)
+                        {
+                            float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                            if (frameTime < 0.025)
+                                break;
+
+                            yield return null;
+                        }
+
                         using (s_pmCompress.Auto())
                             texture.Compress(highQuality: false);
                     }
+
                     texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
                 }
             }
 
             req.Result = new TextureInfo(req.File, texture, isNormalMap, isReadable: !isNormalMap, isCompressed: true);
             req.Status = TextureLoadRequest.State.Ready;
+        }
+
+        // Custom database loaders are singletons, so we cannot load more than
+        // one texture at a time with them. This class serves to ensure that
+        // doesn't happen.
+        class CustomLoaderGuard : CustomYieldInstruction, IDisposable
+        {
+            static readonly Dictionary<object, Queue<CustomLoaderGuard>> queues = [];
+
+            object loader;
+
+            public CustomLoaderGuard(object loader)
+            {
+                if (!queues.TryGetValue(loader, out var queue))
+                {
+                    queue = [];
+                    queues.Add(loader, queue);
+                }
+
+                queue.Enqueue(this);
+                this.loader = loader;
+            }
+
+            public override bool keepWaiting
+            {
+                get
+                {
+                    if (loader is null)
+                        return false;
+
+                    var queue = queues[loader];
+                    var head = queue.Peek();
+                    return !ReferenceEquals(head, this);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (loader is null)
+                    return;
+
+                queues[loader].Dequeue();
+                loader = null;
+            }
+
+            public static void Clear() => queues.Clear();
+        }
+
+        private static IEnumerator LoadCUSTOMCoroutine(TextureLoadRequest req)
+        {
+            UrlFile file = req.File;
+            var gdb = GameDatabase.Instance;
+
+            foreach (var loader in gdb.loadersTexture)
+            {
+                if (!loader.extensions.Contains(file.fileExtension))
+                    continue;
+
+                using var guard = new CustomLoaderGuard(loader);
+                yield return guard;
+
+                var inner = loader.Load(file, new FileInfo(file.fullPath));
+                using var _guard = inner as IDisposable;
+                while (inner.MoveNext())
+                    yield return inner.Current;
+
+                if (!loader.successful)
+                    break;
+
+                loader.obj.name = file.url;
+                loader.obj.texture.name = file.url;
+                req.Result = loader.obj;
+                req.Status = TextureLoadRequest.State.Ready;
+                yield break;
+            }
+
+            // Some modded loaders (e.g. shabby) use the texture loader to load
+            // non-texture things. In this case they'll load the file but not
+            // mark the load as successful. KSP does nothing in this case, so
+            // we reproduce these by explicitly skipping them, which prints the
+            // "Loaded texture: ..." message but doesn't print any error messages.
+            req.Status = TextureLoadRequest.State.Skip;
         }
 
         // Drains the shared texture queue, spawning up to MaxTextureSpawnsPerFrame concurrent
@@ -2679,6 +2774,8 @@ namespace KSPCommunityFixes.Performance
 
                 yield return null;
             }
+
+            CustomLoaderGuard.Clear();
         }
 
         private static IEnumerator LoadTextureCoroutine(TextureLoadRequest req)
@@ -2703,10 +2800,11 @@ namespace KSPCommunityFixes.Performance
                     inner = LoadTGACoroutine(req);
                     break;
                 default:
-                    req.ErrorMessage = $"Unknown asset type {req.AssetType}";
-                    req.Status = TextureLoadRequest.State.Failed;
-                    yield break;
+                    inner = LoadCUSTOMCoroutine(req);
+                    break;
             }
+
+            using var _guard = inner as IDisposable;
 
             while (true)
             {
@@ -2746,6 +2844,9 @@ namespace KSPCommunityFixes.Performance
         private static void InsertReadyRequest(TextureLoadRequest req, HashSet<string> loadedUrls)
         {
             Debug.Log($"Load Texture: {req.File.url}");
+
+            if (req.Status == TextureLoadRequest.State.Skip)
+                return;
 
             if (req.Status == TextureLoadRequest.State.Failed)
             {
