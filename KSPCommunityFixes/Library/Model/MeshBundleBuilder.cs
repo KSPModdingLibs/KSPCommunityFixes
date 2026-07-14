@@ -124,7 +124,9 @@ namespace KSPCommunityFixes.Library.Model
                     + (b.VertexData?.Length ?? 0)
                     + (b.IndexData?.Length ?? 0)
                     + (b.SubMeshes?.Length ?? 0) * 48
-                    + (b.BindPose?.Length ?? 0) * 64;
+                    + (b.BindPose?.Length ?? 0) * 64
+                    + (b.BoneNameHashes?.Length ?? 0) * 4
+                    + (b.BonesAABB?.Length ?? 0) * 24;
             }
             return total > int.MaxValue ? int.MaxValue : (int)total;
         }
@@ -161,10 +163,30 @@ namespace KSPCommunityFixes.Library.Model
             }
             bindPose.End(align: true);
 
-            w.BeginArray().End(align: true); // m_BoneNameHashes : vector<uint>
-            w.WriteUInt32(0); // m_RootBoneNameHash
-            w.BeginArray().End(align: true); // m_BonesAABB : vector<MinMaxAABB>
-            w.BeginArray().End(align: true); // m_VariableBoneCountWeights.m_Data : vector<uint>
+            // m_BoneNameHashes : vector<uint>, Array aligns. One CRC32 per bone (empty for static).
+            var boneNameHashes = w.BeginArray();
+            uint[] hashes = mesh.BoneNameHashes ?? Array.Empty<uint>();
+            for (int i = 0; i < hashes.Length; ++i)
+            {
+                boneNameHashes.Add();
+                w.WriteUInt32(hashes[i]);
+            }
+            boneNameHashes.End(align: true);
+
+            w.WriteUInt32(mesh.RootBoneNameHash); // m_RootBoneNameHash
+
+            // m_BonesAABB : vector<MinMaxAABB>, Array aligns. One 24-byte min/max per bone (empty for
+            // static). Element metaFlags carry no align-after bit, so no per-element padding.
+            var bonesAABB = w.BeginArray();
+            MeshBoneAABB[] aabbs = mesh.BonesAABB ?? Array.Empty<MeshBoneAABB>();
+            for (int i = 0; i < aabbs.Length; ++i)
+            {
+                bonesAABB.Add();
+                WriteMinMaxAABB(w, aabbs[i]);
+            }
+            bonesAABB.End(align: true);
+
+            w.BeginArray().End(align: true); // m_VariableBoneCountWeights.m_Data : vector<uint> (empty)
 
             w.WriteByte(0); // m_MeshCompression (0 == uncompressed)
             w.WriteBool(true); // m_IsReadable — keep the CPU copy (stock KSP behaviour)
@@ -236,6 +258,20 @@ namespace KSPCommunityFixes.Library.Model
             w.WriteSingle(e.x);
             w.WriteSingle(e.y);
             w.WriteSingle(e.z);
+        }
+
+        // MinMaxAABB (m_BonesAABB element): two Vector3f (m_Min, m_Max), 24 bytes. Distinct from the
+        // AABB (m_Center/m_Extent) written by WriteAABB.
+        static void WriteMinMaxAABB(BundleBufferWriter w, in MeshBoneAABB a)
+        {
+            Vector3 min = a.Min;
+            Vector3 max = a.Max;
+            w.WriteSingle(min.x);
+            w.WriteSingle(min.y);
+            w.WriteSingle(min.z);
+            w.WriteSingle(max.x);
+            w.WriteSingle(max.y);
+            w.WriteSingle(max.z);
         }
 
         static void WriteMatrix4x4(BundleBufferWriter w, in Matrix4x4 m)

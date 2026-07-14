@@ -47,12 +47,45 @@ namespace KSPCommunityFixes.Library.Model
         public Matrix4x4[] BindPose;
 
         /// <summary>
+        /// One CRC32 per bone (<c>m_BoneNameHashes</c>); null/empty for a static mesh. Count must
+        /// equal <see cref="BindPose"/> and <see cref="BonesAABB"/> (Unity's per-bone invariant).
+        /// </summary>
+        public uint[] BoneNameHashes;
+
+        /// <summary>The root bone's hash (<c>m_RootBoneNameHash</c>); <c>BoneNameHashes[0]</c>, 0 for a static mesh.</summary>
+        public uint RootBoneNameHash;
+
+        /// <summary>
+        /// Per-bone local bounds (<c>m_BonesAABB</c>); null/empty for a static mesh. Count must equal
+        /// <see cref="BindPose"/>. Filled conservatively with the whole-mesh bounds per bone (bounds
+        /// affect culling only, not skinning).
+        /// </summary>
+        public MeshBoneAABB[] BonesAABB;
+
+        /// <summary>
         /// UV distribution metrics (<c>m_MeshMetrics[0..1]</c>). 1.0 is a neutral default: these values
         /// only feed texture-mip <i>streaming priority</i> (which mips to keep resident), not per-pixel
         /// mip selection, so leaving them at 1 has no visual effect. Real values are computed later.
         /// </summary>
         public float MeshMetric0 = 1f;
         public float MeshMetric1 = 1f;
+    }
+
+    /// <summary>
+    /// One <c>MinMaxAABB</c> entry (<c>m_BonesAABB</c> element): a min/max corner pair, 24 bytes
+    /// (two <c>Vector3f</c>). Distinct from <see cref="Bounds"/> (center/extent), which the local
+    /// AABB and submesh bounds use.
+    /// </summary>
+    internal readonly struct MeshBoneAABB
+    {
+        public readonly Vector3 Min;
+        public readonly Vector3 Max;
+
+        public MeshBoneAABB(Vector3 min, Vector3 max)
+        {
+            Min = min;
+            Max = max;
+        }
     }
 
     /// <summary>One <c>ChannelInfo</c> entry: which stream/offset/format/dimension a vertex attribute uses.</summary>
