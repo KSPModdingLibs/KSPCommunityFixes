@@ -46,7 +46,7 @@ namespace KSPCommunityFixes.Library.Model
         }
 
         /// <summary>Build a <see cref="MeshBlob"/> from a live <c>UnityEngine.Mesh</c> (main thread only).</summary>
-        public static MeshBlob FromMesh(Mesh mesh, string name)
+        public static MeshBlob FromMesh(Mesh mesh, string name, Action<string> warn = null)
         {
             var arrays = new Arrays
             {
@@ -61,21 +61,24 @@ namespace KSPCommunityFixes.Library.Model
             arrays.SubMeshTriangles = new int[subCount][];
             for (int i = 0; i < subCount; ++i)
                 arrays.SubMeshTriangles[i] = mesh.GetTriangles(i);
-            return FromArrays(name, in arrays);
+            return FromArrays(name, in arrays, warn);
         }
 
-        public static unsafe MeshBlob FromArrays(string name, in Arrays a)
+        // <paramref name="warn"/> is an optional attribute-mismatch sink. When null (main-thread/offline
+        // callers) warnings fall back to Debug.LogWarning; a worker-thread caller passes a sink that
+        // buffers the message instead, since Debug.LogWarning is not safe to call off the main thread.
+        public static unsafe MeshBlob FromArrays(string name, in Arrays a, Action<string> warn = null)
         {
             Vector3[] verts = a.Vertices ?? Array.Empty<Vector3>();
             int vertexCount = verts.Length;
 
             // A non-null attribute array whose length doesn't match the vertex count is dropped
             // (treated as absent) below; warn so a mismatched .mu doesn't silently lose an attribute.
-            WarnIfWrongLength(name, "normals", Count(a.Normals), vertexCount);
-            WarnIfWrongLength(name, "tangents", Count(a.Tangents), vertexCount);
-            WarnIfWrongLength(name, "colors", Count(a.Colors), vertexCount);
-            WarnIfWrongLength(name, "uv0", Count(a.Uv0), vertexCount);
-            WarnIfWrongLength(name, "uv1", Count(a.Uv1), vertexCount);
+            WarnIfWrongLength(name, "normals", Count(a.Normals), vertexCount, warn);
+            WarnIfWrongLength(name, "tangents", Count(a.Tangents), vertexCount, warn);
+            WarnIfWrongLength(name, "colors", Count(a.Colors), vertexCount, warn);
+            WarnIfWrongLength(name, "uv0", Count(a.Uv0), vertexCount, warn);
+            WarnIfWrongLength(name, "uv1", Count(a.Uv1), vertexCount, warn);
 
             bool hasNormals = Count(a.Normals) == vertexCount && vertexCount > 0;
             bool hasTangents = Count(a.Tangents) == vertexCount && vertexCount > 0;
@@ -205,13 +208,21 @@ namespace KSPCommunityFixes.Library.Model
 
         // Warns only when an attribute array is actually present (non-null, non-empty) but its length
         // disagrees with the vertex count, i.e. it is about to be silently dropped. Cheap: no
-        // allocation unless the (rare) warning path fires.
-        static void WarnIfWrongLength(string name, string attr, int length, int vertexCount)
+        // allocation unless the (rare) warning path fires. When a <paramref name="warn"/> sink is
+        // supplied (worker-thread callers) the message is routed there; otherwise it falls back to
+        // Debug.LogWarning for main-thread/offline callers.
+        static void WarnIfWrongLength(string name, string attr, int length, int vertexCount, Action<string> warn)
         {
             if (length != 0 && length != vertexCount)
-                Debug.LogWarning(
+            {
+                string message =
                     $"[MeshBlobBuilder] mesh '{name}': {attr} array length {length} != vertexCount " +
-                    $"{vertexCount}; dropping {attr}");
+                    $"{vertexCount}; dropping {attr}";
+                if (warn != null)
+                    warn(message);
+                else
+                    Debug.LogWarning(message);
+            }
         }
 
         static Bounds ComputeBounds(Vector3[] verts, int start, int count)

@@ -44,5 +44,50 @@ namespace KSPCommunityFixes.Library.Model
 
         /// <summary>Human-readable reason set when <see cref="Failed"/> is true.</summary>
         public string FailureMessage;
+
+        /// <summary>Diagnostics collected on the worker thread during compilation. KSP installs its own
+        /// <c>ILogHandler</c> and mods chain handlers onto <c>Application.logMessageReceived</c>, none of
+        /// which are thread-safe, so these must NEVER be logged off-thread; they are buffered here and
+        /// flushed on the MAIN thread via <see cref="FlushLogs"/>.</summary>
+        public System.Collections.Generic.List<DeferredLog> Logs;
+
+        /// <summary>
+        /// MAIN THREAD ONLY. Emits every buffered <see cref="DeferredLog"/> through
+        /// <c>UnityEngine.Debug</c>, mapping <see cref="UnityEngine.LogType"/> to the matching Debug call
+        /// (Error/Exception → LogError, Warning → LogWarning, else → Log). Null-safe (no-op when
+        /// <see cref="Logs"/> was never populated).
+        /// </summary>
+        public void FlushLogs()
+        {
+            if (Logs == null)
+                return;
+
+            for (int i = 0; i < Logs.Count; i++)
+            {
+                DeferredLog log = Logs[i];
+                switch (log.Type)
+                {
+                    case UnityEngine.LogType.Error:
+                    case UnityEngine.LogType.Exception:
+                        UnityEngine.Debug.LogError(log.Message);
+                        break;
+                    case UnityEngine.LogType.Warning:
+                        UnityEngine.Debug.LogWarning(log.Message);
+                        break;
+                    default:
+                        UnityEngine.Debug.Log(log.Message);
+                        break;
+                }
+            }
+        }
+    }
+
+    /// <summary>A single diagnostic buffered during off-thread compilation, to be emitted later on the
+    /// main thread via <see cref="CompiledModel.FlushLogs"/>.</summary>
+    internal readonly struct DeferredLog
+    {
+        public readonly UnityEngine.LogType Type;
+        public readonly string Message;
+        public DeferredLog(UnityEngine.LogType type, string message) { Type = type; Message = message; }
     }
 }

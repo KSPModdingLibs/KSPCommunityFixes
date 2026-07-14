@@ -68,6 +68,23 @@ namespace KSPCommunityFixes.Library.Model
         private bool containsSkinnedMesh;
         private bool skinnedLogged;
 
+        // Diagnostics buffered during compilation. Compile runs on background worker threads (via a
+        // parallel PLINQ query over all models), and KSP's ILogHandler plus the mod handlers chained onto
+        // Application.logMessageReceived are NOT thread-safe, so nothing here may log off-thread. Instead
+        // every diagnostic is appended to this list and handed to the returned CompiledModel, whose
+        // FlushLogs() emits them on the MAIN thread during replay.
+        private List<DeferredLog> logs;
+
+        // Single cached sink passed to MeshBlobBuilder.FromArrays so its attribute-length warnings are
+        // buffered rather than logged off-thread. It closes over the logs FIELD (not a captured list), so
+        // after ResetState swaps in a fresh list it always targets the current one — no per-mesh alloc.
+        private readonly Action<string> warnSink;
+
+        public MuModelCompiler()
+        {
+            warnSink = msg => logs.Add(new DeferredLog(LogType.Warning, msg));
+        }
+
         /// <summary>
         /// Compile one <c>.mu</c> file into a main-thread-ready <see cref="CompiledModel"/>. Never throws:
         /// on any parse error a <see cref="CompiledModel"/> with <see cref="CompiledModel.Failed"/> set is
@@ -122,16 +139,19 @@ namespace KSPCommunityFixes.Library.Model
                     LocalCount = nextSlot,
                     ContainsSkinnedMesh = containsSkinnedMesh,
                     Failed = false,
+                    Logs = logs, // flushed on the main thread by the replay pipeline (see FlushLogs)
                 };
             }
             catch (Exception e)
             {
                 // SourceUrl is set first so the pipeline can log which file failed. Compile never throws.
+                // A Failed model still carries any diagnostics buffered before the fault so they aren't lost.
                 return new CompiledModel
                 {
                     SourceUrl = fileUrl,
                     Failed = true,
                     FailureMessage = e.GetType().Name + ": " + e.Message,
+                    Logs = logs,
                 };
             }
         }
@@ -155,6 +175,10 @@ namespace KSPCommunityFixes.Library.Model
             skinnedRenderers.Clear();
             containsSkinnedMesh = false;
             skinnedLogged = false;
+            // Fresh list per Compile so a returned CompiledModel keeps its own buffered diagnostics even
+            // after this instance is reused for the next file. warnSink closes over this field, so it
+            // automatically targets the new list.
+            logs = new List<DeferredLog>();
         }
 
         // ---- Core tree walk ------------------------------------------------------------------------
@@ -796,7 +820,7 @@ namespace KSPCommunityFixes.Library.Model
             // reproduce that exactly, including leaving the cursor right after texCount.
             if (texCount != textureSlots.Count)
             {
-                Debug.LogError("TextureError: " + texCount + " " + textureSlots.Count);
+                logs.Add(new DeferredLog(LogType.Error, "TextureError: " + texCount + " " + textureSlots.Count));
                 return;
             }
 
@@ -950,7 +974,7 @@ namespace KSPCommunityFixes.Library.Model
                 // Corrupt stream: MuParser logs "Mesh Error" and returns a null mesh (the component then
                 // gets a null sharedMesh) while the walk continues. We allocate a slot with NO binding so
                 // locals[slot] stays null == null mesh, matching that behaviour without a replay crash.
-                Debug.LogError("Mesh Error");
+                logs.Add(new DeferredLog(LogType.Error, "Mesh Error"));
                 return nextSlot++;
             }
 
@@ -1040,7 +1064,7 @@ namespace KSPCommunityFixes.Library.Model
 
             arrays.SubMeshTriangles = triangles.ToArray();
 
-            MeshBlob blob = MeshBlobBuilder.FromArrays(canonicalName, in arrays);
+            MeshBlob blob = MeshBlobBuilder.FromArrays(canonicalName, in arrays, warnSink);
             blobs.Add(blob);
 
             int meshSlot = nextSlot++;
@@ -1149,13 +1173,16 @@ namespace KSPCommunityFixes.Library.Model
             if (!skinnedLogged)
             {
                 skinnedLogged = true;
-                // This and the compiler's other Debug.Log* calls (the MeshStart/mesh-error log and the
-                // texCount-mismatch guard) run on background worker threads: Compile is invoked via a
-                // parallel PLINQ query over all models. That's intentional and safe — Unity 2019.4's logger
-                // is internally synchronized, and off-thread diagnostic logging is already the established
-                // pattern in this codebase's background paths (e.g. MeshBlobBuilder's attribute-length warnings).
-                Debug.Log($"[MuModelCompiler] Model '{fileUrl}' contains a skinned mesh; the v1 pipeline " +
-                          "will fall back to MuParser.Parse for this file.");
+                // This notice, like the compiler's other diagnostics (the mesh-error log and the
+                // texCount-mismatch guard), is BUFFERED into the CompiledModel rather than logged here.
+                // Compile runs on background worker threads (a parallel PLINQ query over all models), and
+                // KSP's ILogHandler plus the mod handlers chained onto Application.logMessageReceived are
+                // NOT thread-safe — calling Debug.Log* off-thread could corrupt their state or crash. The
+                // buffered messages are emitted safely on the main thread by CompiledModel.FlushLogs during
+                // replay. (MeshBlobBuilder's attribute-length warnings are likewise routed through warnSink.)
+                logs.Add(new DeferredLog(LogType.Log,
+                    $"[MuModelCompiler] Model '{fileUrl}' contains a skinned mesh; the v1 pipeline " +
+                    "will fall back to MuParser.Parse for this file."));
             }
         }
 
