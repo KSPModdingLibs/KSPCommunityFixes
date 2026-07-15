@@ -33,13 +33,6 @@ namespace KSPCommunityFixes.Library.Model
         /// <summary>The source <c>file.url</c> — used as the root name, for logging and for registration.</summary>
         public string SourceUrl;
 
-        /// <summary>True when compilation failed; <see cref="Instructions"/>/<see cref="Blobs"/> are then
-        /// meaningless and the pipeline must fall back.</summary>
-        public bool Failed;
-
-        /// <summary>Human-readable reason set when <see cref="Failed"/> is true.</summary>
-        public string FailureMessage;
-
         /// <summary>Diagnostics collected on the worker thread during compilation. KSP installs its own
         /// <c>ILogHandler</c> and mods chain handlers onto <c>Application.logMessageReceived</c>, none of
         /// which are thread-safe, so these must NEVER be logged off-thread; they are buffered here and

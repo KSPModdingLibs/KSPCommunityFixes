@@ -107,56 +107,41 @@ namespace KSPCommunityFixes.Library.Model
             this.fileUrl = fileUrl;
             this.directoryUrl = directoryUrl;
 
-            try
+
+            int length = dataLength <= 0 ? data.Length : dataLength;
+
+            // Pin for the whole walk: MuBinaryReader holds a raw byte*, so the buffer must stay
+            // pinned for the entire parse. A single fixed block around the walk matches MuParser's
+            // GCHandle-pinned scope; nothing reads the stream after this block closes.
+            fixed (byte* p = data)
             {
-                int length = dataLength <= 0 ? data.Length : dataLength;
+                reader = new MuBinaryReader(p, length);
 
-                // Pin for the whole walk: MuBinaryReader holds a raw byte*, so the buffer must stay
-                // pinned for the entire parse. A single fixed block around the walk matches MuParser's
-                // GCHandle-pinned scope; nothing reads the stream after this block closes.
-                fixed (byte* p = data)
-                {
-                    reader = new MuBinaryReader(p, length);
+                if (reader.ReadInt() != 76543)
+                    throw new Exception("Invalid mu file");
 
-                    if (reader.ReadInt() != 76543)
-                        throw new Exception("Invalid mu file");
+                version = reader.ReadInt();
+                reader.SkipString();
 
-                    version = reader.ReadInt();
-                    reader.SkipString();
-
-                    // Root is the first thing allocated, so it lands in slot 0 (parent = -1 == none).
-                    ReadChild(-1);
-                }
-
-                // Two-pass finalize (see FinalizeMaterials): materials + textures are known now, so emit
-                // CreateMaterial/AssignMaterial in ascending material-index order, then the deferred bone
-                // resolution (MuParser runs AffectSkinnedMeshRenderersBones last).
-                FinalizeMaterials();
-                FinalizeBones();
-
-                return new CompiledModel
-                {
-                    SourceUrl = fileUrl,
-                    Instructions = instructions.ToArray(),
-                    Blobs = blobs.ToArray(),
-                    Bindings = bindings.ToArray(),
-                    LocalCount = nextSlot,
-                    Failed = false,
-                    Logs = logs, // flushed on the main thread by the replay pipeline (see FlushLogs)
-                };
+                // Root is the first thing allocated, so it lands in slot 0 (parent = -1 == none).
+                ReadChild(-1);
             }
-            catch (Exception e)
+
+            // Two-pass finalize (see FinalizeMaterials): materials + textures are known now, so emit
+            // CreateMaterial/AssignMaterial in ascending material-index order, then the deferred bone
+            // resolution (MuParser runs AffectSkinnedMeshRenderersBones last).
+            FinalizeMaterials();
+            FinalizeBones();
+
+            return new CompiledModel
             {
-                // SourceUrl is set first so the pipeline can log which file failed. Compile never throws.
-                // A Failed model still carries any diagnostics buffered before the fault so they aren't lost.
-                return new CompiledModel
-                {
-                    SourceUrl = fileUrl,
-                    Failed = true,
-                    FailureMessage = e.GetType().Name + ": " + e.Message,
-                    Logs = logs,
-                };
-            }
+                SourceUrl = fileUrl,
+                Instructions = [.. instructions],
+                Blobs = [.. blobs],
+                Bindings = [.. bindings],
+                LocalCount = nextSlot,
+                Logs = logs,
+            };
         }
 
         private void ResetState()
@@ -778,7 +763,7 @@ namespace KSPCommunityFixes.Library.Model
                     case 4:
                         ReadMaterialTexture(pm, propName);
                         break;
-                    // No default: an unknown type code consumes nothing beyond the name, like MuParser.
+                        // No default: an unknown type code consumes nothing beyond the name, like MuParser.
                 }
             }
 
@@ -1004,79 +989,79 @@ namespace KSPCommunityFixes.Library.Model
                 switch (subType)
                 {
                     case EntryType.MeshVertexColors:
-                    {
-                        var colors = new Color32[size];
-                        reader.FillColor32Buffer(colors, size);
-                        arrays.Colors = colors;
-                        break;
-                    }
+                        {
+                            var colors = new Color32[size];
+                            reader.FillColor32Buffer(colors, size);
+                            arrays.Colors = colors;
+                            break;
+                        }
                     case EntryType.MeshVerts:
-                    {
-                        var verts = new Vector3[size];
-                        reader.FillVector3Buffer(verts, size);
-                        arrays.Vertices = verts;
-                        break;
-                    }
+                        {
+                            var verts = new Vector3[size];
+                            reader.FillVector3Buffer(verts, size);
+                            arrays.Vertices = verts;
+                            break;
+                        }
                     case EntryType.MeshUV:
-                    {
-                        var uv0 = new Vector2[size];
-                        reader.FillVector2Buffer(uv0, size);
-                        arrays.Uv0 = uv0;
-                        break;
-                    }
+                        {
+                            var uv0 = new Vector2[size];
+                            reader.FillVector2Buffer(uv0, size);
+                            arrays.Uv0 = uv0;
+                            break;
+                        }
                     case EntryType.MeshUV2:
-                    {
-                        var uv1 = new Vector2[size];
-                        reader.FillVector2Buffer(uv1, size);
-                        arrays.Uv1 = uv1;
-                        break;
-                    }
+                        {
+                            var uv1 = new Vector2[size];
+                            reader.FillVector2Buffer(uv1, size);
+                            arrays.Uv1 = uv1;
+                            break;
+                        }
                     case EntryType.MeshNormals:
-                    {
-                        var normals = new Vector3[size];
-                        reader.FillVector3Buffer(normals, size);
-                        arrays.Normals = normals;
-                        break;
-                    }
+                        {
+                            var normals = new Vector3[size];
+                            reader.FillVector3Buffer(normals, size);
+                            arrays.Normals = normals;
+                            break;
+                        }
                     case EntryType.MeshTangents:
-                    {
-                        var tangents = new Vector4[size];
-                        reader.FillVector4Buffer(tangents, size);
-                        arrays.Tangents = tangents;
-                        break;
-                    }
+                        {
+                            var tangents = new Vector4[size];
+                            reader.FillVector4Buffer(tangents, size);
+                            arrays.Tangents = tangents;
+                            break;
+                        }
                     case EntryType.MeshTriangles:
-                    {
-                        int triangleCount = reader.ReadInt();
-                        var tris = new int[triangleCount];
-                        reader.FillIntBuffer(tris, triangleCount);
-                        triangles.Add(tris); // one submesh per MeshTriangles block, in encounter order
-                        break;
-                    }
+                        {
+                            int triangleCount = reader.ReadInt();
+                            var tris = new int[triangleCount];
+                            reader.FillIntBuffer(tris, triangleCount);
+                            triangles.Add(tris); // one submesh per MeshTriangles block, in encounter order
+                            break;
+                        }
                     case EntryType.MeshBoneWeights:
-                    {
-                        // Skinned seam: one BoneWeight per vertex (four weights + four bone indices).
-                        // Stored now (was discarded before skin support) so MeshBlobBuilder emits the
-                        // BlendWeights (ch12) and BlendIndices (ch13) vertex channels. Same read order and
-                        // count as the oracle, so cursor parity is preserved.
-                        var boneWeights = new BoneWeight[size];
-                        for (int i = 0; i < size; i++)
-                            boneWeights[i] = reader.ReadBoneWeight();
-                        arrays.BoneWeights = boneWeights;
-                        break;
-                    }
+                        {
+                            // Skinned seam: one BoneWeight per vertex (four weights + four bone indices).
+                            // Stored now (was discarded before skin support) so MeshBlobBuilder emits the
+                            // BlendWeights (ch12) and BlendIndices (ch13) vertex channels. Same read order and
+                            // count as the oracle, so cursor parity is preserved.
+                            var boneWeights = new BoneWeight[size];
+                            for (int i = 0; i < size; i++)
+                                boneWeights[i] = reader.ReadBoneWeight();
+                            arrays.BoneWeights = boneWeights;
+                            break;
+                        }
                     case EntryType.MeshBindPoses:
-                    {
-                        // One bind pose per bone; its length defines the bone count. Stored now (was
-                        // discarded before skin support) so the blob carries m_BindPose and its bone
-                        // metadata. Same read order and count as the oracle, so cursor parity is preserved.
-                        int bindPosesCount = reader.ReadInt();
-                        var bindPoses = new Matrix4x4[bindPosesCount];
-                        for (int i = 0; i < bindPosesCount; i++)
-                            bindPoses[i] = reader.ReadMatrix4x4();
-                        arrays.BindPoses = bindPoses;
-                        break;
-                    }
+                        {
+                            // One bind pose per bone; its length defines the bone count. Stored now (was
+                            // discarded before skin support) so the blob carries m_BindPose and its bone
+                            // metadata. Same read order and count as the oracle, so cursor parity is preserved.
+                            int bindPosesCount = reader.ReadInt();
+                            var bindPoses = new Matrix4x4[bindPosesCount];
+                            for (int i = 0; i < bindPosesCount; i++)
+                                bindPoses[i] = reader.ReadMatrix4x4();
+                            arrays.BindPoses = bindPoses;
+                            break;
+                        }
                 }
             }
 
