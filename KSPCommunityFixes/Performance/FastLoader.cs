@@ -176,6 +176,16 @@ namespace KSPCommunityFixes.Performance
         // Vestigial: kept so the popup can persist its choice across launches once it is repurposed.
         private static bool textureCacheEnabled;
 
+        // Mipmap streaming for part/mesh textures. Bundle textures are baked with m_StreamingMipmaps=true
+        // (see TextureBundleBuilder), pinned full-res on load, then released to the streaming manager at
+        // the point a model material or a part texture-replacement binds them. Gated globally by this
+        // toggle (read early from PluginData config in Awake, before KSPCommunityFixes.SettingsNode exists).
+        internal static bool mipmapStreamingEnabled = true;
+
+        // Fraction of total VRAM handed to the streaming memory budget. Leaves headroom for framebuffers
+        // and other VRAM consumers (Deferred, Scatterer, EVE) so streaming only drops mips under real pressure.
+        private const float StreamingBudgetFraction = 0.8f;
+
         private static string ModPath => Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
 
@@ -234,6 +244,18 @@ namespace KSPCommunityFixes.Performance
             assetAndPartLoaderHarmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
 
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
+
+            // Release part-compilation texture replacements to the mipmap streaming manager at their bind
+            // sites (gated at call time on mipmapStreamingEnabled). These are the only two texture-assignment
+            // points in stock part compilation.
+            MethodInfo m_PartLoader_ReplaceTextures = AccessTools.Method(typeof(PartLoader), "ReplaceTextures");
+            MethodInfo po_PartLoader_ReplaceTextures = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_ReplaceTextures_Postfix));
+            assetAndPartLoaderHarmony.Patch(m_PartLoader_ReplaceTextures, null, new HarmonyMethod(po_PartLoader_ReplaceTextures));
+
+            MethodInfo m_PartLoader_ReplacePartTexture = AccessTools.Method(typeof(PartLoader), "ReplacePartTexture");
+            MethodInfo po_PartLoader_ReplacePartTexture = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_ReplacePartTexture_Postfix));
+            assetAndPartLoaderHarmony.Patch(m_PartLoader_ReplacePartTexture, null, new HarmonyMethod(po_PartLoader_ReplacePartTexture));
+
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
 
@@ -260,7 +282,17 @@ namespace KSPCommunityFixes.Performance
 
                 if (!config.TryGetValue(nameof(textureCacheEnabled), ref textureCacheEnabled))
                     userOptInChoiceDone = false;
+
+                // Optional opt-out for mipmap streaming (default ON). Read here — the load-phase streaming
+                // setup runs long before KSPCommunityFixes.SettingsNode is populated.
+                config.TryGetValue(nameof(mipmapStreamingEnabled), ref mipmapStreamingEnabled);
             }
+
+            // TEMPORARY: force the texture cache on and skip the opt-in popup while iterating on the
+            // mipmap-streaming work (DeployToKSP wipes the cfg each build, so the popup blocks unattended
+            // loads). Revert to the config-driven / popup behavior before shipping.
+            userOptInChoiceDone = true;
+            textureCacheEnabled = true;
         }
 
         /// <summary>
@@ -563,6 +595,11 @@ namespace KSPCommunityFixes.Performance
             // Tune the AUP for much better throughput
             QualitySettings.asyncUploadTimeSlice = 25;
             QualitySettings.asyncUploadBufferSize = 256;
+            QualitySettings.streamingMipmapsMaxLevelReduction = MaxStreamingMipReduction;
+
+            // Enable mipmap streaming before the bundle textures are realized so they register with the
+            // streaming manager on load.
+            ApplyStreamingQualitySettings();
 
             int textureCount = bundleRequests.Count + textureQueue.Count;
 
@@ -1149,6 +1186,7 @@ namespace KSPCommunityFixes.Performance
                     req.File.url,
                     hdr.Width, hdr.Height, hdr.MipCount,
                     hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
+                    EligibleForStreaming(hdr),
                     sourcePath, hdr.DataOffset, hdr.StreamedSize);
                 return new BundleClassification(entry, new BundleItem { Request = req, IsNormalMap = isNormalMap });
             }
@@ -1269,6 +1307,12 @@ namespace KSPCommunityFixes.Performance
                 {
                     req.Result = new TextureInfo(req.File, tex, item.IsNormalMap, isReadable: false, isCompressed: true);
                     req.Status = TextureLoadRequest.State.Ready;
+
+                    // Pin every streaming texture full-res on load. It stays pinned (never streamed down)
+                    // until a model material or a part texture-replacement releases it via ReleaseToStreaming;
+                    // textures with no owning mesh (UI, icons, ...) therefore never blur.
+                    if (mipmapStreamingEnabled && tex.streamingMipmaps)
+                        tex.requestedMipmapLevel = 0;
                 }
                 else
                 {
@@ -1284,6 +1328,64 @@ namespace KSPCommunityFixes.Performance
                     yield return null;
             }
         }
+        #endregion
+
+        #region Mipmap streaming
+
+        // Enable Unity's mipmap streaming and size its budget to a fraction of total VRAM. These setters
+        // write to the currently-active quality level (GameSettings.QUALITY_PRESET). Called once, early in
+        // the asset-load phase, before the bundle textures are realized. If in-game testing shows KSP's
+        // SetQualityLevel wipes these, a fallback postfix on GameSettings.ApplySettings would re-apply them.
+        internal static void ApplyStreamingQualitySettings()
+        {
+            if (!mipmapStreamingEnabled)
+                return;
+
+            QualitySettings.streamingMipmapsActive = true;
+            QualitySettings.streamingMipmapsAddAllCameras = true;
+            QualitySettings.streamingMipmapsMemoryBudget = SystemInfo.graphicsMemorySize * StreamingBudgetFraction;
+        }
+
+        // Release a just-bound mesh/part texture back to automatic streaming, undoing the load-time full-res
+        // pin from InsertBundledTextures. Idempotent (ClearRequestedMipmapLevel is a no-op the second time and
+        // on non-streaming textures), so the shared database Texture2D can be released by whichever model or
+        // part binds it first, with no dedup bookkeeping.
+        internal static void ReleaseToStreaming(Texture tex)
+        {
+            if (mipmapStreamingEnabled && tex is Texture2D t2d && t2d.streamingMipmaps)
+                t2d.ClearRequestedMipmapLevel();
+        }
+
+        // Postfix on PartLoader.ReplaceTextures (MODEL-node "texture = orig, new" swaps): release each
+        // config-declared replacement texture. Releasing a declared-but-unmatched entry is harmless (idempotent
+        // + a texture with no owning renderer would only stream down when it is genuinely unused).
+        private static void PartLoader_ReplaceTextures_Postfix(List<TextureInfo> newTextures)
+        {
+            if (!mipmapStreamingEnabled || newTextures == null)
+                return;
+
+            for (int i = 0; i < newTextures.Count; i++)
+            {
+                TextureInfo ti = newTextures[i];
+                if (ti == null)
+                    continue;
+                ReleaseToStreaming(ti.texture);
+                ReleaseToStreaming(ti.normalMap);
+            }
+        }
+
+        // Postfix on PartLoader.ReplacePartTexture (part-level "texture"/"bump" field): the resolved texture is
+        // a local in the stock method, so recompute the URL from the parameters exactly as the method does and
+        // release the shared database texture (GetTexture is a dictionary lookup, fast-pathed by KSPCF).
+        private static void PartLoader_ReplacePartTexture_Postfix(UrlConfig urlConfig, string textureName, bool normalMap)
+        {
+            if (!mipmapStreamingEnabled)
+                return;
+
+            string url = urlConfig.parent.parent.url + "/textures/" + Path.GetFileNameWithoutExtension(textureName);
+            ReleaseToStreaming(GameDatabase.Instance.GetTexture(url, normalMap));
+        }
+
         #endregion
 
         #region Model bundle loader
@@ -1471,6 +1573,8 @@ namespace KSPCommunityFixes.Performance
                 tcs.SetException(new Exception("asset bundle failed to load"));
                 yield break;
             }
+
+            group.Bundle = bundle;
 
             var request = bundle.LoadAllAssetsAsync();
             request.priority = -100;
@@ -2403,6 +2507,26 @@ namespace KSPCommunityFixes.Performance
             int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
             return width % blockWidth == 0 && height % blockHeight == 0;
         }
+
+        // Mipmap streaming reduces a texture's resident base mip by up to
+        // QualitySettings.streamingMipmapsMaxLevelReduction levels (we set that to this value; Unity's
+        // default is 2). The reduced mip becomes the texture's uploaded base level, and a block-compressed
+        // upload only works when that base is a whole number of blocks. So a texture may only join the
+        // streaming system when its mip level MaxStreamingMipReduction is still block aligned; otherwise the
+        // deepest reduction would upload a fractional-block base and corrupt. Uncompressed formats have
+        // a 1x1 block and always qualify.
+        private const int MaxStreamingMipReduction = 3;
+
+        // Textures smaller than this (whole mip chain) aren't worth streaming: the VRAM they could
+        // free is negligible next to the per-texture bookkeeping the streaming manager keeps for them.
+        private const long MinStreamingBytes = 4 * 1024;
+
+        private static bool EligibleForStreaming(in DDSPreparedHeader hdr) =>
+            hdr.StreamedSize >= MinStreamingBytes
+            && IsBlockAligned(
+                hdr.Format,
+                Math.Max(1, hdr.Width >> MaxStreamingMipReduction),
+                Math.Max(1, hdr.Height >> MaxStreamingMipReduction));
 
         // The number of mip levels Unity allocates for a full mip chain.
         private static int ComputeMipCount(int width, int height)
