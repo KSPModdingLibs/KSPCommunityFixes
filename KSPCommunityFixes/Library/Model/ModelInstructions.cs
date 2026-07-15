@@ -1,5 +1,6 @@
 using System;
 using KSPCommunityFixes.Library;
+using KSPCommunityFixes.Performance;
 using PartToolsLib;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -167,7 +168,12 @@ namespace KSPCommunityFixes.Library.Model
                         if (tex.IsNullOrDestroyed())
                             Debug.LogError($"Texture '{t.Url}' not found!");
                         else
+                        {
                             mat.SetTexture(t.Name, tex);
+                            // This texture is used by rendered geometry: release it from the load-time full-res
+                            // pin so Unity's mipmap streaming can manage its residency (no-op when disabled).
+                            KSPCFFastLoader.ReleaseToStreaming(tex);
+                        }
                     }
                 }
             }

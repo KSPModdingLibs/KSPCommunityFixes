@@ -67,6 +67,11 @@ namespace KSPCommunityFixes.Library.TextureBundle
 
             /// <summary>Whether Unity should keep a CPU-side copy of the pixels.</summary>
             public bool Readable;
+
+            /// <summary>Serialized <c>m_StreamingMipmaps</c>. When true, the texture joins Unity's
+            /// mipmap streaming system. The caller decides eligibility (only set it when the mip
+            /// levels stay block aligned under the deepest streaming reduction).</summary>
+            public bool StreamingMipmaps;
         }
 
         /// <summary>The built bundle prefix plus the name to request from it.</summary>
@@ -104,6 +109,10 @@ namespace KSPCommunityFixes.Library.TextureBundle
 
             public readonly bool Readable;
 
+            /// <summary>Serialized <c>m_StreamingMipmaps</c>: whether this texture joins Unity's
+            /// mipmap streaming system.</summary>
+            public readonly bool StreamingMipmaps;
+
             /// <summary>Absolute path of the DDS file the pixels are streamed from.</summary>
             public readonly string ExternalPath;
 
@@ -121,6 +130,7 @@ namespace KSPCommunityFixes.Library.TextureBundle
                 int format,
                 int colorSpace,
                 bool readable,
+                bool streamingMipmaps,
                 string externalPath,
                 long externalOffset,
                 long pixelsLength)
@@ -132,6 +142,7 @@ namespace KSPCommunityFixes.Library.TextureBundle
                 Format = format;
                 ColorSpace = colorSpace;
                 Readable = readable;
+                StreamingMipmaps = streamingMipmaps;
                 ExternalPath = externalPath;
                 ExternalOffset = externalOffset;
                 PixelsLength = pixelsLength;
@@ -271,6 +282,7 @@ namespace KSPCommunityFixes.Library.TextureBundle
                     Format = e.Format,
                     ColorSpace = e.ColorSpace,
                     Readable = e.Readable,
+                    StreamingMipmaps = e.StreamingMipmaps,
                 };
 
                 file.BeginObject(w, ref slots[i + 1]);
@@ -331,7 +343,12 @@ namespace KSPCommunityFixes.Library.TextureBundle
             w.WriteBool(req.Readable); // m_IsReadable
             w.WriteBool(false); // m_IgnoreMasterTextureLimit
             w.WriteBool(false); // m_IsPreProcessed
-            w.WriteBool(false); // m_StreamingMipmaps
+            // Opt this texture into Unity's mipmap streaming manager only when the caller marked it
+            // eligible (its mip levels stay block aligned under the deepest streaming reduction, so the
+            // reduced base mip can still be uploaded). The feature is also gated globally by
+            // QualitySettings.streamingMipmapsActive (see KSPCFFastLoader.ApplyStreamingQualitySettings),
+            // and each realized streaming texture is pinned full-res until a model/part binds it.
+            w.WriteBool(req.StreamingMipmaps); // m_StreamingMipmaps
             w.Align(4);
             w.WriteInt32(0); // m_StreamingMipmapsPriority
             w.Align(4);
