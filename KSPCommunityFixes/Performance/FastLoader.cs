@@ -562,11 +562,11 @@ namespace KSPCommunityFixes.Performance
                             switch (file.fileExtension)
                             {
                                 case "mu":
-                                    modelAssets.Add(new RawAsset(file, RawAsset.AssetType.ModelMU));
+                                    modelAssets.Add(new RawAsset(file));
                                     break;
                                 case "dae":
                                 case "DAE":
-                                    modelAssets.Add(new RawAsset(file, RawAsset.AssetType.ModelDAE));
+                                    modelAssets.Add(new RawAsset(file));
                                     break;
                                 default:
                                     unsupportedModelFiles.Add(file);
@@ -694,9 +694,6 @@ namespace KSPCommunityFixes.Performance
 
             loadedAssetCount += audioFilesLoaded;
 
-            // initialize array pool
-            arrayPool = ArrayPool<byte>.Create(1024 * 1024 * 20, 50);
-
             // start texture loading
             gdb.progressFraction = 0.25f;
             KSPCFFastLoaderReport.wAudioLoading.Stop();
@@ -790,10 +787,6 @@ namespace KSPCommunityFixes.Performance
                 Debug.Log(sb.ToString());
             }
 #endif
-
-            // all done, do some cleanup
-            arrayPool = null;
-            MuParser.ReleaseBuffers();
 
             QualitySettings.asyncUploadBufferSize = 32;
 
@@ -901,133 +894,8 @@ namespace KSPCommunityFixes.Performance
 
         #region Asset loader reimplementation (texture/model loader)
 
-        static ArrayPool<byte> arrayPool;
-        static int loadedBytes;
-        static object lockObject = new object();
-
         /// <summary>
-        /// Textures / models loader coroutine implementing threaded disk reads and framerate decoupling
-        /// </summary>
-        static IEnumerator FilesLoader(List<RawAsset> assets, HashSet<string> loadedUrls, string loadingLabel)
-        {
-            GameDatabase gdb = GameDatabase.Instance;
-
-            Deque<RawAsset> assetBuffer = new Deque<RawAsset>();
-            int assetCount = assets.Count;
-            int currentAssetIndex = 0;
-
-            Thread readerThread = new Thread(() => ReadAssetsThread(assets, assetBuffer));
-            readerThread.Start();
-
-            double nextFrameTime = ElapsedTime + minFrameTimeD;
-            SpinWait spinWait = new SpinWait();
-
-            while (currentAssetIndex < assetCount)
-            {
-                while (!Monitor.TryEnter(lockObject))
-                    spinWait.SpinOnce();
-
-                RawAsset rawAsset;
-                int bufferTotalSize;
-
-                try
-                {
-                    if (assetBuffer.Count > 0)
-                    {
-                        rawAsset = assetBuffer.RemoveFromBack();
-                        loadedBytes -= rawAsset.DataLength;
-                        bufferTotalSize = loadedBytes;
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
-                finally
-                {
-                    Monitor.Exit(lockObject);
-                }
-
-                try
-                {
-                    if (!loadedUrls.Add(rawAsset.File.url))
-                    {
-                        rawAsset.Dispose();
-                        Debug.LogWarning($"Duplicate {rawAsset.TypeName} '{rawAsset.File.url}' with extension '{rawAsset.File.fileExtension}' won't be loaded");
-                        continue;
-                    }
-
-                    Debug.Log($"Load {rawAsset.TypeName}: {rawAsset.File.url}");
-                    rawAsset.LoadAndDisposeMainThread();
-
-                    if (rawAsset.State == RawAsset.Result.Failed)
-                    {
-                        Debug.LogWarning($"LOAD FAILED : {rawAsset.Message}");
-                    }
-                    else if (rawAsset.State == RawAsset.Result.Warning)
-                    {
-                        Debug.LogWarning(rawAsset.Message);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogException(e);
-                }
-                finally
-                {
-                    loadedAssetCount++;
-                    currentAssetIndex++;
-                    spinWait = new SpinWait();
-                }
-
-                if (ElapsedTime > nextFrameTime)
-                {
-                    nextFrameTime = ElapsedTime + minFrameTimeD;
-                    gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                    gdb.progressTitle = $"{loadingLabel} {currentAssetIndex}/{assetCount} (buffer={bufferTotalSize / (1024 * 1024)}MB)";
-                    yield return null;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Disk read thread started from FilesLoader
-        /// </summary>
-        static void ReadAssetsThread(List<RawAsset> files, Deque<RawAsset> buffer)
-        {
-            foreach (RawAsset rawAsset in files)
-            {
-                rawAsset.ReadFromDiskWorkerThread();
-
-                SpinWait spin = new SpinWait();
-                bool assetAdded = false;
-
-                while (!assetAdded)
-                {
-                    while (!Monitor.TryEnter(lockObject))
-                        spin.SpinOnce();
-
-                    try
-                    {
-                        // load next file if already sum of already loaded file size is less than 50 MB
-                        // or if less than 10 files are loaded
-                        if (loadedBytes < maxBufferSize || buffer.Count < minFileRead)
-                        {
-                            loadedBytes += rawAsset.DataLength;
-                            buffer.AddToFront(rawAsset);
-                            assetAdded = true;
-                        }
-                    }
-                    finally
-                    {
-                        Monitor.Exit(lockObject);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
+        /// Asset wrapper class, carrier for model files flowing through the background model pipeline
         /// </summary>
         private class RawAsset
         {
@@ -1044,217 +912,14 @@ namespace KSPCommunityFixes.Performance
                 ModelDAE
             }
 
-            private static readonly string[] assetTypeNames =
-            {
-                "DDS texture",
-                "JPG texture",
-                "MBM texture",
-                "PNG texture",
-                "TGA texture",
-                "TRUECOLOR texture",
-                "MU model",
-                "DAE model"
-            };
-
-            public enum Result
-            {
-                Valid,
-                Warning,
-                Failed
-            }
-
             private UrlFile file;
-            private AssetType assetType;
-            private bool useRentedBuffer;
-            private byte[] buffer;
-            private int dataLength;
-            private Result result;
-            private string resultMessage;
 
             public UrlFile File => file;
-            public Result State => result;
-            public string Message => resultMessage;
-            public int DataLength => dataLength;
-            public string TypeName => assetTypeNames[(int)assetType];
 
-            public RawAsset(UrlFile file, AssetType assetType)
+            public RawAsset(UrlFile file)
             {
-                this.result = Result.Valid;
                 this.file = file;
-                this.assetType = assetType;
             }
-
-            private void SetError(string message)
-            {
-                result = Result.Failed;
-                if (resultMessage == null)
-                    resultMessage = message;
-                else
-                    resultMessage = $"{resultMessage}\n{message}";
-            }
-
-            private void SetWarning(string message)
-            {
-                if (result == Result.Failed)
-                {
-                    if (resultMessage == null)
-                        resultMessage = message;
-                    else
-                        resultMessage = $"{resultMessage}\nWARNING: {message}";
-                }
-                else
-                {
-                    result = Result.Warning;
-                    if (resultMessage == null)
-                        resultMessage = message;
-                    else
-                        resultMessage = $"{resultMessage}\n{message}";
-                }
-            }
-
-            public void ReadFromDiskWorkerThread()
-            {
-                switch (assetType)
-                {
-                    case AssetType.ModelMU:
-                    case AssetType.ModelDAE:
-                        useRentedBuffer = true;
-                        break;
-                }
-
-                try
-                {
-                    string path = file.fullPath;
-
-                    using (FileStream fileStream = System.IO.File.OpenRead(path))
-                    {
-                        long length = fileStream.Length;
-                        if (length > int.MaxValue)
-                        {
-                            throw new IOException("Reading more than 2GB with this call is not supported");
-                        }
-                        dataLength = (int)length;
-                        int offset = 0;
-                        int count = dataLength;
-
-                        // Don't use array pool for small files < 1KB (allocating is faster)
-                        // Don't use array pool for huge files > 20MB (memory usage concerns)
-                        if (useRentedBuffer)
-                            if (dataLength < 1024 || dataLength > 1024 * 1024 * 20)
-                                useRentedBuffer = false;
-
-                        if (useRentedBuffer)
-                            buffer = arrayPool.Rent(dataLength);
-                        else
-                            buffer = new byte[dataLength];
-
-                        try
-                        {
-                            while (count > 0)
-                            {
-                                int read = fileStream.Read(buffer, offset, count);
-                                if (read == 0)
-                                {
-                                    throw new IOException("Unexpected end of stream");
-                                }
-                                offset += read;
-                                count -= read;
-                            }
-                        }
-                        catch
-                        {
-                            if (useRentedBuffer)
-                            {
-                                arrayPool.Return(buffer);
-                                buffer = null;
-                            }
-                            throw;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    SetError(e.Message);
-                }
-            }
-
-            public void LoadAndDisposeMainThread()
-            {
-                try
-                {
-                    if (result == Result.Failed)
-                        return;
-
-                    if (file.fileType == FileType.Model)
-                    {
-                        GameObject model;
-                        switch (assetType)
-                        {
-                            case AssetType.ModelMU:
-                                model = LoadMU();
-                                break;
-                            case AssetType.ModelDAE:
-                                model = LoadDAE();
-                                break;
-                            default:
-                                SetError("Unknown model format");
-                                return;
-                        }
-
-                        if (result == Result.Failed || model.IsNullOrDestroyed())
-                        {
-                            result = Result.Failed;
-                            if (string.IsNullOrEmpty(resultMessage))
-                                resultMessage = $"{TypeName} load error";
-                        }
-                        else
-                        {
-                            model.transform.name = file.url;
-                            model.transform.parent = Instance.transform;
-                            model.transform.localPosition = Vector3.zero;
-                            model.transform.localRotation = Quaternion.identity;
-                            model.SetActive(false);
-                            Instance.databaseModel.Add(model);
-                            Instance.databaseModelFiles.Add(file);
-                            modelsByUrl[file.url] = model;
-                            // if multiple models in the same dir, we only add the first
-                            // to ensure identical behavior as the GameDatabase.GetModelPrefabIn() method
-                            modelsByDirectoryUrl.TryAdd(file.parent.url, model);
-                            urlFilesByModel.Add(model, file);
-                            KSPCFFastLoaderReport.modelsBytesLoaded += dataLength;
-                            KSPCFFastLoaderReport.modelsLoaded++;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    SetError(e.ToString());
-                }
-                finally
-                {
-                    Dispose();
-                }
-            }
-
-            public void Dispose()
-            {
-                if (useRentedBuffer)
-                    arrayPool.Return(buffer);
-            }
-
-            private GameObject LoadMU()
-            {
-                return MuParser.Parse(file.parent.url, buffer, dataLength);
-            }
-
-            // Body extracted into the shared static KSPCFFastLoader.LoadDAE(UrlFile) so the new model
-            // pipeline's Dae path can reuse it. This wrapper (and its only caller, LoadAndDisposeMainThread's
-            // model path) is dead once the driver replaces FilesLoader; task #6 removes it.
-            private GameObject LoadDAE()
-            {
-                return KSPCFFastLoader.LoadDAE(file);
-            }
-
         }
 
         #endregion
@@ -1540,16 +1205,13 @@ namespace KSPCommunityFixes.Performance
 
         // Outcome of compiling one model file off-thread. Mutually-exclusive shapes: a .dae marker
         // (IsDae), a file-read failure (Compiled == null, ReadFailure set), or a compiled model (Compiled
-        // set, Data retained for the skinned fallback). The compile SUCCESS/SKINNED/COMPILE-FAILED split is
-        // decided in the fold from Compiled's flags.
+        // set). The compile SUCCESS/COMPILE-FAILED split is decided in the fold from Compiled's flags.
         private struct CompileResult
         {
             public UrlFile File;
             public bool IsDae;
             public string ReadFailure;
             public CompiledModel Compiled;
-            public byte[] Data;
-            public int DataLength;
             public long FileLength;
         }
 
@@ -1584,8 +1246,6 @@ namespace KSPCommunityFixes.Performance
             {
                 File = file,
                 Compiled = cm,
-                Data = data,
-                DataLength = data.Length,
                 FileLength = data.Length,
             };
         }
@@ -1716,17 +1376,6 @@ namespace KSPCommunityFixes.Performance
                             // geometry is never used.
                             req.ModelKind = ModelLoadRequest.Kind.Failed;
                             req.FailureMessage = cm.FailureMessage;
-                            cm.Blobs = null;
-                            span.Add(req);
-                        }
-                        else if (cm.ContainsSkinnedMesh)
-                        {
-                            // v1 skinned fallback to synchronous MuParser.Parse on the main thread; retain the
-                            // raw bytes. cm carries only its diagnostics (the skinned-notice log); baked geometry
-                            // is unused.
-                            req.ModelKind = ModelLoadRequest.Kind.Skinned;
-                            req.RawBytes = rec.Data;
-                            req.RawLength = rec.DataLength;
                             cm.Blobs = null;
                             span.Add(req);
                         }
@@ -1943,9 +1592,6 @@ namespace KSPCommunityFixes.Performance
                 case ModelLoadRequest.Kind.CompiledMu:
                     inner = LoadCompiledModelCoroutine(req);
                     break;
-                case ModelLoadRequest.Kind.Skinned:
-                    inner = LoadSkinnedModelCoroutine(req);
-                    break;
                 case ModelLoadRequest.Kind.Dae:
                     inner = LoadDaeModelCoroutine(req);
                     break;
@@ -2038,25 +1684,6 @@ namespace KSPCommunityFixes.Performance
                 instructions[i].Execute(locals);
 
             req.Result = (GameObject)locals[0];
-            req.Status = ModelLoadRequest.State.Ready;
-        }
-
-        // Skinned v1 fallback: synchronous MuParser.Parse on the main thread. Parse uses static buffers and
-        // never yields, so two skinned parses can't interleave. Never yields here either (runs to completion
-        // inside the driver's spawn loop).
-        private static IEnumerator LoadSkinnedModelCoroutine(ModelLoadRequest req)
-        {
-            GameObject go = MuParser.Parse(req.File.parent.url, req.RawBytes, req.RawLength);
-            req.RawBytes = null;
-
-            if (go.IsNullOrDestroyed())
-            {
-                req.FailureMessage = "MU model load error";
-                req.Status = ModelLoadRequest.State.Failed;
-                yield break;
-            }
-
-            req.Result = go;
             req.Status = ModelLoadRequest.State.Ready;
         }
 

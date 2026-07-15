@@ -33,11 +33,6 @@ namespace KSPCommunityFixes.Library.Model
         /// <summary>The source <c>file.url</c> — used as the root name, for logging and for registration.</summary>
         public string SourceUrl;
 
-        /// <summary>True when the model contains a skinned mesh renderer. The v1 pipeline falls back to
-        /// the synchronous <see cref="KSPCommunityFixes.Library.MuParser"/> for these models rather than
-        /// baking skinned meshes.</summary>
-        public bool ContainsSkinnedMesh;
-
         /// <summary>True when compilation failed; <see cref="Instructions"/>/<see cref="Blobs"/> are then
         /// meaningless and the pipeline must fall back.</summary>
         public bool Failed;

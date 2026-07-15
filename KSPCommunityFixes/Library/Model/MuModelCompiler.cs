@@ -141,10 +141,6 @@ namespace KSPCommunityFixes.Library.Model
                     Blobs = blobs.ToArray(),
                     Bindings = bindings.ToArray(),
                     LocalCount = nextSlot,
-                    // Skinned meshes are now fully serialized (blend channels + bind pose + bone
-                    // metadata) and flow through the background bundle path like any static model, so
-                    // this is never set — the FastLoader skinned/MuParser fallback is no longer taken.
-                    ContainsSkinnedMesh = false,
                     Failed = false,
                     Logs = logs, // flushed on the main thread by the replay pipeline (see FlushLogs)
                 };

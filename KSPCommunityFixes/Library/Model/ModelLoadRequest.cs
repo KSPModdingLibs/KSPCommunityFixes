@@ -18,12 +18,10 @@ namespace KSPCommunityFixes.Library.Model
         /// <list type="bullet">
         /// <item><see cref="CompiledMu"/>: replay the compiled instructions against meshes loaded from the
         /// group's bundle.</item>
-        /// <item><see cref="Skinned"/>: v1 fallback to the synchronous <c>MuParser.Parse</c> (baking
-        /// skinned meshes is deferred), using the retained <see cref="RawBytes"/>.</item>
         /// <item><see cref="Dae"/>: reload via the stock DAE loader.</item>
         /// <item><see cref="Failed"/>: file read failed or compilation failed; hard failure.</item>
         /// </list></summary>
-        public enum Kind : byte { CompiledMu, Skinned, Dae, Failed }
+        public enum Kind : byte { CompiledMu, Dae, Failed }
 
         public UrlDir.UrlFile File;
         public Kind ModelKind;
@@ -37,11 +35,6 @@ namespace KSPCommunityFixes.Library.Model
         /// <summary>CompiledMu only: back-reference to the owning group for the bundle-load await and the
         /// <c>Unload</c> ref-count.</summary>
         public ModelGroup Group;
-
-        /// <summary>Skinned only: the retained raw <c>.mu</c> bytes handed to <c>MuParser.Parse</c>
-        /// (nulled right after the parse).</summary>
-        public byte[] RawBytes;
-        public int RawLength;
 
         public string FailureMessage;
 
