@@ -9,7 +9,7 @@ internal class TextureStreaming : BasePatch
     /// <summary>
     /// Whether mipmap streaming is enabled.
     /// </summary>
-    internal static bool MipmapStreamingEnabled = false;
+    internal static bool MipmapStreamingEnabled = true;
 
     // The minimum amount of memory reserved for streaming, in megabytes.
     internal static int MipmapStreamingBudgetMb = 1024;
