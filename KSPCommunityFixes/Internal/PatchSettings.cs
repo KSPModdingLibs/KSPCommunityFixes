@@ -57,7 +57,7 @@ namespace KSPCommunityFixes
             // +1 for the KSPCF title box; entryCount already accounts for every added row (the streaming
             // patch contributes 2, see ApplyPatches).
             DialogGUIBase[] modifiedResult = new DialogGUIBase[count + entryCount + 1];
-            
+
             for (int i = 0; i < count; i++)
                 modifiedResult[i] = __result[i];
 
@@ -83,7 +83,7 @@ namespace KSPCommunityFixes
             if (maneuverToolPatch != null)
             {
                 DialogGUIToggle toggle = new DialogGUIToggle(DisableManeuverTool.enableManeuverTool,
-                    () => (!DisableManeuverTool.enableManeuverTool) 
+                    () => (!DisableManeuverTool.enableManeuverTool)
                         ? Localizer.Format("#autoLOC_6001071") //"Disabled"
                         : Localizer.Format("#autoLOC_6001072"), //"Enabled"
                     DisableManeuverTool.OnToggleApp, 150f);
@@ -98,7 +98,7 @@ namespace KSPCommunityFixes
 
             if (altimeterPatch != null)
             {
-                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate(float f)
+                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate (float f)
                 {
                     AltimeterHorizontalPosition.altimeterPosition = f;
                     AltimeterHorizontalPosition.SetTopFramePosition();
@@ -187,11 +187,13 @@ namespace KSPCommunityFixes
 
             NoIVA.SaveSettings();
 
-            ConfigNode streamingNode = new();
-            streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingEnabled), TextureStreaming.MipmapStreamingEnabled);
-            streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingBudgetMb), TextureStreaming.MipmapStreamingBudgetMb);
-            SaveData<TextureStreaming>(streamingNode);
-            
+            if (textureStreamingPatch != null)
+            {
+                ConfigNode streamingNode = new();
+                streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingEnabled), TextureStreaming.MipmapStreamingEnabled);
+                streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingBudgetMb), TextureStreaming.MipmapStreamingBudgetMb);
+                SaveData<TextureStreaming>(streamingNode);
+            }
         }
     }
 }
