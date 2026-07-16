@@ -562,7 +562,7 @@ namespace KSPCommunityFixes.Performance
 
             // Tune the AUP for much better throughput
             QualitySettings.asyncUploadTimeSlice = 25;
-            QualitySettings.asyncUploadBufferSize = 128;
+            QualitySettings.asyncUploadBufferSize = 256;
 
             int textureCount = bundleRequests.Count + textureQueue.Count;
 
@@ -738,6 +738,8 @@ namespace KSPCommunityFixes.Performance
             // all done, do some cleanup
             arrayPool = null;
             MuParser.ReleaseBuffers();
+
+            QualitySettings.asyncUploadBufferSize = 32;
 
             // stock stuff
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
@@ -1273,6 +1275,9 @@ namespace KSPCommunityFixes.Performance
                 // Signal to the main thread that no new requests are coming
                 textureQueue.CompleteAdding();
             }
+
+            // Put the largest textures first so unity loads them during the audio phase.
+            entries.Sort(static (a, b) => -a.PixelsLength.CompareTo(b.PixelsLength));
 
             return new BundleBuildResult
             {
