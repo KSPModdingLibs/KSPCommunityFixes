@@ -1,50 +1,46 @@
 using UnityEngine;
 
-namespace KSPCommunityFixes.Library.Model
+namespace KSPCommunityFixes.Library.Model;
+
+/// <summary>
+/// The per-file work item and result carrier for the background model pipeline.
+/// </summary>
+internal sealed class ModelLoadRequest
 {
-    /// <summary>
-    /// The per-file work item + result carrier for the background model pipeline, the model analogue of
-    /// FastLoader's <c>TextureLoadRequest</c>. One is produced for every entry in <c>modelAssets</c> and
-    /// flows compile task -> pump -> driver in <c>modelAssets</c> order. <see cref="ModelKind"/> selects
-    /// how the main-thread loader builds <see cref="Result"/>.
-    /// </summary>
-    internal sealed class ModelLoadRequest
+    public enum State : byte { Pending, Ready, Failed }
+
+    public enum Kind : byte
     {
-        /// <summary>Matches <c>TextureLoadRequest.State</c>: the driver's strict-FIFO drain peeks the head
-        /// and waits while it is <see cref="Pending"/>, never reordering.</summary>
-        public enum State : byte { Pending, Ready, Failed }
-
-        /// <summary>How the main-thread loader builds the model:
-        /// <list type="bullet">
-        /// <item><see cref="CompiledMu"/>: replay the compiled instructions against meshes loaded from the
-        /// group's bundle.</item>
-        /// <item><see cref="Dae"/>: reload via the stock DAE loader.</item>
-        /// <item><see cref="Failed"/>: file read failed or compilation failed; hard failure.</item>
-        /// </list></summary>
-        public enum Kind : byte { CompiledMu, Dae, Failed }
-
-        public UrlDir.UrlFile File;
-        public Kind ModelKind;
-
-        /// <summary>Carried for CompiledMu/Skinned/Failed (any request produced by the compiler): supplies
-        /// Instructions/Bindings/LocalCount for replay and, always, the buffered <c>Logs</c> that
-        /// <c>InsertReadyModel</c> flushes on the main thread. <c>Blobs</c> is nulled once its group's
-        /// bundle is built. Null for Dae and file-read failures.</summary>
-        public CompiledModel Compiled;
-
-        /// <summary>CompiledMu only: back-reference to the owning group for the bundle-load await and the
-        /// <c>Unload</c> ref-count.</summary>
-        public ModelGroup Group;
-
-        public string FailureMessage;
-
-        /// <summary>Byte count added to <c>KSPCFFastLoaderReport.modelsBytesLoaded</c> on success.</summary>
-        public long FileLength;
-
-        /// <summary>Pending -> Ready/Failed. Volatile like <c>TextureLoadRequest.Status</c> (the loader
-        /// coroutine writes it, the driver polls it).</summary>
-        public volatile State Status;
-
-        public GameObject Result;
+        /// <summary>
+        /// This request contains a set of instructions that need to be executed
+        /// in order to build the model.
+        /// </summary>
+        CompiledMu,
+        /// <summary>
+        /// This request contains a DAE model.
+        /// </summary>
+        Dae,
+        /// <summary>
+        /// An error occurred when loading the model for this request.
+        /// </summary>
+        Failed
     }
+
+    public UrlDir.UrlFile File;
+    public Kind ModelKind;
+
+    /// <summary>The compiled model, if any.</summary>
+    public CompiledModel Compiled;
+
+    /// <summary>The owning <see cref="ModelGroup"/>, if any.</summary>
+    public ModelGroup Group;
+
+    public string FailureMessage;
+
+    /// <summary>Byte length of the model file.</summary>
+    public long FileLength;
+
+    public volatile State Status;
+
+    public GameObject Result;
 }

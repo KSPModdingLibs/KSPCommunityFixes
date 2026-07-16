@@ -6,17 +6,14 @@ namespace KSPCommunityFixes.Library.Model
 {
     /// <summary>
     /// Interleaves mesh attribute arrays into the single-stream <see cref="MeshBlob"/> vertex layout
-    /// Unity 2019.4 expects, and packs the index buffer. Pure CPU work; safe on a background thread
-    /// (no <c>UnityEngine.Mesh</c> is created). This is the mesh half of the model compiler; it is
-    /// also reused by the diff harness and the single-mesh validation.
+    /// Unity 2019.4 expects, and packs the index buffer.
     /// </summary>
     /// <remarks>
-    /// Confirmed against a real Unity 2019.4.18f1 mesh: <c>m_Channels</c> is a fixed 14-entry array
-    /// (absent attributes have dimension 0), indexed by vertex attribute
-    /// (0=Position, 1=Normal, 2=Tangent, 3=Color, 4..11=TexCoord0..7, 12=BlendWeights, 13=BlendIndices);
-    /// present channels are all in stream 0, packed at contiguous offsets in attribute-index order.
-    /// v1 stores every present attribute as float32 (format 0), including colour (from Color32/255),
-    /// which matches the observed all-float32 convention with no format-code risk.
+    /// <c>m_Channels</c> is a fixed 14-entry array (absent attributes have dimension 0), indexed by
+    /// vertex attribute (0=Position, 1=Normal, 2=Tangent, 3=Color, 4..11=TexCoord0..7,
+    /// 12=BlendWeights, 13=BlendIndices); present channels are all in stream 0, packed at contiguous
+    /// offsets in attribute-index order. Every present attribute is stored as float32 (format 0),
+    /// including colour (from Color32/255).
     /// </remarks>
     internal static class MeshBlobBuilder
     {
@@ -51,8 +48,6 @@ namespace KSPCommunityFixes.Library.Model
             public int[][] SubMeshTriangles;
 
             // ---- Skinning (all three present together, or the mesh is treated as static) --------
-            // Assigned by MuModelCompiler (in-assembly) when it reads a skinned .mu mesh, and by the
-            // offline mesh harness for the synthetic skinned case.
             /// <summary>Per-vertex bone weights (<c>weight0..3</c>) and indices (<c>boneIndex0..3</c>).</summary>
             public BoneWeight[] BoneWeights;
 
@@ -63,13 +58,12 @@ namespace KSPCommunityFixes.Library.Model
             /// One name per bone, index-aligned with <see cref="BindPoses"/>, used to compute
             /// <c>m_BoneNameHashes</c>. To reproduce Unity's exact stored hash the name must be the
             /// bone's full transform path from the model root (e.g. <c>globalMove01/joints01/bn_spA01</c>);
-            /// see <see cref="BoneNameHash"/>. The model compiler passes the <c>.mu</c>'s leaf bone names
-            /// (what the runtime binds by), so the stored hash is cosmetic — only the array count matters.
+            /// see <see cref="BoneNameHash"/>.
             /// </summary>
             public string[] BoneNames;
         }
 
-        /// <summary>Build a <see cref="MeshBlob"/> from a live <c>UnityEngine.Mesh</c> (main thread only).</summary>
+        /// <summary>Build a <see cref="MeshBlob"/> from a live <c>UnityEngine.Mesh</c>.</summary>
         public static MeshBlob FromMesh(Mesh mesh, string name, Action<string> warn = null)
         {
             var arrays = new Arrays
@@ -88,9 +82,9 @@ namespace KSPCommunityFixes.Library.Model
             return FromArrays(name, in arrays, warn);
         }
 
-        // <paramref name="warn"/> is an optional attribute-mismatch sink. When null (main-thread/offline
-        // callers) warnings fall back to Debug.LogWarning; a worker-thread caller passes a sink that
-        // buffers the message instead, since Debug.LogWarning is not safe to call off the main thread.
+        // <paramref name="warn"/> is an optional attribute-mismatch sink. When null, warnings fall back
+        // to Debug.LogWarning, which is not safe to call off the main thread; a worker-thread caller
+        // passes a sink that buffers the message instead.
         public static unsafe MeshBlob FromArrays(string name, in Arrays a, Action<string> warn = null)
         {
             Vector3[] verts = a.Vertices ?? Array.Empty<Vector3>();
@@ -128,11 +122,9 @@ namespace KSPCommunityFixes.Library.Model
                     $"mesh '{name}': skinned mesh has {boneCount} bind pose(s) but " +
                     $"{Count(a.BoneNames)} bone name(s); BoneNames must be one-per-bone");
 
-            // Assign channel offsets in attribute-index order for present attributes. v1 stores every
-            // present attribute (including colour, from Color32/255 below) as float32 (format 0): this
-            // is a deliberate v1 choice that is self-consistent with the emitted type tree and round-
-            // trips colors32 exactly. Unity-native would pack colour as UNorm8 (format 2), but we do
-            // not require byte-parity with Unity-generated bundles.
+            // Every present attribute (including colour, from Color32/255 below) is stored as float32
+            // (format 0), which round-trips colors32 exactly. Unity-native would pack colour as UNorm8
+            // (format 2), but we do not require byte-parity with Unity-generated bundles.
             var channels = new MeshChannel[ChannelCount];
             int stride = 0;
             AddChannel(channels, ChPosition, true, 3, ref stride);
@@ -141,11 +133,10 @@ namespace KSPCommunityFixes.Library.Model
             AddChannel(channels, ChColor, hasColors, 4, ref stride);
             AddChannel(channels, ChTexCoord0, hasUv0, 2, ref stride);
             AddChannel(channels, ChTexCoord1, hasUv1, 2, ref stride);
-            // Skin channels come last (attribute indices 12/13), packed contiguously after the present
-            // attributes in the single interleaved stream 0. ch12 BlendWeights: 4x Float32 (16 bytes).
-            // ch13 BlendIndices: 4x UInt32 (16 bytes) — format byte 10, the one non-Float32 channel.
-            // Unity natively uses variable dimension (1/2/4) and a separate stream; dim 4 in stream 0 is
-            // structurally valid (the loader honours each channel's (stream, offset, format, dimension)).
+            // Skin channels (attribute indices 12/13) pack contiguously after the present attributes in
+            // the single interleaved stream 0. Unity natively uses variable dimension (1/2/4) and a
+            // separate stream; dim 4 in stream 0 is structurally valid (the loader honours each
+            // channel's (stream, offset, format, dimension)).
             AddChannel(channels, ChBlendWeights, hasSkin, 4, ref stride);
             AddChannel(channels, ChBlendIndices, hasSkin, 4, ref stride, FormatUInt32);
 
@@ -174,9 +165,7 @@ namespace KSPCommunityFixes.Library.Model
                     if (hasSkin)
                     {
                         BoneWeight bw = a.BoneWeights[v];
-                        // ch12 BlendWeights: 4 float32 weights.
                         *p++ = bw.weight0; *p++ = bw.weight1; *p++ = bw.weight2; *p++ = bw.weight3;
-                        // ch13 BlendIndices: 4 UInt32 bone indices (raw 32-bit, not float bits).
                         uint* ip = (uint*)p;
                         *ip++ = (uint)bw.boneIndex0; *ip++ = (uint)bw.boneIndex1;
                         *ip++ = (uint)bw.boneIndex2; *ip++ = (uint)bw.boneIndex3;
@@ -242,8 +231,8 @@ namespace KSPCommunityFixes.Library.Model
                 }
             }
 
-            // Bone metadata. A static mesh keeps everything empty (byte-identical to before). A skinned
-            // mesh maintains Unity's invariant bindpose.count == boneNameHashes.count == bonesAABB.count.
+            // Bone metadata. A static mesh keeps everything empty. A skinned mesh maintains Unity's
+            // invariant bindpose.count == boneNameHashes.count == bonesAABB.count.
             Matrix4x4[] bindPose = Array.Empty<Matrix4x4>();
             uint[] boneNameHashes = Array.Empty<uint>();
             uint rootBoneNameHash = 0;
@@ -296,7 +285,7 @@ namespace KSPCommunityFixes.Library.Model
             if (!present)
                 return;
             channels[index] = new MeshChannel((byte)0, (byte)stride, format, (byte)dimension);
-            // Every format v1 emits (Float32=0 for all attributes, UInt32=10 for BlendIndices) is a
+            // Every format emitted (Float32=0 for all attributes, UInt32=10 for BlendIndices) is a
             // 4-byte element, so the stride advance is dimension * 4 regardless of format.
             stride += dimension * 4;
         }
@@ -304,15 +293,10 @@ namespace KSPCommunityFixes.Library.Model
         static int Count<T>(T[] array) => array?.Length ?? 0;
 
         // Standard CRC-32 (ISO-HDLC / zlib: reflected, polynomial 0xEDB88320, init and final-xor
-        // 0xFFFFFFFF) of the UTF-8 bytes of <paramref name="name"/>. This is the exact algorithm Unity
-        // 2019.4 uses for m_BoneNameHashes / m_RootBoneNameHash — verified byte-for-byte against 542
-        // real skinned meshes in KSP's sharedassets0.assets (e.g. all 35 bones of body01 and the EVA
-        // jetpack bone reproduced exactly). NOTE: Unity hashes the bone's FULL transform path from the
+        // 0xFFFFFFFF) of the UTF-8 bytes of name. This is the algorithm Unity 2019.4 uses for
+        // m_BoneNameHashes / m_RootBoneNameHash. Unity hashes the bone's FULL transform path from the
         // model root (e.g. "globalMove01/joints01/bn_spA01"), not the bare leaf name, so the caller must
-        // pass that path in Arrays.BoneNames to match the native stored value. The stored value does not
-        // affect skinning (the compiler binds SkinnedMeshRenderer.bones by name at replay and the
-        // bindpose[i] <-> BlendIndices[i] <-> bones[i] correspondence is by index), so a leaf-only name
-        // still skins correctly; only the byte-parity of the hash field would differ.
+        // pass that path in Arrays.BoneNames to match the native stored value.
         static readonly uint[] Crc32Table = BuildCrc32Table();
 
         static uint[] BuildCrc32Table()
@@ -337,11 +321,8 @@ namespace KSPCommunityFixes.Library.Model
             return crc ^ 0xFFFFFFFFu;
         }
 
-        // Warns only when an attribute array is actually present (non-null, non-empty) but its length
-        // disagrees with the vertex count, i.e. it is about to be silently dropped. Cheap: no
-        // allocation unless the (rare) warning path fires. When a <paramref name="warn"/> sink is
-        // supplied (worker-thread callers) the message is routed there; otherwise it falls back to
-        // Debug.LogWarning for main-thread/offline callers.
+        // Warns when an attribute array is present but its length disagrees with the vertex count (it
+        // is about to be silently dropped).
         static void WarnIfWrongLength(string name, string attr, int length, int vertexCount, Action<string> warn)
         {
             if (length != 0 && length != vertexCount)

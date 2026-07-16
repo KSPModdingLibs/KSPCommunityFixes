@@ -1,5 +1,4 @@
 ﻿// #define DEBUG_TEXTURE_CACHE
-// #define DEBUG_MODEL_LOAD_ORDER
 
 using DDSHeaders;
 using Expansions;
@@ -7,8 +6,6 @@ using HarmonyLib;
 using KSP.Localization;
 using KSPAssets;
 using KSPAssets.Loaders;
-using KSPCommunityFixes.Library.Buffers;
-using KSPCommunityFixes.Library.Collections;
 using KSPCommunityFixes.Library.Model;
 using KSPCommunityFixes.Library.TextureBundle;
 using System;
@@ -163,14 +160,6 @@ namespace KSPCommunityFixes.Performance
         // Max number of new model load coroutines that will be spawned each frame.
         // This roughly limits the max frame time spent replaying models / loading their meshes.
         private const int MaxModelSpawnsPerFrame = 64;
-
-        // v1 tuning knob: cap on native mesh-bundle bytes resident at once. The pump waits before kicking off a
-        // group's LoadFromMemoryAsync while at least this many bytes are already resident, so the driver can
-        // Unload earlier groups first. Restores the old streaming loader's ~50 MB-capped bounded-memory
-        // behavior (regression guard vs loading every group's native copy up front).
-        private const long MaxResidentModelBundleBytes = 96L * 1024 * 1024; // 96 MB
-
-        private const int ModelGroupQueueCapacity = 4;  // groups the compile task may run ahead of the pump; bounds managed bundle-byte pressure (tuning knob)
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -745,22 +734,7 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            // load all models
             yield return gdb.StartCoroutine(ModelDriverCoroutine(modelQueue, allModelFiles, modelAssets.Count, modelTask));
-
-#if DEBUG_MODEL_LOAD_ORDER
-            // Optional load-order dump for an old-vs-new diff (enable via the #define at the top of the file).
-            {
-                var sb = new System.Text.StringBuilder(1024);
-                sb.Append("[KSPCF:FastLoader] model load order (").Append(gdb.databaseModelFiles.Count).Append(" files):\n");
-                for (int i = 0; i < gdb.databaseModelFiles.Count; i++)
-                    sb.Append(gdb.databaseModelFiles[i].url).Append('\n');
-                sb.Append("[KSPCF:FastLoader] modelsByDirectoryUrl first-wins (").Append(modelsByDirectoryUrl.Count).Append(" dirs):\n");
-                foreach (var kvp in modelsByDirectoryUrl)
-                    sb.Append(kvp.Key).Append(" -> ").Append(kvp.Value.IsNotNullOrDestroyed() ? kvp.Value.transform.name : "<null>").Append('\n');
-                Debug.Log(sb.ToString());
-            }
-#endif
 
             QualitySettings.asyncUploadTimeSlice = 2;
             QualitySettings.asyncUploadBufferSize = 32;
@@ -870,7 +844,7 @@ namespace KSPCommunityFixes.Performance
         #region Asset loader reimplementation (texture/model loader)
 
         /// <summary>
-        /// Asset wrapper class, carrier for model files flowing through the background model pipeline
+        /// Wrapper around a model file to be loaded.
         /// </summary>
         private class RawAsset
         {
@@ -1196,7 +1170,6 @@ namespace KSPCommunityFixes.Performance
 
             try
             {
-
                 // .dae/.DAE never touch the compiler; the main-thread Dae path reloads them via the stock loader.
                 string ext = file.fileExtension;
                 if (ext == "dae" || ext == "DAE")
@@ -1276,7 +1249,7 @@ namespace KSPCommunityFixes.Performance
 
         static readonly ProfilerMarker s_pmCompileModelGroups = new("KSPCF.CompileModelGroups");
 
-        // Build asset bundles for individual models.
+        // Compiles all models off-thread and packs each group's meshes into a shared asset bundle.
         private static async Task<List<ModelGroup>> CompileModelGroups(
             List<RawAsset> modelAssets)
         {
@@ -1285,7 +1258,7 @@ namespace KSPCommunityFixes.Performance
 
             using var scope = s_pmCompileModelGroups.Auto();
 
-            // MuModelCompiler has internal shared state, 
+            // MuModelCompiler has internal shared state, so each thread gets its own instance.
             using var tl = new ThreadLocal<MuModelCompiler>(() => new MuModelCompiler());
 
             return modelAssets
@@ -1300,7 +1273,7 @@ namespace KSPCommunityFixes.Performance
 
         static readonly ProfilerMarker s_pmLoadModelBundle = new("KSPCF.LoadModelBundleAsync");
 
-        // This task waits for the bundle builder task to complete, then kicks
+        // Loads each compiled group's mesh bundle and queues its models for the driver.
         private static IEnumerator PreloadModelBundles(
             Task<List<ModelGroup>> groupTask,
             BlockingCollection<ModelLoadRequest> modelQueue)
@@ -1404,7 +1377,7 @@ namespace KSPCommunityFixes.Performance
                 while (active.TryPeek(out ModelLoadRequest pending))
                 {
                     if (pending.Status == ModelLoadRequest.State.Pending)
-                        break; // head not done yet: WAIT, never reorder (load-order parity link #4)
+                        break;
 
                     active.Dequeue();
                     try
@@ -1422,7 +1395,6 @@ namespace KSPCommunityFixes.Performance
                 gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
                 gdb.progressTitle = $"Loading model asset {completed}/{totalModelCount}";
 
-                // Done when the producers have finished and everything spawned has been drained.
                 if (modelQueue.IsCompleted && active.Count == 0)
                     break;
 
@@ -1448,8 +1420,6 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // Exception-wrapping driver for one request (clone of LoadTextureCoroutine): drives the inner
-        // per-Kind enumerator, mapping any thrown exception to a Failed status + message.
         private static IEnumerator LoadModelCoroutine(ModelLoadRequest req)
         {
             IEnumerator inner = req.ModelKind switch
@@ -1493,9 +1463,6 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // CompiledMu: load this model's meshes from the group bundle (per-name LoadAssetAsync, NOT
-        // LoadAllAssetsAsync), then replay the compiled instructions on the main thread. Textures/shaders are
-        // resolved inside Execute, which is why the driver only runs after all textures are registered.
         private static IEnumerator LoadCompiledModelCoroutine(ModelLoadRequest req)
         {
             CompiledModel cm = req.Compiled;
@@ -1531,7 +1498,6 @@ namespace KSPCommunityFixes.Performance
             req.Status = ModelLoadRequest.State.Ready;
         }
 
-        // Dae fallback: reload via the stock DAE loader (see the shared LoadDAE helper).
         private static IEnumerator LoadDaeModelCoroutine(ModelLoadRequest req)
         {
             GameObject go = LoadDAE(req.File);
@@ -1550,24 +1516,17 @@ namespace KSPCommunityFixes.Performance
             req.Status = ModelLoadRequest.State.Ready;
         }
 
-        // Failed: hard failure. Message was already set in the fold (read or compile failure); keep it.
         private static IEnumerator LoadFailedModelCoroutine(ModelLoadRequest req)
         {
             req.Status = ModelLoadRequest.State.Failed;
             yield break;
         }
 
-        // Main-thread registration (clone of InsertReadyRequest; replicates RawAsset.LoadAndDisposeMainThread's
-        // model registration). Called ONLY from the driver's FIFO drain, so it walks modelAssets order.
         private static void InsertReadyModel(ModelLoadRequest req, HashSet<string> loadedUrls)
         {
-
-            // On the MAIN THREAD: emit the compiler's buffered diagnostics (KSP's log handler and the mod
-            // handlers chained onto Application.logMessageReceived are not thread-safe, so they could not be
-            // flushed off-thread). Null-safe: Dae has no Compiled.
-            req.Compiled?.FlushLogs();
-
             Debug.Log($"Load Model: {req.File.url}");
+
+            req.Compiled?.FlushLogs();
 
             if (req.Status == ModelLoadRequest.State.Failed)
             {
@@ -1577,8 +1536,7 @@ namespace KSPCommunityFixes.Performance
                 return;
             }
 
-            // Built-before-check (like the texture dup path): a duplicate url means we already built the
-            // GameObject, so it must be destroyed. First-wins, matching stock FilesLoader.
+            // A duplicate url means the GameObject was already built, so it must be destroyed. First-wins.
             if (!loadedUrls.Add(req.File.url))
             {
                 Debug.LogWarning($"Duplicate model asset '{req.File.url}' with extension '{req.File.fileExtension}' won't be loaded");
@@ -1587,7 +1545,6 @@ namespace KSPCommunityFixes.Performance
                 return;
             }
 
-            // Exact replication of RawAsset.LoadAndDisposeMainThread's model registration.
             GameObject model = req.Result;
             model.transform.name = req.File.url;
             model.transform.parent = Instance.transform;
@@ -1605,8 +1562,6 @@ namespace KSPCommunityFixes.Performance
             KSPCFFastLoaderReport.modelsLoaded++;
         }
 
-        // Shared body of the (now-wrapped) RawAsset.LoadDAE, reused by the new Dae path. Reloads the file via
-        // the stock DAE loader and reproduces the node_collider fixup.
         private static GameObject LoadDAE(UrlFile file)
         {
             // given that this is a quite obsolete thing and that it's mess to reimplement, just call the stock
@@ -1622,8 +1577,8 @@ namespace KSPCommunityFixes.Performance
                     {
                         meshFilter.gameObject.AddComponent<MeshCollider>().sharedMesh = meshFilter.mesh;
                         MeshRenderer component = meshFilter.gameObject.GetComponent<MeshRenderer>();
-                        UnityEngine.Object.Destroy(meshFilter);
-                        UnityEngine.Object.Destroy(component);
+                        Destroy(meshFilter);
+                        Destroy(component);
                     }
                 }
             }

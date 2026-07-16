@@ -7,12 +7,10 @@ using UnityEngine.Rendering;
 namespace KSPCommunityFixes.Library.Model
 {
     /// <summary>
-    /// One atomic, main-thread GameObject-assembly step of a <see cref="CompiledModel"/>. The background
-    /// compiler bakes all the data (positions, enum codes, property values, resolved texture urls, ...)
-    /// into the instruction's fields; <see cref="Execute"/> only does the <c>UnityEngine</c> calls, and
-    /// reproduces the matching <see cref="KSPCommunityFixes.Library.MuParser"/> reader's object-building
-    /// tail exactly. Slots are indices into the driver-owned <c>locals</c> array; <c>-1</c> means "none".
-    /// No file reading happens here.
+    /// One atomic GameObject-assembly step of a <see cref="CompiledModel"/>. The background compiler bakes
+    /// all the data (positions, enum codes, property values, resolved texture urls, ...) into the
+    /// instruction's fields; <see cref="Execute"/> performs the <c>UnityEngine</c> calls. Slots are indices
+    /// into the driver-owned <c>locals</c> array; <c>-1</c> means "none".
     /// </summary>
     internal interface IModelInstruction
     {
@@ -21,8 +19,8 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Hierarchy ------------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadChild</c>'s object-building head: create the GameObject,
-    /// parent it, then set localPosition, localRotation, localScale IN THAT ORDER.</summary>
+    /// <summary>Creates a GameObject, parents it under another, and applies its local position, rotation
+    /// and scale.</summary>
     internal sealed class CreateGameObject : IModelInstruction
     {
         public int Dst;
@@ -35,7 +33,6 @@ namespace KSPCommunityFixes.Library.Model
         public void Execute(UnityEngine.Object[] locals)
         {
             GameObject go = new GameObject(Name);
-            // Parity: MuParser assigns parent, then localPosition, localRotation, localScale in this order.
             go.transform.parent = Parent < 0 ? null : ((GameObject)locals[Parent]).transform;
             go.transform.localPosition = Pos;
             go.transform.localRotation = Rot;
@@ -44,7 +41,7 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadTagAndLayer</c>.</summary>
+    /// <summary>Sets a GameObject's tag and layer.</summary>
     internal sealed class SetTagAndLayer : IModelInstruction
     {
         public int Go;
@@ -54,8 +51,7 @@ namespace KSPCommunityFixes.Library.Model
         public void Execute(UnityEngine.Object[] locals)
         {
             GameObject go = (GameObject)locals[Go];
-            // Parity: MuParser sets the tag unguarded. Assigning an unregistered tag throws
-            // UnityException; we reproduce that behaviour rather than swallowing it.
+            // Assigning an unregistered tag throws UnityException; left unguarded deliberately.
             go.tag = Tag;
             go.layer = Layer;
         }
@@ -63,7 +59,7 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Mesh / renderers -----------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadMeshFilter</c>.</summary>
+    /// <summary>Adds a MeshFilter to a GameObject and assigns its shared mesh.</summary>
     internal sealed class AddMeshFilter : IModelInstruction
     {
         public int Go;
@@ -73,8 +69,8 @@ namespace KSPCommunityFixes.Library.Model
             ((GameObject)locals[Go]).AddComponent<MeshFilter>().sharedMesh = (Mesh)locals[MeshSlot];
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadMeshRenderer</c>. The shadow flags are only present for
-    /// <c>version &gt;= 1</c> (baked as <see cref="HasShadowFlags"/>).</summary>
+    /// <summary>Adds a MeshRenderer to a GameObject. Shadow flags are present only in newer .mu versions
+    /// (baked as <see cref="HasShadowFlags"/>).</summary>
     internal sealed class AddMeshRenderer : IModelInstruction
     {
         public int Go;
@@ -88,8 +84,6 @@ namespace KSPCommunityFixes.Library.Model
             MeshRenderer mr = ((GameObject)locals[Go]).AddComponent<MeshRenderer>();
             if (HasShadowFlags)
             {
-                // Parity: MuParser maps the single "cast shadows" bool to ShadowCastingMode.On/Off only
-                // (never TwoSided/ShadowsOnly).
                 mr.shadowCastingMode = CastShadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 mr.receiveShadows = ReceiveShadows;
             }
@@ -97,8 +91,8 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadSkinnedMeshRenderer</c>'s object-building (bone resolution is
-    /// a separate <see cref="ResolveBones"/> step). Deferred/not emitted in v1, but faithful.</summary>
+    /// <summary>Adds a SkinnedMeshRenderer to a GameObject (bone resolution is a separate
+    /// <see cref="ResolveBones"/> step).</summary>
     internal sealed class AddSkinnedMeshRenderer : IModelInstruction
     {
         public int Go;
@@ -121,11 +115,8 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Materials / textures -------------------------------------------------------------------
 
-    /// <summary>Reproduces the object-building of <c>MuParser.ReadMaterial</c> (v&lt;4) /
-    /// <c>ReadMaterial4</c> (v&gt;=4) plus the deferred texture assignment from <c>ReadTextures</c>,
-    /// folded into a single baked step. Value/texture property names are baked as strings by the
-    /// compiler (the v&lt;4 path's int property IDs are just <c>Shader.PropertyToID(name)</c>, so the
-    /// string setters are equivalent).</summary>
+    /// <summary>Creates a Material: resolves its shader, applies its scalar/color/vector properties, and
+    /// binds its textures. Property names are keyed by string.</summary>
     internal sealed class CreateMaterial : IModelInstruction
     {
         public int Dst;
@@ -136,10 +127,8 @@ namespace KSPCommunityFixes.Library.Model
 
         public void Execute(UnityEngine.Object[] locals)
         {
-            // Parity/RISK: Shader may resolve to null (unknown v>=4 shader name). MuParser does NOT
-            // substitute a default there — new Material((Shader)null) is the intended behaviour — so we
-            // must not coalesce to a fallback shader here. (The v<4 by-type route always resolves to a
-            // concrete KSP shader.) See ShaderRef.Resolve.
+            // Shader may resolve to null for an unknown shader name; new Material((Shader)null) is
+            // intentional, so do not coalesce to a fallback shader here. See ShaderRef.
             Material mat = new Material(Shader.Resolve());
             mat.name = Name;
 
@@ -157,7 +146,7 @@ namespace KSPCommunityFixes.Library.Model
                         case ValueProp.KindVector:
                             mat.SetVector(v.Name, v.VecVal);
                             break;
-                        default: // KindFloat (covers MuParser's material property type codes 2 and 3)
+                        default: // KindFloat
                             mat.SetFloat(v.Name, v.FloatVal);
                             break;
                     }
@@ -170,14 +159,10 @@ namespace KSPCommunityFixes.Library.Model
                 for (int i = 0; i < textures.Length; i++)
                 {
                     TextureProp t = textures[i];
-                    // Parity: MuParser always sets scale/offset (in ReadMaterialTexture); the texture
-                    // itself is resolved later in ReadTextures via GameDatabase.GetTexture(url, isNormal).
                     mat.SetTextureScale(t.Name, t.Scale);
                     mat.SetTextureOffset(t.Name, t.Offset);
                     if (t.Url != null)
                     {
-                        // Parity: reproduce MuParser.ReadTextures' skip-and-log on a missing texture — if the
-                        // resolved texture IsNullOrDestroyed, log the error and do NOT call SetTexture.
                         Texture2D tex = GameDatabase.Instance.GetTexture(t.Url, t.IsNormalMap);
                         if (tex.IsNullOrDestroyed())
                             Debug.LogError($"Texture '{t.Url}' not found!");
@@ -191,8 +176,8 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces the sharedMaterial/emitter-material fan-out of <c>MuParser.ReadMaterials</c>
-    /// (and the emitter registration in <c>ReadParticles</c>) for a single material index.</summary>
+    /// <summary>Assigns one material to the renderers and particle emitters that reference its material
+    /// index.</summary>
     internal sealed class AssignMaterial : IModelInstruction
     {
         public int MaterialSlot;
@@ -202,10 +187,9 @@ namespace KSPCommunityFixes.Library.Model
         public void Execute(UnityEngine.Object[] locals)
         {
             Material mat = (Material)locals[MaterialSlot];
-            // Parity: MuParser uses the SINGULAR Renderer.sharedMaterial (not sharedMaterials[]), setting
-            // it once per material index. For a multi-material renderer the LAST material index that
-            // lists it wins; the compiler emits these instructions in material-index order to preserve
-            // that "last wins" outcome.
+            // Uses the SINGULAR Renderer.sharedMaterial (not sharedMaterials[]), set once per material
+            // index. For a multi-material renderer the LAST material index that lists it wins; the compiler
+            // emits these instructions in material-index order to preserve that "last wins" outcome.
             int[] renderers = RendererSlots;
             if (renderers != null)
                 for (int i = 0; i < renderers.Length; i++)
@@ -220,8 +204,8 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Colliders ------------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadMeshCollider</c> (case 3) / <c>ReadMeshCollider2</c> (case 25).
-    /// The isTrigger flag exists only in the "2" variant (baked as <see cref="HasTrigger"/>).</summary>
+    /// <summary>Adds a convex MeshCollider to a GameObject. The isTrigger flag exists only in the newer
+    /// variant (baked as <see cref="HasTrigger"/>).</summary>
     internal sealed class AddMeshCollider : IModelInstruction
     {
         public int Go;
@@ -232,14 +216,14 @@ namespace KSPCommunityFixes.Library.Model
         public void Execute(UnityEngine.Object[] locals)
         {
             MeshCollider mc = ((GameObject)locals[Go]).AddComponent<MeshCollider>();
-            mc.convex = true; // Parity: MuParser always forces convex (the file's "convex" bool is ignored).
+            mc.convex = true; // Convex is forced on; the file's "convex" bool is ignored.
             if (HasTrigger)
                 mc.isTrigger = IsTrigger;
             mc.sharedMesh = (Mesh)locals[MeshSlot];
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadSphereCollider</c> (case 4) / <c>ReadSphereCollider2</c> (case 26).</summary>
+    /// <summary>Adds a SphereCollider to a GameObject.</summary>
     internal sealed class AddSphereCollider : IModelInstruction
     {
         public int Go;
@@ -258,8 +242,8 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadCapsuleCollider</c> (case 5) / <c>ReadCapsuleCollider2</c>
-    /// (case 27). Height exists only in the "2" variant (baked as <see cref="HasHeight"/>).</summary>
+    /// <summary>Adds a CapsuleCollider to a GameObject. Height exists only in the newer variant (baked as
+    /// <see cref="HasHeight"/>).</summary>
     internal sealed class AddCapsuleCollider : IModelInstruction
     {
         public int Go;
@@ -279,13 +263,13 @@ namespace KSPCommunityFixes.Library.Model
             cc.radius = Radius;
             if (HasHeight)
                 cc.height = Height;
-            // Parity: Direction is the raw axis index Unity uses (0 = X, 1 = Y, 2 = Z), copied verbatim.
+            // Direction is the raw Unity axis index (0 = X, 1 = Y, 2 = Z).
             cc.direction = Direction;
             cc.center = Center;
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadBoxCollider</c> (case 6) / <c>ReadBoxCollider2</c> (case 28).</summary>
+    /// <summary>Adds a BoxCollider to a GameObject.</summary>
     internal sealed class AddBoxCollider : IModelInstruction
     {
         public int Go;
@@ -304,8 +288,8 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadWheelCollider</c> (case 29), including the JointSpring and the
-    /// two WheelFrictionCurves, and the final <c>enabled = false</c>.</summary>
+    /// <summary>Adds a WheelCollider to a GameObject, with its suspension spring and forward/sideways
+    /// friction curves.</summary>
     internal sealed class AddWheelCollider : IModelInstruction
     {
         public int Go;
@@ -316,8 +300,8 @@ namespace KSPCommunityFixes.Library.Model
         public float SpringSpring;
         public float SpringDamper;
         public float SpringTarget;
-        // Parity: friction curve fields in MuParser's read order:
-        // [0]=extremumSlip [1]=extremumValue [2]=asymptoteSlip [3]=asymptoteValue [4]=stiffness.
+        // Friction curve fields: [0]=extremumSlip [1]=extremumValue [2]=asymptoteSlip
+        // [3]=asymptoteValue [4]=stiffness.
         public float[] Forward;
         public float[] Sideways;
 
@@ -350,14 +334,14 @@ namespace KSPCommunityFixes.Library.Model
                 asymptoteValue = Sideways[3],
                 stiffness = Sideways[4]
             };
-            wc.enabled = false; // Parity: MuParser leaves wheel colliders disabled.
+            wc.enabled = false; // Created disabled, matching the stock loader.
         }
     }
 
     // ---- Light / camera -------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadLight</c> (case 23). The spot angle exists only for
-    /// <c>version &gt; 1</c> (baked as <see cref="HasSpotAngle"/>).</summary>
+    /// <summary>Adds a Light to a GameObject. The spot angle exists only in newer .mu versions (baked as
+    /// <see cref="HasSpotAngle"/>).</summary>
     internal sealed class AddLight : IModelInstruction
     {
         public int Go;
@@ -382,8 +366,7 @@ namespace KSPCommunityFixes.Library.Model
         }
     }
 
-    /// <summary>Reproduces <c>MuParser.ReadCamera</c> (case 30), including the final
-    /// <c>allowHDR = false; enabled = false</c>.</summary>
+    /// <summary>Adds a disabled, non-HDR Camera to a GameObject.</summary>
     internal sealed class AddCamera : IModelInstruction
     {
         public int Go;
@@ -407,16 +390,15 @@ namespace KSPCommunityFixes.Library.Model
             camera.nearClipPlane = NearClip;
             camera.farClipPlane = FarClip;
             camera.depth = Depth;
-            camera.allowHDR = false; // Parity: MuParser force-disables HDR and the camera itself.
+            camera.allowHDR = false;
             camera.enabled = false;
         }
     }
 
     // ---- Particles ------------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadParticles</c> (case 31): copies every KSPParticleEmitter field
-    /// and maps the raw render-mode code. Material assignment is a separate <see cref="AssignMaterial"/>
-    /// step (the emitter is exposed via <see cref="Dst"/>).</summary>
+    /// <summary>Adds a KSPParticleEmitter to a GameObject and copies its fields. Material assignment is a
+    /// separate <see cref="AssignMaterial"/> step (the emitter is exposed via <see cref="Dst"/>).</summary>
     internal sealed class AddParticleEmitter : IModelInstruction
     {
         public int Go;
@@ -429,7 +411,6 @@ namespace KSPCommunityFixes.Library.Model
             ParticleEmitterData d = Data;
             e.emit = d.Emit;
             e.shape = (KSPParticleEmitter.EmissionShape)d.Shape;
-            // MuParser sets shape3D/shape2D component-wise; assigning the whole vector is equivalent.
             e.shape3D = d.Shape3D;
             e.shape2D = d.Shape2D;
             e.shape1D = d.Shape1D;
@@ -449,7 +430,7 @@ namespace KSPCommunityFixes.Library.Model
             e.rndAngularVelocity = d.RndAngularVelocity;
             e.rndRotation = d.RndRotation;
             e.doesAnimateColor = d.DoesAnimateColor;
-            // Parity: MuParser assigns a fresh Color[5]; copy so the emitter never aliases baked data.
+            // Copy into a fresh Color[5] so the emitter never aliases the baked data.
             Color[] colorAnimation = new Color[5];
             Color[] src = d.ColorAnimation;
             for (int i = 0; i < 5; i++)
@@ -466,7 +447,6 @@ namespace KSPCommunityFixes.Library.Model
             e.lengthScale = d.LengthScale;
             e.velocityScale = d.VelocityScale;
             e.maxParticleSize = d.MaxParticleSize;
-            // Parity: MuParser's render-mode switch — default => Billboard; 3/4/5 => the explicit modes.
             switch (d.RenderModeCode)
             {
                 default:
@@ -491,9 +471,8 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Animation ------------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.ReadAnimation</c> (case 2): rebuilds legacy <c>Animation</c> /
-    /// <c>AnimationClip</c> / <c>AnimationCurve</c> / <c>Keyframe</c> objects and replays the exact
-    /// <c>isInvalid</c> / null-skip logic and curve-type mapping.</summary>
+    /// <summary>Adds a legacy <c>Animation</c> component and rebuilds its clips, curves and
+    /// keyframes.</summary>
     internal sealed class AddAnimation : IModelInstruction
     {
         public int Go;
@@ -505,8 +484,8 @@ namespace KSPCommunityFixes.Library.Model
         {
             Animation animation = ((GameObject)locals[Go]).AddComponent<Animation>();
 
-            // Parity: isInvalid is declared ONCE outside the clip loop, so a single invalid curve poisons
-            // every later clip (AddClip is skipped) and the default clip. This is faithful to MuParser,
+            // isInvalid is declared ONCE outside the clip loop, so a single invalid curve poisons every
+            // later clip (AddClip is skipped) and the default clip. This matches the stock loader; it is
             // not a bug to "fix".
             bool isInvalid = false;
 
@@ -523,8 +502,8 @@ namespace KSPCommunityFixes.Library.Model
                 for (int j = 0; j < curves.Length; j++)
                 {
                     AnimationCurveData curve = curves[j];
-                    // Parity: curve type code 0-3 => Transform/Material/Light/AudioSource; anything else
-                    // leaves curveType null, which trips the isInvalid guard below.
+                    // Type code 0-3 => Transform/Material/Light/AudioSource; anything else leaves curveType
+                    // null, which trips the isInvalid guard below.
                     Type curveType = null;
                     switch (curve.TypeCode)
                     {
@@ -565,9 +544,8 @@ namespace KSPCommunityFixes.Library.Model
                     animation.AddClip(animationClip, clip.Name);
             }
 
-            // Parity contract: the compiler must bake DefaultClip as string.Empty (never null) when absent,
-            // because MuParser derives it from ReadString(), which returns string.Empty for a zero-length
-            // string — a baked null would wrongly pass this guard.
+            // The compiler must bake DefaultClip as string.Empty (never null) when absent; a baked null
+            // would wrongly pass this guard.
             if (DefaultClip != string.Empty && !isInvalid)
                 animation.clip = animation.GetClip(DefaultClip);
 
@@ -577,9 +555,8 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Bones ----------------------------------------------------------------------------------
 
-    /// <summary>Reproduces <c>MuParser.AffectSkinnedMeshRenderersBones</c> for one skinned mesh renderer:
-    /// resolves each bone by name from the model root and assigns the bone array. Deferred/not emitted in
-    /// v1, but faithful.</summary>
+    /// <summary>Resolves a skinned mesh renderer's bones by name from the model root and assigns the bone
+    /// array.</summary>
     internal sealed class ResolveBones : IModelInstruction
     {
         public int SmrSlot;
@@ -595,8 +572,7 @@ namespace KSPCommunityFixes.Library.Model
             ((SkinnedMeshRenderer)locals[SmrSlot]).bones = bones;
         }
 
-        // Ported verbatim from MuParser.FindChildByName: depth-first search returning the first transform
-        // whose name matches (including the root itself).
+        // Depth-first search returning the first transform whose name matches, including the root itself.
         private static Transform FindChildByName(Transform parent, string name)
         {
             if (parent.name == name)
@@ -614,16 +590,13 @@ namespace KSPCommunityFixes.Library.Model
 
     // ---- Payload structs ------------------------------------------------------------------------
 
-    /// <summary>How a KSP shader is resolved at replay. The v&lt;4 path resolves a
-    /// <see cref="PartToolsLib.ShaderType"/> by type; the v&gt;=4 path resolves a raw shader name.</summary>
+    /// <summary>How a KSP shader is resolved at replay: either by <see cref="PartToolsLib.ShaderType"/> or
+    /// by raw shader name.</summary>
     /// <remarks>
-    /// <see cref="ShaderHelpers.GetShader(string)"/> is byte-for-byte equivalent to MuParser's
-    /// <c>Shader.Find(name)</c> — it caches the same instances and, critically, returns <c>null</c> for
-    /// an unknown name (it never substitutes a default). So resolving the name route through
-    /// <see cref="ShaderHelpers"/> preserves MuParser's v&gt;=4 null-shader fallback
-    /// (<c>new Material((Shader)null)</c>). The type route uses
-    /// <see cref="ShaderHelpers.GetShader(ShaderType)"/>, whose <c>default</c> maps to KSP/Diffuse, which
-    /// is exactly what MuParser's v&lt;4 path does.
+    /// <see cref="ShaderHelpers.GetShader(string)"/> returns <c>null</c> for an unknown name (it never
+    /// substitutes a default), so an unrecognized shader name yields <c>new Material((Shader)null)</c>
+    /// rather than a fallback shader. The type route uses <see cref="ShaderHelpers.GetShader(ShaderType)"/>,
+    /// whose <c>default</c> maps to KSP/Diffuse.
     /// </remarks>
     internal struct ShaderRef
     {
@@ -634,8 +607,8 @@ namespace KSPCommunityFixes.Library.Model
         public Shader Resolve() => ByName ? ShaderHelpers.GetShader(Name) : ShaderHelpers.GetShader(Type);
     }
 
-    /// <summary>One scalar/color/vector material property. <see cref="Kind"/>: 0 Color, 1 Vector, 2 Float
-    /// (MuParser material property type codes 2 and 3 both map to Float).</summary>
+    /// <summary>One scalar/color/vector material property. <see cref="Kind"/>: 0 Color, 1 Vector,
+    /// 2 Float.</summary>
     internal struct ValueProp
     {
         public const int KindColor = 0;
@@ -660,9 +633,9 @@ namespace KSPCommunityFixes.Library.Model
         public Vector2 Offset;
     }
 
-    /// <summary>Every field <c>MuParser.ReadParticles</c> reads for a <c>KSPParticleEmitter</c>.
-    /// <see cref="RenderModeCode"/> is the raw int mapped by <see cref="AddParticleEmitter"/>;
-    /// <see cref="ColorAnimation"/> is a 5-element array.</summary>
+    /// <summary>The <c>KSPParticleEmitter</c> fields carried to <see cref="AddParticleEmitter"/>.
+    /// <see cref="RenderModeCode"/> is the raw int it maps; <see cref="ColorAnimation"/> is a 5-element
+    /// array.</summary>
     internal struct ParticleEmitterData
     {
         public bool Emit;
@@ -704,8 +677,7 @@ namespace KSPCommunityFixes.Library.Model
         public int UvAnimationCycles;
     }
 
-    /// <summary>One legacy <c>AnimationClip</c>: <c>localBounds = new Bounds(BoundsCenter, BoundsSize)</c>,
-    /// <c>wrapMode = (WrapMode)WrapMode</c>, plus its curves.</summary>
+    /// <summary>One legacy <c>AnimationClip</c>: its bounds, wrap mode and curves.</summary>
     internal struct AnimationClipData
     {
         public string Name;
@@ -716,7 +688,7 @@ namespace KSPCommunityFixes.Library.Model
     }
 
     /// <summary>One animation curve. <see cref="TypeCode"/>: 0 Transform, 1 Material, 2 Light,
-    /// 3 AudioSource (anything else marks the animation invalid, matching MuParser).</summary>
+    /// 3 AudioSource (anything else marks the animation invalid).</summary>
     internal struct AnimationCurveData
     {
         public string Path;
@@ -727,7 +699,7 @@ namespace KSPCommunityFixes.Library.Model
         public KeyframeData[] Keys;
     }
 
-    /// <summary>One keyframe (four floats, matching MuParser's <c>ReadKeyFrame</c>; weights left default).</summary>
+    /// <summary>One keyframe (four floats; weights left default).</summary>
     internal struct KeyframeData
     {
         public float Time;
