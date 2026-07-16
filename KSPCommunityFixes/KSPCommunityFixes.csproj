@@ -44,6 +44,12 @@
     <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
   </ItemGroup>
 
+  <!-- Reference type-tree bytes spliced into the in-memory bundles KSPCFFastLoader builds to
+       stream DDS textures. Regenerate with Tools/GenerateTextureTypeTrees.py. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Library\TextureBundle\TextureTypeTrees.bin" />
+  </ItemGroup>
+
   <ItemGroup>
     <KSPVersionFile Include="$(KSPBT_ModRoot)\$(AVCFilename)">
       <Destination>$(KSPBT_ModRoot)\$(AVCFilename)</Destination>
@@ -102,6 +108,8 @@
     <Publicize Include="UnityEngine.CoreModule:UnityEngine.Object.GetOffsetOfInstanceIDInCPlusPlusObject" />
     <Publicize Include="UnityEngine.IMGUIModule" />
     <Publicize Include="UnityEngine.CoreModule:Unity.Collections.NativeArray`1.m_Buffer" />
+    <Publicize Include="UnityEngine.CoreModule:UnityEngine.Texture2D.Internal_Create" />
+    <Publicize Include="UnityEngine.CoreModule:UnityEngine.Texture.ValidateFormat" />
     <Publicize Include="mscorlib:System.Runtime.CompilerServices.Unsafe" />
     <Publicize Include="mscorlib:System.IO.MonoIO" />
     <Publicize Include="mscorlib:System.IO.MonoIOError" />

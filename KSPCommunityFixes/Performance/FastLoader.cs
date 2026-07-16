@@ -8,6 +8,7 @@ using KSPAssets;
 using KSPAssets.Loaders;
 using KSPCommunityFixes.Library.Buffers;
 using KSPCommunityFixes.Library.Collections;
+using KSPCommunityFixes.Library.TextureBundle;
 using System;
 using System.Buffers.Binary;
 using System.Collections;
@@ -18,10 +19,14 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization;
 using System.Threading;
 using KSPCommunityFixes.Library;
 using TMPro;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.IO.LowLevel.Unsafe;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Networking;
@@ -31,6 +36,10 @@ using static UrlDir;
 using Debug = UnityEngine.Debug;
 using UnityEngine.Profiling;
 using System.Threading.Tasks;
+using KSP.UI;
+using System.Security.Cryptography;
+using UnityEngine.Rendering;
+using System.Collections.Concurrent;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -124,12 +133,6 @@ namespace KSPCommunityFixes.Performance
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal class KSPCFFastLoader : MonoBehaviour
     {
-        public static string LOC_SettingsTitle = "Texture caching optimization";
-        public static string LOC_SettingsTooltip =
-            "Cache PNG textures on disk instead of converting them on every KSP launch." +
-            "\nSpeedup loading time but increase disk space usage." +
-            "\n<i>Changes will take effect after relaunching KSP</i>";
-
         public static string LOC_PopupL1 =
             "KSPCommunityFixes can cache converted PNG textures on disk to speed up loading time.";
         public static string LOC_F_PopupL2 =
@@ -151,6 +154,10 @@ namespace KSPCommunityFixes.Performance
         // min amount of files to try to keep in memory, regardless of maxBufferSize
         private const int minFileRead = 10;
 
+        // Max number of new texture load coroutines that will be spawned each frame.
+        // This should roughly limit the max frame time spent on loading textures.
+        private const int MaxTextureSpawnsPerFrame = 64;
+
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
 
@@ -163,22 +170,14 @@ namespace KSPCommunityFixes.Performance
         public static KSPCFFastLoader loader;
 
         public static bool IsPatchEnabled { get; private set; }
-        public static bool TextureCacheEnabled => textureCacheEnabled;
+        // Vestigial: kept so the popup can persist its choice across launches once it is repurposed.
         private static bool textureCacheEnabled;
 
         private static string ModPath => Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
 
         private bool userOptInChoiceDone;
-        private const string textureCacheVersion = "V2";
         private string configPath;
-        private string textureCachePath;
-        private string textureCacheDataPath;
-        private string textureProgressMarkerPath;
-
-        private Dictionary<string, CachedTextureInfo> textureCacheData;
-        private HashSet<uint> textureDataIds;
-        private bool cacheUpdated = false;
 
         internal static Dictionary<string, GameObject> modelsByUrl;
         internal static Dictionary<string, GameObject> modelsByDirectoryUrl;
@@ -247,7 +246,6 @@ namespace KSPCommunityFixes.Performance
             GameEvents.OnGameDatabaseLoaded.Add(OnGameDatabaseLoaded);
 
             configPath = ConfigPath;
-            textureCachePath = Path.Combine(ModPath, "PluginData", "TextureCache");
 
             if (File.Exists(configPath))
             {
@@ -259,17 +257,6 @@ namespace KSPCommunityFixes.Performance
                 if (!config.TryGetValue(nameof(textureCacheEnabled), ref textureCacheEnabled))
                     userOptInChoiceDone = false;
             }
-
-#if DEBUG && !DEBUG_TEXTURE_CACHE
-            userOptInChoiceDone = true;
-            textureCacheEnabled = false;
-#endif
-        }
-
-        void Start()
-        {
-            if (IsPatchEnabled && !userOptInChoiceDone)
-                StartCoroutine(WaitForUserOptIn());
         }
 
         /// <summary>
@@ -458,12 +445,15 @@ namespace KSPCommunityFixes.Performance
             KSPCFFastLoaderReport.wConfigTranslate.Stop();
             yield return null;
 
-            gdb.progressTitle = "Waiting for PNGTextureCache opt-in...";
-            while (!loader.userOptInChoiceDone)
-                yield return null;
-
             // Start load asset bundles in the background while we load other assets.
             PreloadAssetBundleObjects(gdb);
+
+            // If the user hasn't chosen yet then wati for the opt-in
+            if (!loader.userOptInChoiceDone)
+            {
+                gdb.progressTitle = "Waiting for texture cache opt-in...";
+                yield return gdb.StartCoroutine(WaitForUserOptIn());
+            }
 
             gdb.progressTitle = "Searching assets to load...";
             yield return null;
@@ -472,14 +462,15 @@ namespace KSPCommunityFixes.Performance
             double nextFrameTime = ElapsedTime + minFrameTimeD;
 
             // Files loaded by our custom loaders
-            List<UrlFile> audioFiles = new List<UrlFile>(1000);
-            List<RawAsset> textureAssets = new List<RawAsset>(10000);
-            List<RawAsset> modelAssets = new List<RawAsset>(5000);
+            List<UrlFile> audioFiles = new(1000);
+            // Textures that need to be loaded on the main thread go through here.
+            BlockingCollection<TextureLoadRequest> textureQueue = [];
+            List<TextureLoadRequest> bundleRequests = new(10000);
+            List<RawAsset> modelAssets = new(5000);
 
             // Files loaded by mod-defined loaders (ex : Shabby *.shab files)
-            List<UrlFile> unsupportedAudioFiles = new List<UrlFile>(100);
-            List<UrlFile> unsupportedTextureFiles = new List<UrlFile>(100);
-            List<UrlFile> unsupportedModelFiles = new List<UrlFile>(100);
+            List<UrlFile> unsupportedAudioFiles = new(100);
+            List<UrlFile> unsupportedModelFiles = new(100);
 
             // Keeping track of already loaded files to avoid loading duplicates.
             // Note that to replicate stock behavior, we can't populate those
@@ -487,9 +478,9 @@ namespace KSPCommunityFixes.Performance
             // before flaging a same-url file as duplicate. Not doing this can break
             // mods relying on that implementation detail, looking at you, Shabby
             // and ConformalDecals
-            HashSet<string> allAudioFiles = new HashSet<string>(1000);
-            HashSet<string> allTextureFiles = new HashSet<string>(10000);
-            HashSet<string> allModelFiles = new HashSet<string>(5000);
+            HashSet<string> allAudioFiles = new(1000);
+            HashSet<string> allTextureFiles = new(10000);
+            HashSet<string> allModelFiles = new(5000);
 
             foreach (UrlDir dir in gdb.root.AllDirectories)
             {
@@ -519,26 +510,26 @@ namespace KSPCommunityFixes.Performance
                             switch (file.fileExtension)
                             {
                                 case "dds":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureDDS));
+                                    bundleRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureDDS));
                                     break;
                                 case "jpg":
                                 case "jpeg":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureJPG));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureJPG));
                                     break;
                                 case "mbm":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureMBM));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureMBM));
                                     break;
                                 case "png":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TexturePNG));
+                                    bundleRequests.Add(new TextureLoadRequest(file, RawAsset.AssetType.TexturePNG));
                                     break;
                                 case "tga":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTGA));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTGA));
                                     break;
                                 case "truecolor":
-                                    textureAssets.Add(new RawAsset(file, RawAsset.AssetType.TextureTRUECOLOR));
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureTRUECOLOR));
                                     break;
                                 default:
-                                    unsupportedTextureFiles.Add(file);
+                                    textureQueue.Add(new TextureLoadRequest(file, RawAsset.AssetType.TextureCUSTOM));
                                     break;
                             }
                             break;
@@ -567,16 +558,17 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            Thread textureCacheReaderThread;
-            if (textureCacheEnabled)
-            {
-                textureCacheReaderThread = new Thread(() => SetupTextureCacheThread(textureAssets));
-                textureCacheReaderThread.Start();
-            }
-            else
-            {
-                textureCacheReaderThread = null;
-            }
+            SupportedFormatCache.Build();
+
+            // Tune the AUP for much better throughput
+            QualitySettings.asyncUploadTimeSlice = 25;
+            QualitySettings.asyncUploadBufferSize = 256;
+
+            int textureCount = bundleRequests.Count + textureQueue.Count;
+
+            // Kick off the background bundle build
+            BundleState bundleState = new();
+            gdb.StartCoroutine(LoadBundledAssets(bundleState, bundleRequests, textureQueue));
 
             gdb.progressTitle = "Loading sound assets...";
             KSPCFFastLoaderReport.wAudioLoading.Restart();
@@ -670,65 +662,22 @@ namespace KSPCommunityFixes.Performance
             KSPCFFastLoaderReport.wAudioLoading.Stop();
             KSPCFFastLoaderReport.wTextureLoading.Restart();
             gdb.progressTitle = "Loading texture assets...";
-            yield return null;
 
-            // call non-stock texture loaders
+            yield return null;
 
             // note : we could use the StringComparer.OrdinalIgnoreCase comparer as the dictionary key comparer,
             // as this is the comparison that stock is doing. However, profiling show that casing mismatches rarely happen
             // (never in stock, 0.22% of calls in a very heavily modded install with a bunch of part mods of varying quality)
             // and the overhead of the OrdinalIgnoreCase comparer is offsetting the gains (but a small margin, but still). 
             texturesByUrl = new Dictionary<string, TextureInfo>(allTextureFiles.Count);
-            unsupportedFilesCount = unsupportedTextureFiles.Count;
-            loadersCount = gdb.loadersTexture.Count;
-
-            if (loadersCount > 0 && unsupportedFilesCount > 0)
-            {
-                for (int i = 0; i < unsupportedFilesCount; i++)
-                {
-                    UrlFile file = unsupportedTextureFiles[i];
-
-                    if (allTextureFiles.Contains(file.url))
-                    {
-                        Debug.LogWarning($"Duplicate texture asset '{file.url}' with extension '{file.fileExtension}' won't be loaded");
-                        continue;
-                    }
-
-                    Debug.Log($"Load Texture: {file.url}");
-                    for (int k = 0; k < loadersCount; k++)
-                    {
-                        DatabaseLoader<TextureInfo> loader = gdb.loadersTexture[k];
-                        if (!loader.extensions.Contains(file.fileExtension))
-                            continue;
-
-                        yield return gdb.StartCoroutine(loader.Load(file, new FileInfo(file.fullPath)));
-                        if (loader.successful)
-                        {
-                            loader.obj.name = file.url;
-                            loader.obj.texture.name = file.url;
-                            gdb.databaseTexture.Add(loader.obj);
-                            allTextureFiles.Add(file.url);
-                            loadedAssetCount++;
-                            gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (textureCacheReaderThread != null)
-            {
-                while (textureCacheReaderThread.IsAlive)
-                    yield return null;
-            }
 
             // call our custom loader
+            yield return gdb.StartCoroutine(TextureDriverCoroutine(textureQueue, allTextureFiles, bundleState, textureCount));
 
-            yield return gdb.StartCoroutine(FilesLoader(textureAssets, allTextureFiles, "Loading texture asset"));
+            // Now wait for all asset bundle textures to finish
+            yield return gdb.StartCoroutine(InsertBundledTextures(bundleState, allTextureFiles, textureCount));
 
-            // write texture cache json to disk
-            Thread writeTextureCacheThread = new Thread(() => loader.WriteTextureCache());
-            writeTextureCacheThread.Start();
+            QualitySettings.asyncUploadTimeSlice = 2;
 
             // start model loading
             gdb.progressFraction = 0.75f;
@@ -788,6 +737,8 @@ namespace KSPCommunityFixes.Performance
             // all done, do some cleanup
             arrayPool = null;
             MuParser.ReleaseBuffers();
+
+            QualitySettings.asyncUploadBufferSize = 32;
 
             // stock stuff
             gdb.lastLoadTime = KSPUtil.SystemDateTime.DateTimeNow();
@@ -1029,9 +980,9 @@ namespace KSPCommunityFixes.Performance
                 TextureJPG,
                 TextureMBM,
                 TexturePNG,
-                TexturePNGCached,
                 TextureTGA,
                 TextureTRUECOLOR,
+                TextureCUSTOM,
                 ModelMU,
                 ModelDAE
             }
@@ -1042,7 +993,6 @@ namespace KSPCommunityFixes.Performance
                 "JPG texture",
                 "MBM texture",
                 "PNG texture",
-                "Cached PNG Texture",
                 "TGA texture",
                 "TRUECOLOR texture",
                 "MU model",
@@ -1057,13 +1007,10 @@ namespace KSPCommunityFixes.Performance
             }
 
             private UrlFile file;
-            private CachedTextureInfo cachedTextureInfo;
             private AssetType assetType;
             private bool useRentedBuffer;
             private byte[] buffer;
             private int dataLength;
-            private MemoryStream memoryStream;
-            private BinaryReader binaryReader;
             private Result result;
             private string resultMessage;
 
@@ -1112,9 +1059,6 @@ namespace KSPCommunityFixes.Performance
             {
                 switch (assetType)
                 {
-                    case AssetType.TextureDDS:
-                    case AssetType.TextureMBM:
-                    case AssetType.TextureTGA:
                     case AssetType.ModelMU:
                     case AssetType.ModelDAE:
                         useRentedBuffer = true;
@@ -1123,7 +1067,7 @@ namespace KSPCommunityFixes.Performance
 
                 try
                 {
-                    string path = assetType == AssetType.TexturePNGCached ? cachedTextureInfo.FilePath : file.fullPath;
+                    string path = file.fullPath;
 
                     using (FileStream fileStream = System.IO.File.OpenRead(path))
                     {
@@ -1184,54 +1128,7 @@ namespace KSPCommunityFixes.Performance
                     if (result == Result.Failed)
                         return;
 
-                    if (file.fileType == FileType.Texture)
-                    {
-                        TextureInfo textureInfo;
-                        switch (assetType)
-                        {
-                            case AssetType.TextureDDS:
-                                textureInfo = LoadDDS();
-                                break;
-                            case AssetType.TextureJPG:
-                                textureInfo = LoadJPG();
-                                break;
-                            case AssetType.TextureMBM:
-                                textureInfo = LoadMBM();
-                                break;
-                            case AssetType.TexturePNG:
-                                textureInfo = LoadPNG();
-                                break;
-                            case AssetType.TexturePNGCached:
-                                textureInfo = LoadPNGCached();
-                                break;
-                            case AssetType.TextureTGA:
-                                textureInfo = LoadTGA();
-                                break;
-                            case AssetType.TextureTRUECOLOR:
-                                textureInfo = LoadTRUECOLOR();
-                                break;
-                            default:
-                                SetError("Unknown texture format");
-                                return;
-                        }
-
-                        if (result == Result.Failed || textureInfo == null || textureInfo.texture.IsNullOrDestroyed())
-                        {
-                            result = Result.Failed;
-                            if (string.IsNullOrEmpty(resultMessage))
-                                resultMessage = $"{TypeName} load error";
-                        }
-                        else
-                        {
-                            textureInfo.name = file.url;
-                            textureInfo.texture.name = file.url;
-                            Instance.databaseTexture.Add(textureInfo);
-                            texturesByUrl[file.url] = textureInfo;
-                            KSPCFFastLoaderReport.texturesBytesLoaded += dataLength;
-                            KSPCFFastLoaderReport.texturesLoaded++;
-                        }
-                    }
-                    else if (file.fileType == FileType.Model)
+                    if (file.fileType == FileType.Model)
                     {
                         GameObject model;
                         switch (assetType)
@@ -1284,390 +1181,8 @@ namespace KSPCommunityFixes.Performance
 
             public void Dispose()
             {
-                if (binaryReader != null)
-                    binaryReader.Dispose();
-
-                if (memoryStream != null)
-                    memoryStream.Dispose();
-
                 if (useRentedBuffer)
                     arrayPool.Return(buffer);
-            }
-
-            public void CheckTextureCache()
-            {
-                CachedTextureInfo cachedTextureInfo = GetCachedTextureInfo(file);
-
-                if (cachedTextureInfo == null)
-                    return;
-
-                assetType = AssetType.TexturePNGCached;
-                this.cachedTextureInfo = cachedTextureInfo;
-            }
-
-            // see https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
-            private enum DDSFourCC : uint
-            {
-                DXT1 = 0x31545844, // "DXT1"
-                DXT2 = 0x32545844, // "DXT2"
-                DXT3 = 0x33545844, // "DXT3"
-                DXT4 = 0x34545844, // "DXT4"
-                DXT5 = 0x35545844, // "DXT5"
-                BC4U_ATI = 0x31495441, // "ATI1" (actually BC4U)
-                BC4U = 0x55344342, // "BC4U"
-                BC4S = 0x53344342, // "BC4S"
-                BC5U_ATI = 0x32495441, // "ATI2" (actually BC5U)
-                BC5U = 0x55354342, // "BC5U"
-                BC5S = 0x53354342, // "BC5S"
-                RGBG = 0x47424752, // "RGBG"
-                GRGB = 0x42475247, // "GRGB"
-                UYVY = 0x59565955, // "UYVY"
-                YUY2 = 0x32595559, // "YUY2"
-                DX10 = 0x30315844, // "DX10", actual DXGI format specified in DX10 header
-                R16G16B16A16_UNORM = 36,
-                R16G16B16A16_SNORM = 110,
-                R16_FLOAT = 111,
-                R16G16_FLOAT = 112,
-                R16G16B16A16_FLOAT = 113,
-                R32_FLOAT = 114,
-                R32G32_FLOAT = 115,
-                R32G32B32A32_FLOAT = 116,
-                CxV8U8 = 117,
-            }
-
-            private TextureInfo LoadDDS()
-            {
-                memoryStream = new MemoryStream(buffer, 0, dataLength);
-                binaryReader = new BinaryReader(memoryStream);
-
-                if (binaryReader.ReadUInt32() != DDSValues.uintMagic)
-                {
-                    SetError("DDS: File is not a DDS format file!");
-                    return null;
-                }
-                DDSHeader dDSHeader = new DDSHeader(binaryReader);
-                bool mipChain = (dDSHeader.dwCaps & DDSPixelFormatCaps.MIPMAP) != 0;
-                bool isNormalMap = (dDSHeader.ddspf.dwFlags & 0x80000u) != 0 || (dDSHeader.ddspf.dwFlags & 0x80000000u) != 0;
-
-                DDSFourCC ddsFourCC = (DDSFourCC)dDSHeader.ddspf.dwFourCC;
-                Texture2D texture2D = null;
-                GraphicsFormat graphicsFormat = GraphicsFormat.None;
-
-                switch (ddsFourCC)
-                {
-                    case DDSFourCC.DXT1:
-                        graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
-                        break;
-                    case DDSFourCC.DXT5:
-                        graphicsFormat = GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
-                        break;
-                    case DDSFourCC.BC4U_ATI:
-                    case DDSFourCC.BC4U:
-                        graphicsFormat = GraphicsFormat.R_BC4_UNorm;
-                        break;
-                    case DDSFourCC.BC4S:
-                        graphicsFormat = GraphicsFormat.R_BC4_SNorm;
-                        break;
-                    case DDSFourCC.BC5U_ATI:
-                    case DDSFourCC.BC5U:
-                        graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
-                        break;
-                    case DDSFourCC.BC5S:
-                        graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
-                        break;
-                    case DDSFourCC.R16G16B16A16_UNORM:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
-                        break;
-                    case DDSFourCC.R16G16B16A16_SNORM:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
-                        break;
-                    case DDSFourCC.R16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16_SFloat;
-                        break;
-                    case DDSFourCC.R16G16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16G16_SFloat;
-                        break;
-                    case DDSFourCC.R16G16B16A16_FLOAT:
-                        graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
-                        break;
-                    case DDSFourCC.R32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32_SFloat;
-                        break;
-                    case DDSFourCC.R32G32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32G32_SFloat;
-                        break;
-                    case DDSFourCC.R32G32B32A32_FLOAT:
-                        graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
-                        break;
-                    case DDSFourCC.DX10:
-                        DDSHeaderDX10 dx10Header = new DDSHeaderDX10(binaryReader);
-                        switch (dx10Header.dxgiFormat)
-                        {
-                            case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT1_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT1_SRGB;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT5_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB:
-                                graphicsFormat = GraphicsFormat.RGBA_DXT5_SRGB;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM:
-                                graphicsFormat = GraphicsFormat.R_BC4_SNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM:
-                                graphicsFormat = GraphicsFormat.R_BC4_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM:
-                                graphicsFormat = GraphicsFormat.RG_BC5_SNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM:
-                                graphicsFormat = GraphicsFormat.RG_BC5_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM:
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB:
-                                graphicsFormat = GraphicsFormat.RGBA_BC7_SRGB;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16:
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16:
-                                graphicsFormat = GraphicsFormat.RGB_BC6H_UFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_UNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_SNORM:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_SNorm;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16G16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT:
-                                graphicsFormat = GraphicsFormat.R16G16B16A16_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32G32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32G32_SFloat;
-                                break;
-                            case DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT:
-                                graphicsFormat = GraphicsFormat.R32G32B32A32_SFloat;
-                                break;
-                            default:
-                                SetError($"DDS: The '{dx10Header.dxgiFormat}' DXT10 format isn't supported");
-                                break;
-                        }
-                        break;
-                    case DDSFourCC.DXT2:
-                    case DDSFourCC.DXT3:
-                    case DDSFourCC.DXT4:
-                    case DDSFourCC.RGBG:
-                    case DDSFourCC.GRGB:
-                    case DDSFourCC.UYVY:
-                    case DDSFourCC.YUY2:
-                    case DDSFourCC.CxV8U8:
-                        SetError($"DDS: The '{ddsFourCC}' format isn't supported, use DXT1 for RGB textures or DXT5 for RGBA textures");
-                        break;
-                    default:
-                        SetError($"DDS: Unknown dwFourCC format '0x{ddsFourCC:X}'");
-                        break;
-                }
-
-                if (graphicsFormat != GraphicsFormat.None)
-                {
-                    if (!SystemInfo.IsFormatSupported(graphicsFormat, FormatUsage.Sample))
-                    {
-                        if (SystemInfo.operatingSystemFamily == OperatingSystemFamily.MacOSX &&
-                            (graphicsFormat == GraphicsFormat.RGBA_BC7_UNorm
-                             || graphicsFormat == GraphicsFormat.RGBA_BC7_SRGB
-                             || graphicsFormat == GraphicsFormat.RGB_BC6H_SFloat
-                             || graphicsFormat == GraphicsFormat.RGB_BC6H_UFloat))
-                        {
-                            SetError($"DDS: The '{graphicsFormat}' format is not supported on MacOS");
-                        }
-                        else
-                        {
-                            SetError($"DDS: The '{graphicsFormat}' format is not supported by your GPU or OS");
-                        }
-                    }
-                    else
-                    {
-                        texture2D = new Texture2D((int)dDSHeader.dwWidth, (int)dDSHeader.dwHeight, graphicsFormat, mipChain ? TextureCreationFlags.MipChain : TextureCreationFlags.None);
-                        if (texture2D.IsNullOrDestroyed())
-                        {
-                            SetError($"DDS: Failed to load texture, unknown error");
-                        }
-                        else
-                        {
-                            int position = (int)binaryReader.BaseStream.Position;
-                            GCHandle pinnedHandle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
-                            try
-                            {
-                                IntPtr ptr = Marshal.UnsafeAddrOfPinnedArrayElement(buffer, position);
-                                texture2D.LoadRawTextureData(ptr, dataLength - position);
-                            }
-                            finally
-                            {
-                                pinnedHandle.Free();
-                            }
-
-                            texture2D.Apply(updateMipmaps: false, makeNoLongerReadable: true);
-                        }
-                    }
-                }
-
-                return new TextureInfo(file, texture2D, isNormalMap, false, true);
-            }
-
-            private TextureInfo LoadJPG()
-            {
-                bool isNormal = file.name.EndsWith("NRM");
-
-                if (isNormal)
-                {
-                    Texture2D tex = new Texture2D(1, 1, TextureFormat.RGB24, false);
-                    if (!ImageConversion.LoadImage(tex, buffer, false))
-                        return null;
-
-                    Texture2D nrmTex = BitmapToCompressedNormalMapFast(tex);
-                    return new TextureInfo(file, nrmTex, true, false, true);
-                }
-                else
-                {
-                    Texture2D tex = new Texture2D(1, 1, TextureFormat.DXT1, false);
-                    if (!ImageConversion.LoadImage(tex, buffer, false))
-                        return null;
-
-                    return new TextureInfo(file, tex, false, true, true);
-                }
-            }
-
-            private TextureInfo LoadMBM()
-            {
-                memoryStream = new MemoryStream(buffer, 0, dataLength);
-                binaryReader = new BinaryReader(memoryStream);
-                Texture2D texture2D = MBMReader.ReadTexture2D(buffer, binaryReader, true, true, out bool isNormalMap);
-                return new TextureInfo(file, texture2D, isNormalMap, false, true);
-            }
-
-            private static string mipMapsPNGTexturePath = Path.DirectorySeparatorChar + "Flags" + Path.DirectorySeparatorChar;
-
-            private TextureInfo LoadPNG()
-            {
-                if (!GetPNGSize(buffer, out uint width, out uint height))
-                {
-                    SetError("Invalid PNG file");
-                    return null;
-                }
-
-                bool isNormalMap = file.name.EndsWith("NRM");
-                bool nonReadable = file.fullPath.Contains("@thumbs"); // KSPCF optimization : don't keep cargo icons in memory
-                bool hasMipMaps = file.fullPath.Contains(mipMapsPNGTexturePath); // only generate mipmaps for flags (stock behavior)
-                bool canCompress = hasMipMaps ? Numerics.IsPowerOfTwo(width) && Numerics.IsPowerOfTwo(height) : width % 4 == 0 && height % 4 == 0;
-
-                // don't initially compress normal textures, as we need to swizzle the raw data first
-                TextureFormat textureFormat;
-                if (isNormalMap)
-                {
-                    textureFormat = TextureFormat.ARGB32;
-                }
-                else if (!canCompress)
-                {
-                    textureFormat = TextureFormat.ARGB32;
-                    SetWarning("Texture isn't eligible for DXT compression, width and height must be multiples of 4");
-                }
-                else
-                {
-                    textureFormat = TextureFormat.DXT5;
-                }
-
-                Texture2D texture = new Texture2D((int)width, (int)height, textureFormat, hasMipMaps);
-
-                if ((isNormalMap || canCompress) && textureCacheEnabled)
-                {
-                    if (!ImageConversion.LoadImage(texture, buffer, false))
-                        return null;
-
-                    if (isNormalMap)
-                        texture = BitmapToCompressedNormalMapFast(texture, false);
-
-                    if (texture.graphicsFormat == GraphicsFormat.RGBA_DXT5_UNorm)
-                    {
-                        SaveCachedTexture(file, texture, isNormalMap);
-
-                        if (isNormalMap || nonReadable)
-                            texture.Apply(true, true);
-                    }
-                }
-                else
-                {
-                    if (!ImageConversion.LoadImage(texture, buffer, nonReadable))
-                        return null;
-
-                    if (isNormalMap)
-                        texture = BitmapToCompressedNormalMapFast(texture);
-                }
-
-
-                return new TextureInfo(file, texture, isNormalMap, !nonReadable, true);
-            }
-
-            private TextureInfo LoadPNGCached()
-            {
-                if (cachedTextureInfo.TryCreateTexture(buffer, out Texture2D texture))
-                    return new TextureInfo(file, texture, cachedTextureInfo.normal, cachedTextureInfo.readable, true);
-
-                buffer = System.IO.File.ReadAllBytes(file.fullPath);
-                return LoadPNG();
-            }
-
-            private TextureInfo LoadTGA()
-            {
-                if (dataLength < 18)
-                {
-                    SetError("TGA invalid length of only " + dataLength + "bytes");
-                    return null;
-                }
-
-                TGAImage tgaImage = new TGAImage();
-                TGAImage.header = new TGAHeader(buffer);
-                TGAImage.colorData = tgaImage.ReadImage(TGAImage.header, buffer);
-                if (TGAImage.colorData == null)
-                    return null;
-
-                Texture2D texture = tgaImage.CreateTexture(mipmap: true, linear: false, compress: true, compressHighQuality: false, allowRead: true);
-                if (texture.IsNullOrDestroyed())
-                    return null;
-
-                bool isNormalMap = file.name.EndsWith("NRM");
-                if (isNormalMap)
-                    texture = BitmapToCompressedNormalMapFast(texture);
-
-                return new TextureInfo(file, texture, isNormalMap, !isNormalMap, true);
-            }
-
-            private TextureInfo LoadTRUECOLOR()
-            {
-                bool isNormalMap = file.name.EndsWith("NRM");
-
-                Texture2D texture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-                if (!ImageConversion.LoadImage(texture, buffer, false))
-                    return null;
-
-                if (isNormalMap)
-                    texture = BitmapToCompressedNormalMapFast(texture);
-
-                return new TextureInfo(file, texture, isNormalMap, !isNormalMap, false);
             }
 
             private GameObject LoadMU()
@@ -1699,99 +1214,1686 @@ namespace KSPCommunityFixes.Performance
                 return gameObject;
             }
 
-            private static Texture2D BitmapToCompressedNormalMapFast(Texture2D original, bool makeNoLongerReadable = true)
+        }
+
+        #endregion
+
+        #region Texture bundle loader
+        private struct BundleItem
+        {
+            public TextureLoadRequest Request;
+            public bool IsNormalMap;
+        }
+
+        // Result of the background DDS bucketing + bundle-building task.
+        private sealed class BundleBuildResult
+        {
+            // The combined bundle bytes, or null when no DDS texture was bundle-eligible.
+            public byte[] Bytes;
+            // The eligible textures, to be looked up in the loaded bundle by File.url.
+            public List<BundleItem> Items;
+        }
+
+        private sealed class BundleState
+        {
+            // How many textures are getting loaded from the bundle?
+            public int Count => Items.Count;
+            // What's the current progress of the bundle
+            public float Progress;
+            // Did the bundle load fail?
+            public bool Failed;
+            public bool Done;
+            public Dictionary<string, Texture2D> Map = [];
+            public List<BundleItem> Items = [];
+        }
+
+        private static BundleBuildResult BuildDDSBundle(
+            List<TextureLoadRequest> bundleRequests,
+            BlockingCollection<TextureLoadRequest> textureQueue)
+        {
+            List<TextureBundleBuilder.TextureEntry> entries = new(bundleRequests.Count);
+            List<BundleItem> items = new(bundleRequests.Count);
+
+            try
             {
-                // ~6 times faster than the stock BitmapToUnityNormalMap() method
-                // Note that this would be a lot more efficient if we didn't have to create a new texture.
-                // Unfortunately, Unity doesn't provide any way to add mimaps to a texture that didn't
-                // have them initially (but I guess this is a deeper GPU related limitation)...
-
-                TextureFormat originalFormat = original.format;
-                Texture2D normalMap = new Texture2D(original.width, original.height, TextureFormat.RGBA32, true);
-                normalMap.wrapMode = TextureWrapMode.Repeat;
-
-                if (originalFormat == TextureFormat.RGBA32
-                    || originalFormat == TextureFormat.ARGB32
-                    || originalFormat == TextureFormat.RGB24)
+                foreach (BundleClassification result in bundleRequests.AsParallel().AsOrdered().Select(ClassifyBundleRequest))
                 {
-                    NativeArray<byte> originalData = original.GetRawTextureData<byte>();
-                    NativeArray<byte> normalMapData = normalMap.GetRawTextureData<byte>();
-                    int size = originalData.Length;
-                    byte r, g;
-                    switch (originalFormat)
+                    if (result.Eligible)
                     {
-                        case TextureFormat.RGBA32:
-                            // from (r, g, b, a)
-                            // to   (g, g, g, r);
-                            for (int i = 0; i < size; i += 4)
-                            {
-                                r = originalData[i];
-                                g = originalData[i + 1];
-                                normalMapData[i] = g;
-                                normalMapData[i + 1] = g;
-                                normalMapData[i + 2] = g;
-                                normalMapData[i + 3] = r;
-                            }
-                            break;
-                        case TextureFormat.ARGB32:
-                            // from (a, r, g, b)
-                            // to   (g, g, g, r);
-                            for (int i = 0; i < size; i += 4)
-                            {
-                                r = originalData[i + 1];
-                                g = originalData[i + 2];
-                                normalMapData[i] = g;
-                                normalMapData[i + 1] = g;
-                                normalMapData[i + 2] = g;
-                                normalMapData[i + 3] = r;
-                            }
-                            break;
-                        case TextureFormat.RGB24:
-                            // from (r, g, b)
-                            // to   (g, g, g, r);
-                            int j = 0;
-                            for (int i = 0; i < size; i += 3)
-                            {
-                                r = originalData[i];
-                                g = originalData[i + 1];
-                                normalMapData[j] = g;
-                                normalMapData[j + 1] = g;
-                                normalMapData[j + 2] = g;
-                                normalMapData[j + 3] = r;
-                                j += 4;
-                            }
-                            break;
+                        entries.Add(result.Entry);
+                        items.Add(result.Item);
+                    }
+                    else
+                    {
+                        textureQueue.Add(result.Request);
                     }
                 }
-                else
-                {
-                    Color32[] pixels = original.GetPixels32();
-                    for (int i = 0; i < pixels.Length; i++)
-                    {
-                        Color32 pixel = pixels[i];
-                        pixel.a = pixel.r;
-                        pixel.r = pixel.g;
-                        pixel.b = pixel.g;
-                        pixels[i] = pixel;
-                    }
-                    normalMap.SetPixels32(pixels);
-                }
-
-                // Unity can't convert NPOT textures to DXT5 with mipmaps
-                if (Numerics.IsPowerOfTwo(normalMap.width) && Numerics.IsPowerOfTwo(normalMap.height))
-                {
-                    normalMap.Apply(true); // needed to generate mipmaps, must be done before compression
-                    normalMap.Compress(false);
-                    normalMap.Apply(true, makeNoLongerReadable);
-                }
-                else
-                {
-                    normalMap.Apply(true, makeNoLongerReadable);
-                }
-
-                Destroy(original);
-                return normalMap;
             }
+            finally
+            {
+                // Signal to the main thread that no new requests are coming
+                textureQueue.CompleteAdding();
+            }
+
+            // Put the largest textures first so unity loads them during the audio phase.
+            entries.Sort(static (a, b) => -a.PixelsLength.CompareTo(b.PixelsLength));
+
+            return new BundleBuildResult
+            {
+                Bytes = entries.Count == 0 ? null : TextureBundleBuilder.BuildMany(entries),
+                Items = items,
+            };
+        }
+
+        // Outcome of classifying one bundle candidate: either it is bundle-eligible (Entry + Item are set and
+        // it goes into the combined bundle) or it isn't (only Request is set and it goes to the driver queue).
+        private readonly struct BundleClassification
+        {
+            public readonly TextureLoadRequest Request;
+            public readonly bool Eligible;
+            public readonly TextureBundleBuilder.TextureEntry Entry;
+            public readonly BundleItem Item;
+
+            public BundleClassification(TextureLoadRequest request)
+            {
+                Request = request;
+                Eligible = false;
+                Entry = default;
+                Item = default;
+            }
+
+            public BundleClassification(TextureBundleBuilder.TextureEntry entry, BundleItem item)
+            {
+                Request = item.Request;
+                Eligible = true;
+                Entry = entry;
+                Item = item;
+            }
+        }
+
+        /// <summary>
+        /// Can we include this request in the asset bundle?
+        /// </summary>
+        private static BundleClassification ClassifyBundleRequest(TextureLoadRequest req)
+        {
+            // Resolve the file whose pixels this request streams from. DDS streams from its own file; a PNG
+            // streams from its DXT cache, but only when caching is on and a valid, up-to-date cache exists. A
+            // PNG without one goes to the regular decode path (which rebuilds the cache), so its normal-map
+            // status comes from the file name, not a header.
+            string sourcePath;
+            bool isNormalMap;
+            if (req.AssetType == RawAsset.AssetType.TexturePNG)
+            {
+                if (!textureCacheEnabled || !TryGetValidPngCache(req.File, out sourcePath))
+                    return new BundleClassification(req);
+                isNormalMap = req.File.name.EndsWith("NRM");
+            }
+            else
+            {
+                sourcePath = req.File.fullPath;
+                isNormalMap = false;
+            }
+
+            DDSPreparedHeader hdr;
+            try
+            {
+                using (s_pmParseDDSHeader.Auto())
+                    hdr = ParseDDSHeader(sourcePath);
+            }
+            catch
+            {
+                // Couldn't parse: let the per-request loader re-parse (rebuilding the cache for a PNG) and
+                // surface the error.
+                return new BundleClassification(req);
+            }
+
+            req.FileLength = hdr.FileLength;
+            if (req.AssetType != RawAsset.AssetType.TexturePNG)
+                isNormalMap = hdr.IsNormalMap;
+
+            if (hdr.BundleEligible && SupportedFormatCache.IsSupported(hdr.Format))
+            {
+                req.Bundled = true;
+                TextureBundleBuilder.TextureEntry entry = new(
+                    req.File.url,
+                    hdr.Width, hdr.Height, hdr.MipCount,
+                    hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
+                    sourcePath, hdr.DataOffset, hdr.StreamedSize);
+                return new BundleClassification(entry, new BundleItem { Request = req, IsNormalMap = isNormalMap });
+            }
+
+            return new BundleClassification(req);
+        }
+
+        private static IEnumerator LoadBundledAssets(
+            BundleState state,
+            List<TextureLoadRequest> requests,
+            BlockingCollection<TextureLoadRequest> textureQueue
+        )
+        {
+            var inner = LoadBundledAssetsImpl(state, requests, textureQueue);
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    if (e is AggregateException agg)
+                        e = agg.InnerException ?? e;
+
+                    Debug.LogError("Failed to load bundled textres");
+                    Debug.LogException(e);
+
+                    state.Progress = 1f;
+                    state.Failed = true;
+                    break;
+                }
+
+                yield return current;
+            }
+
+            state.Done = true;
+        }
+
+        private static IEnumerator LoadBundledAssetsImpl(
+            BundleState state,
+            List<TextureLoadRequest> requests,
+            BlockingCollection<TextureLoadRequest> textureQueue)
+        {
+            var task = Task.Run(() => BuildDDSBundle(requests, textureQueue));
+            while (!task.IsCompleted)
+                yield return null;
+
+            var built = task.Result;
+            state.Items = built.Items;
+            if (state.Count == 0)
+            {
+                state.Progress = 1f;
+                yield break;
+            }
+
+            var bundleRequest = AssetBundle.LoadFromMemoryAsync(built.Bytes);
+            yield return bundleRequest;
+
+            var bundle = bundleRequest.assetBundle;
+            if (bundle == null)
+                throw new Exception("failed to load texture asset bundle");
+
+            var request = bundle.LoadAllAssetsAsync();
+
+            // This should (maybe?) allow other concurrent asset bundle requests
+            // to not be blocked by this one.
+            request.priority = -10;
+            while (!request.isDone)
+            {
+                state.Progress = request.progress;
+                yield return null;
+            }
+            state.Progress = 1f;
+
+            UnityEngine.Object[] assets = request.allAssets;
+            Dictionary<string, Texture2D> map = new(assets.Length);
+            for (int i = 0; i < assets.Length; ++i)
+            {
+                if (assets[i] is Texture2D tex)
+                    map[tex.name] = tex;
+            }
+
+            state.Map = map;
+        }
+
+        private static IEnumerator InsertBundledTextures(
+            BundleState state,
+            HashSet<string> loadedUrls,
+            int totalTextureCount)
+        {
+            var gdb = GameDatabase.Instance;
+            while (!state.Done)
+            {
+                int progress = (int)(state.Progress * state.Count);
+                gdb.progressFraction = (float)(loadedAssetCount + progress) / totalAssetCount;
+                gdb.progressTitle = $"Loading texture asset {progress}/{totalTextureCount}";
+                yield return null;
+            }
+
+            List<BundleItem> items = state.Items;
+            if (items == null || items.Count == 0)
+                yield break;
+
+            Dictionary<string, Texture2D> map = state.Map;
+
+            foreach (var item in items)
+            {
+                TextureLoadRequest req = item.Request;
+
+                if (!state.Failed && map != null
+                    && map.TryGetValue(req.File.url, out Texture2D tex) && tex.IsNotNullOrDestroyed())
+                {
+                    req.Result = new TextureInfo(req.File, tex, item.IsNormalMap, isReadable: false, isCompressed: true);
+                    req.Status = TextureLoadRequest.State.Ready;
+                }
+                else
+                {
+                    req.ErrorMessage ??= "DDS: streamed texture missing from combined bundle";
+                    req.Status = TextureLoadRequest.State.Failed;
+                }
+
+                InsertReadyRequest(req, loadedUrls);
+                loadedAssetCount++;
+
+                float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                if (frameTime > 0.1)
+                    yield return null;
+            }
+        }
+        #endregion
+
+        #region PNG texture cache
+
+        // If the user opts into it, we cache compressed versions of PNG files as DDS files under
+        // GameData/KSPCommunityFixes/PluginData/TextureCache. Later, when textures are loaded from
+        // the cache, they can go through the asset bundle path.
+
+        // Marker written into dwReserved1[4] so a cache file is recognisably ours and not some unrelated DDS
+        // that happens to hash to the same name.
+        private const uint PngCacheMarker = 0x4643_534Bu; // "KSCF"
+
+        private static string PngCacheDir => Path.Combine(ModPath, "PluginData", "TextureCache");
+
+        // Deterministic, collision-free (SHA1) and length-safe cache path for a texture URL.
+        private static string GetPngCachePath(string url)
+        {
+            byte[] hash;
+            using (SHA1 sha = SHA1.Create())
+                hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(url));
+            return Path.Combine(PngCacheDir, BitConverter.ToString(hash).Replace("-", "") + ".dds");
+        }
+
+        // Source-file identity stamp: byte size + last-write-time. A cache is valid only while both still match.
+        private static bool GetPngStamp(string path, out long size, out long time)
+        {
+            size = 0;
+            time = 0;
+            try
+            {
+                FileInfo fi = new FileInfo(path);
+                if (!fi.Exists)
+                    return false;
+                size = fi.Length;
+                time = fi.LastWriteTimeUtc.ToFileTimeUtc();
+                return size > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Reads the (size, time) stamp embedded in a cache file's DDS reserved header. Returns false if the
+        // file is missing, too small, isn't a DDS, or wasn't written by us.
+        private static bool TryReadPngCacheStamp(string path, out long size, out long time)
+        {
+            size = 0;
+            time = 0;
+            try
+            {
+                using FileStream fs = File.OpenRead(path);
+                if (fs.Length < 148)
+                    return false;
+                using BinaryReader br = new BinaryReader(fs);
+                if (br.ReadUInt32() != DDSValues.uintMagic)
+                    return false;
+                // dwReserved1 starts 28 bytes into the 124-byte header, i.e. at file offset 32.
+                fs.Position = 32;
+                long s = br.ReadInt64();               // dwReserved1[0..1]
+                long t = br.ReadInt64();               // dwReserved1[2..3]
+                if (br.ReadUInt32() != PngCacheMarker) // dwReserved1[4]
+                    return false;
+                size = s;
+                time = t;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // True when a valid, up-to-date cache DDS exists for the given PNG. cachePath is set to the resolved
+        // cache location on success so the caller can stream from it.
+        private static bool TryGetValidPngCache(UrlFile file, out string cachePath)
+        {
+            cachePath = GetPngCachePath(file.url);
+            if (!GetPngStamp(file.fullPath, out long size, out long time))
+                return false;
+            return TryReadPngCacheStamp(cachePath, out long cachedSize, out long cachedTime)
+                && cachedSize == size && cachedTime == time;
+        }
+
+        // Maps the four DXT graphics formats the PNG loader can produce to their DXGI equivalents. Returns
+        // false for anything else (e.g. uncompressed), which is never cached.
+        private static bool TryGetCacheDxgiFormat(GraphicsFormat format, out uint dxgiFormat)
+        {
+            switch (format)
+            {
+                case GraphicsFormat.RGBA_DXT1_UNorm: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM; return true;
+                case GraphicsFormat.RGBA_DXT1_SRGB: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB; return true;
+                case GraphicsFormat.RGBA_DXT5_UNorm: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM; return true;
+                case GraphicsFormat.RGBA_DXT5_SRGB: dxgiFormat = (uint)DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB; return true;
+                default: dxgiFormat = 0; return false;
+            }
+        }
+
+        // Captures the compressed pixels of a just-loaded PNG (main thread) and writes them to the on-disk
+        // cache as a DDS on a background thread. No-op unless the texture is in a cacheable DXT format with a
+        // round-trippable mip layout. Must be called before Apply(makeNoLongerReadable) frees the pixels.
+        private static void TryWritePngCache(UrlFile file, Texture2D src)
+        {
+            try
+            {
+                if (!TryGetCacheDxgiFormat(src.graphicsFormat, out uint dxgiFormat))
+                    return;
+
+                int width = src.width;
+                int height = src.height;
+                int mipCount = src.mipmapCount;
+                // The bundle path reconstructs either a full mip chain or a single level; anything else
+                // (a partial chain) can't be round-tripped, so don't cache it.
+                if (mipCount != 1 && mipCount != ComputeMipCount(width, height))
+                    return;
+
+                if (!GetPngStamp(file.fullPath, out long size, out long time))
+                    return;
+
+                byte[] data = src.GetRawTextureData<byte>().ToArray();
+                string path = GetPngCachePath(file.url);
+                Task.Run(() => WritePngCacheFile(path, width, height, mipCount, dxgiFormat, size, time, data));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[KSPCFFastLoader] Couldn't cache PNG '{file.url}': {e.Message}");
+            }
+        }
+
+        private static void WritePngCacheFile(
+            string path, int width, int height, int mipCount, uint dxgiFormat, long srcSize, long srcTime, byte[] data)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                using FileStream fs = File.Create(path);
+                using BinaryWriter bw = new BinaryWriter(fs);
+                WriteDdsCacheHeader(bw, width, height, mipCount, dxgiFormat, srcSize, srcTime);
+                bw.Write(data, 0, data.Length);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[KSPCFFastLoader] Couldn't write PNG cache '{path}': {e.Message}");
+            }
+        }
+
+        // Writes a DX10 DDS header (magic + 124-byte DDS_HEADER + 20-byte DDS_HEADER_DXT10 = 148 bytes) that
+        // ParseDDSHeader reads back to the exact GraphicsFormat / dimensions / mip count. The source PNG's
+        // (size, time) stamp plus our marker live in the otherwise-unused dwReserved1 words; Unity streams
+        // only the pixel bytes past offset 148 and never parses this header, so those words are free to use.
+        private static void WriteDdsCacheHeader(
+            BinaryWriter bw, int width, int height, int mipCount, uint dxgiFormat, long srcSize, long srcTime)
+        {
+            bool hasMips = mipCount > 1;
+
+            const uint DDSD_CAPS = 0x1, DDSD_HEIGHT = 0x2, DDSD_WIDTH = 0x4, DDSD_PIXELFORMAT = 0x1000;
+            const uint DDSD_MIPMAPCOUNT = 0x20000, DDSD_LINEARSIZE = 0x80000;
+            const uint DDPF_FOURCC = 0x4;
+            const uint DDSCAPS_TEXTURE = 0x1000, DDSCAPS_COMPLEX = 0x8, DDSCAPS_MIPMAP = 0x400000;
+
+            bool isBc1 = dxgiFormat == (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM
+                         || dxgiFormat == (uint)DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB;
+            int blockBytes = isBc1 ? 8 : 16;
+            uint topLinearSize = (uint)(Math.Max(1, (width + 3) / 4) * Math.Max(1, (height + 3) / 4) * blockBytes);
+
+            bw.Write(DDSValues.uintMagic);                 // "DDS "
+            bw.Write(124u);                                // dwSize
+            uint flags = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT | DDSD_LINEARSIZE;
+            if (hasMips) flags |= DDSD_MIPMAPCOUNT;
+            bw.Write(flags);                               // dwFlags
+            bw.Write((uint)height);                        // dwHeight
+            bw.Write((uint)width);                         // dwWidth
+            bw.Write(topLinearSize);                       // dwPitchOrLinearSize
+            bw.Write(0u);                                  // dwDepth
+            bw.Write((uint)mipCount);                      // dwMipMapCount
+            // dwReserved1[11]: source stamp + marker, rest zero.
+            bw.Write(srcSize);                             // [0..1]
+            bw.Write(srcTime);                             // [2..3]
+            bw.Write(PngCacheMarker);                      // [4]
+            for (int i = 5; i < 11; i++)
+                bw.Write(0u);                              // [5..10]
+            // DDS_PIXELFORMAT (32 bytes): FourCC "DX10".
+            bw.Write(32u);                                 // dwSize
+            bw.Write(DDPF_FOURCC);                         // dwFlags
+            bw.Write(DDSValues.uintDX10);                  // dwFourCC
+            bw.Write(0u); bw.Write(0u); bw.Write(0u); bw.Write(0u); bw.Write(0u); // bit count + channel masks
+            uint caps = DDSCAPS_TEXTURE;
+            if (hasMips) caps |= DDSCAPS_COMPLEX | DDSCAPS_MIPMAP;
+            bw.Write(caps);                                // dwCaps
+            bw.Write(0u);                                  // dwCaps2
+            bw.Write(0u);                                  // dwCaps3
+            bw.Write(0u);                                  // dwCaps4
+            bw.Write(0u);                                  // dwReserved2
+            // DDS_HEADER_DXT10 (20 bytes).
+            bw.Write(dxgiFormat);                          // dxgiFormat
+            bw.Write(3u);                                  // resourceDimension = D3D10_RESOURCE_DIMENSION_TEXTURE2D
+            bw.Write(0u);                                  // miscFlag
+            bw.Write(1u);                                  // arraySize
+            bw.Write(0u);                                  // miscFlags2
+        }
+
+        #endregion
+
+        #region Per-texture coroutine loader
+
+        // Profiling markers for the work scheduled on background threads via Task.Run.
+        // Each marker.Auto() scope is opened inside the Task lambda so the timing
+        // appears under that thread in the Unity profiler.
+        private static readonly ProfilerMarker s_pmParseDDSHeader = new ProfilerMarker("KSPCF.Tex.ParseDDSHeader");
+        private static readonly ProfilerMarker s_pmSwizzleNormalMap = new ProfilerMarker("KSPCF.Tex.SwizzleNormalMap");
+        private static readonly ProfilerMarker s_pmFileSize = new ProfilerMarker("KSPCF.Tex.FileSize");
+        private static readonly ProfilerMarker s_pmReadAllBytes = new ProfilerMarker("KSPCF.Tex.ReadAllBytes");
+        private static readonly ProfilerMarker s_pmCompress = new ProfilerMarker("KSPCF.Tex.Compress");
+        private static readonly ProfilerMarker s_pmGetRawDataDDS = new ProfilerMarker("KSPCF.Tex.LoadDDS.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataUWR = new ProfilerMarker("KSPCF.Tex.LoadUWR.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataTRUECOLOR = new ProfilerMarker("KSPCF.Tex.LoadTRUECOLOR.GetRawTextureData");
+        private static readonly ProfilerMarker s_pmGetRawDataTGA = new ProfilerMarker("KSPCF.Tex.LoadTGA.GetRawTextureData");
+
+        // Result/error carrier for each texture file. Replaces RawAsset for textures.
+        private sealed class TextureLoadRequest
+        {
+            public enum State : byte
+            {
+                Pending,
+                Ready,
+                Failed,
+                // Used for custom loaders, they are responsible for printing
+                // their own error messages on failure (unless they throw).
+                Skip
+            }
+
+            public UrlFile File;
+            public RawAsset.AssetType AssetType;
+            public long FileLength;
+            public volatile State Status;
+            public TextureInfo Result;
+            public string ErrorMessage;
+            public Exception Exception;
+            public bool Bundled;
+
+            public TextureLoadRequest(UrlFile file, RawAsset.AssetType assetType)
+            {
+                File = file;
+                AssetType = assetType;
+                Status = State.Pending;
+            }
+        }
+
+        // Result of background DDS header parsing.
+        private struct DDSPreparedHeader
+        {
+            public int Width;
+            public int Height;
+            public bool MipChain;
+            public bool IsNormalMap;
+            public GraphicsFormat Format;
+            public long DataOffset;
+            public long FileLength;
+
+            // Whether this texture can be loaded through the streamed asset-bundle path (see
+            // LoadDDSCoroutine). When true, the fields below are populated for the bundle body.
+            public bool BundleEligible;
+            public int ClassicTextureFormat; // legacy TextureFormat as int
+            public int ColorSpace; // 0 == linear, 1 == sRGB
+            public int MipCount; // full mip count Unity will allocate
+            public long StreamedSize; // total mip-chain byte size read from the file
+        }
+
+        // Probes which GraphicsFormats are actually usable on the running GPU.
+        // Built once on the main thread before texture loading starts so that the
+        // background DDS header parser can produce a format and we can verify it
+        // against this set without needing main-thread access.
+        private static class SupportedFormatCache
+        {
+            private static HashSet<GraphicsFormat> supported;
+
+            public static void Build()
+            {
+                supported = new HashSet<GraphicsFormat>();
+                GraphicsFormat[] candidates = new[]
+                {
+                    GraphicsFormat.RGBA_DXT1_UNorm,
+                    GraphicsFormat.RGBA_DXT1_SRGB,
+                    GraphicsFormat.RGBA_DXT5_UNorm,
+                    GraphicsFormat.RGBA_DXT5_SRGB,
+                    GraphicsFormat.R_BC4_UNorm,
+                    GraphicsFormat.R_BC4_SNorm,
+                    GraphicsFormat.RG_BC5_UNorm,
+                    GraphicsFormat.RG_BC5_SNorm,
+                    GraphicsFormat.RGBA_BC7_UNorm,
+                    GraphicsFormat.RGBA_BC7_SRGB,
+                    GraphicsFormat.RGB_BC6H_SFloat,
+                    GraphicsFormat.RGB_BC6H_UFloat,
+                    GraphicsFormat.R16G16B16A16_UNorm,
+                    GraphicsFormat.R16G16B16A16_SNorm,
+                    GraphicsFormat.R16G16B16A16_SFloat,
+                    GraphicsFormat.R16_SFloat,
+                    GraphicsFormat.R16G16_SFloat,
+                    GraphicsFormat.R32_SFloat,
+                    GraphicsFormat.R32G32_SFloat,
+                    GraphicsFormat.R32G32B32A32_SFloat,
+                };
+                foreach (GraphicsFormat fmt in candidates)
+                    if (SystemInfo.IsFormatSupported(fmt, FormatUsage.Sample))
+                        supported.Add(fmt);
+            }
+
+            public static bool IsSupported(GraphicsFormat fmt) => supported != null && supported.Contains(fmt);
+        }
+
+        private static DDSPreparedHeader ParseDDSHeader(string path)
+        {
+            FileInfo fi = new(path);
+            long fileLength = fi.Length;
+            if (fileLength < 128)
+                throw new IOException($"DDS file '{path}' is too small ({fileLength} bytes)");
+
+            using FileStream fs = File.OpenRead(path);
+            using BinaryReader br = new BinaryReader(fs);
+
+            if (br.ReadUInt32() != DDSValues.uintMagic)
+                throw new IOException($"DDS: '{path}' is not a DDS format file");
+
+            DDSHeader hdr = new DDSHeader(br);
+            bool mipChain = (hdr.dwCaps & DDSPixelFormatCaps.MIPMAP) != 0;
+            bool isNormalMap = (hdr.ddspf.dwFlags & 0x80000u) != 0 || (hdr.ddspf.dwFlags & 0x80000000u) != 0;
+
+            DDSHeaderDX10 dx10Header = default;
+            bool hasDx10 = (DDSFourCC)hdr.ddspf.dwFourCC == DDSFourCC.DX10;
+            if (hasDx10)
+            {
+                if (fileLength < 148)
+                    throw new IOException($"DDS file '{path}' has DX10 marker but is too small for DX10 header");
+                dx10Header = new DDSHeaderDX10(br);
+            }
+
+            GraphicsFormat fmt = MapDDSFormat(hdr, hasDx10, dx10Header, out string error);
+            if (fmt == GraphicsFormat.None || error != null)
+                throw new IOException($"DDS: {error ?? "unknown format"}");
+
+            long dataOffset = hasDx10 ? 148 : 128;
+            int width = (int)hdr.dwWidth;
+            int height = (int)hdr.dwHeight;
+            int mipCount = mipChain ? ComputeMipCount(width, height) : 1;
+
+            // Can we load this texture directly through an asset bundle?
+            bool bundleEligible = TryGetClassicFormat(fmt, out int classicFormat, out int colorSpace)
+                && IsBlockAligned(fmt, width, height);
+            long streamedSize = 0;
+            if (bundleEligible)
+            {
+                streamedSize = ComputeMipChainSize(fmt, width, height, mipCount);
+                if (streamedSize > int.MaxValue || fileLength - dataOffset < streamedSize)
+                    bundleEligible = false;
+            }
+
+            return new DDSPreparedHeader
+            {
+                Width = width,
+                Height = height,
+                MipChain = mipChain,
+                IsNormalMap = isNormalMap,
+                Format = fmt,
+                DataOffset = dataOffset,
+                FileLength = fileLength,
+                BundleEligible = bundleEligible,
+                ClassicTextureFormat = classicFormat,
+                ColorSpace = colorSpace,
+                MipCount = mipCount,
+                StreamedSize = streamedSize,
+            };
+        }
+
+        private enum DDSFourCC : uint
+        {
+            DXT1 = 0x31545844,
+            DXT2 = 0x32545844,
+            DXT3 = 0x33545844,
+            DXT4 = 0x34545844,
+            DXT5 = 0x35545844,
+            BC4U_ATI = 0x31495441,
+            BC4U = 0x55344342,
+            BC4S = 0x53344342,
+            BC5U_ATI = 0x32495441,
+            BC5U = 0x55354342,
+            BC5S = 0x53354342,
+            RGBG = 0x47424752,
+            GRGB = 0x42475247,
+            UYVY = 0x59565955,
+            YUY2 = 0x32595559,
+            DX10 = 0x30315844,
+            R16G16B16A16_UNORM = 36,
+            R16G16B16A16_SNORM = 110,
+            R16_FLOAT = 111,
+            R16G16_FLOAT = 112,
+            R16G16B16A16_FLOAT = 113,
+            R32_FLOAT = 114,
+            R32G32_FLOAT = 115,
+            R32G32B32A32_FLOAT = 116,
+            CxV8U8 = 117,
+        }
+
+        // Returns GraphicsFormat.None and sets error on failure.
+        private static GraphicsFormat MapDDSFormat(DDSHeader hdr, bool hasDx10, DDSHeaderDX10 dx10, out string error)
+        {
+            error = null;
+            DDSFourCC fourCC = (DDSFourCC)hdr.ddspf.dwFourCC;
+            switch (fourCC)
+            {
+                case DDSFourCC.DXT1: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT1, true);
+                case DDSFourCC.DXT5: return GraphicsFormatUtility.GetGraphicsFormat(TextureFormat.DXT5, true);
+                case DDSFourCC.BC4U_ATI:
+                case DDSFourCC.BC4U: return GraphicsFormat.R_BC4_UNorm;
+                case DDSFourCC.BC4S: return GraphicsFormat.R_BC4_SNorm;
+                case DDSFourCC.BC5U_ATI:
+                case DDSFourCC.BC5U: return GraphicsFormat.RG_BC5_UNorm;
+                case DDSFourCC.BC5S: return GraphicsFormat.RG_BC5_SNorm;
+                case DDSFourCC.R16G16B16A16_UNORM: return GraphicsFormat.R16G16B16A16_UNorm;
+                case DDSFourCC.R16G16B16A16_SNORM: return GraphicsFormat.R16G16B16A16_SNorm;
+                case DDSFourCC.R16_FLOAT: return GraphicsFormat.R16_SFloat;
+                case DDSFourCC.R16G16_FLOAT: return GraphicsFormat.R16G16_SFloat;
+                case DDSFourCC.R16G16B16A16_FLOAT: return GraphicsFormat.R16G16B16A16_SFloat;
+                case DDSFourCC.R32_FLOAT: return GraphicsFormat.R32_SFloat;
+                case DDSFourCC.R32G32_FLOAT: return GraphicsFormat.R32G32_SFloat;
+                case DDSFourCC.R32G32B32A32_FLOAT: return GraphicsFormat.R32G32B32A32_SFloat;
+                case DDSFourCC.DX10:
+                    if (!hasDx10)
+                    {
+                        error = "DX10 marker without DX10 header";
+                        return GraphicsFormat.None;
+                    }
+                    switch (dx10.dxgiFormat)
+                    {
+                        case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM: return GraphicsFormat.RGBA_DXT1_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC1_UNORM_SRGB: return GraphicsFormat.RGBA_DXT1_SRGB;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM: return GraphicsFormat.RGBA_DXT5_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC3_UNORM_SRGB: return GraphicsFormat.RGBA_DXT5_SRGB;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC4_SNORM: return GraphicsFormat.R_BC4_SNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC4_UNORM: return GraphicsFormat.R_BC4_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC5_SNORM: return GraphicsFormat.RG_BC5_SNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC5_UNORM: return GraphicsFormat.RG_BC5_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM: return GraphicsFormat.RGBA_BC7_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC7_UNORM_SRGB: return GraphicsFormat.RGBA_BC7_SRGB;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC6H_SF16: return GraphicsFormat.RGB_BC6H_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_BC6H_UF16: return GraphicsFormat.RGB_BC6H_UFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM: return GraphicsFormat.R16G16B16A16_UNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_SNORM: return GraphicsFormat.R16G16B16A16_SNorm;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16_FLOAT: return GraphicsFormat.R16_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16_FLOAT: return GraphicsFormat.R16G16_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT: return GraphicsFormat.R16G16B16A16_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32_FLOAT: return GraphicsFormat.R32_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32G32_FLOAT: return GraphicsFormat.R32G32_SFloat;
+                        case DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT: return GraphicsFormat.R32G32B32A32_SFloat;
+                        default:
+                            error = $"DXT10 format '{dx10.dxgiFormat}' is not supported";
+                            return GraphicsFormat.None;
+                    }
+                case DDSFourCC.DXT2:
+                case DDSFourCC.DXT3:
+                case DDSFourCC.DXT4:
+                case DDSFourCC.RGBG:
+                case DDSFourCC.GRGB:
+                case DDSFourCC.UYVY:
+                case DDSFourCC.YUY2:
+                case DDSFourCC.CxV8U8:
+                    error = $"format '{fourCC}' is not supported, use DXT1 for RGB textures or DXT5 for RGBA textures";
+                    return GraphicsFormat.None;
+                default:
+                    error = $"unknown dwFourCC format '0x{(uint)fourCC:X}'";
+                    return GraphicsFormat.None;
+            }
+        }
+
+        // In-place swizzle for RGBA32 normal maps. Goes from rgba -> gggr.
+        private static unsafe void SwizzleNormalMap(NativeArray<byte> data)
+        {
+            using var scope = s_pmSwizzleNormalMap.Auto();
+
+            byte* p = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(data);
+            int len = data.Length;
+            // (r, g, b, a) -> (g, g, g, r)
+            for (int i = 0; i < len; i += 4)
+            {
+                byte r = p[i];
+                byte g = p[i + 1];
+                p[i] = g;
+                p[i + 1] = g;
+                p[i + 2] = g;
+                p[i + 3] = r;
+            }
+        }
+
+        // Channel swizzle for RGB24, allocates and goes from rgb -> gggr.
+        private static unsafe void SwizzleNormalMap(NativeArray<byte> src, NativeArray<byte> dst, TextureFormat srcFormat)
+        {
+            using var scope = s_pmSwizzleNormalMap.Auto();
+
+            byte* s = (byte*)NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(src);
+            byte* d = (byte*)NativeArrayUnsafeUtility.GetUnsafePtr(dst);
+            int srcLen = src.Length;
+
+            switch (srcFormat)
+            {
+                case TextureFormat.RGBA32:
+                    // (r, g, b, a) -> (g, g, g, r)
+                    for (int i = 0; i < srcLen; i += 4)
+                    {
+                        byte r = s[i];
+                        byte g = s[i + 1];
+                        d[i] = g; d[i + 1] = g; d[i + 2] = g; d[i + 3] = r;
+                    }
+                    break;
+                case TextureFormat.ARGB32:
+                    // (a, r, g, b) -> (g, g, g, r)
+                    for (int i = 0; i < srcLen; i += 4)
+                    {
+                        byte r = s[i + 1];
+                        byte g = s[i + 2];
+                        d[i] = g; d[i + 1] = g; d[i + 2] = g; d[i + 3] = r;
+                    }
+                    break;
+                case TextureFormat.RGB24:
+                    // (r, g, b) -> (g, g, g, r); 3-byte in, 4-byte out
+                    {
+                        int j = 0;
+                        for (int i = 0; i < srcLen; i += 3)
+                        {
+                            byte r = s[i];
+                            byte g = s[i + 1];
+                            d[j] = g; d[j + 1] = g; d[j + 2] = g; d[j + 3] = r;
+                            j += 4;
+                        }
+                    }
+                    break;
+                default:
+                    throw new InvalidOperationException($"SwizzleNormalMap: unsupported source format {srcFormat}");
+            }
+        }
+
+        // Returns the most informative exception from a faulted Task
+        private static Exception UnwrapFaultedTask(Task task, string fallbackMessage)
+        {
+            AggregateException ae = task.Exception;
+            if (ae != null && ae.InnerException != null)
+                return ae.InnerException;
+            if (ae != null)
+                return ae;
+            return new IOException(fallbackMessage);
+        }
+
+        // Iterator methods can't contain unsafe blocks in C# 8, so the AsyncReadManager
+        // pointer setup goes through this static helper.
+        private static unsafe ReadHandle BeginAsyncRead(string path, NativeArray<byte> dst, long offset, long size)
+        {
+            ReadCommand cmd = new()
+            {
+                Buffer = NativeArrayUnsafeUtility.GetUnsafePtr(dst),
+                Offset = offset,
+                Size = size,
+            };
+            return AsyncReadManager.Read(path, &cmd, 1);
+        }
+
+        // An extended version of TextureCreationFlags that contains additional values
+        // that are not exposed publically by unity.
+        [Flags]
+        private enum InternalTextureCreationFlags
+        {
+            None = 0,
+            MipChain = 1 << 0,
+            DontInitializePixels = 1 << 2,
+            DontDestroyTexture = 1 << 3,
+            DontCreateSharedTextureData = 1 << 4,
+            APIShareable = 1 << 5,
+            Crunch = 1 << 6,
+        }
+
+        // Allocates a Texture2D without zeroing its pixel buffer. Equivalent to the
+        // standard Texture2D constructor except for the DontInitializePixels flag,
+        // which the public managed API doesn't expose for the TextureFormat overload.
+        private static Texture2D CreateUninitializedTexture2D(
+            int width,
+            int height,
+            TextureFormat format = TextureFormat.RGBA32,
+            bool mipChain = false,
+            bool linear = false,
+            InternalTextureCreationFlags flags = InternalTextureCreationFlags.None)
+        {
+            if (GraphicsFormatUtility.IsCrunchFormat(format))
+                flags |= InternalTextureCreationFlags.Crunch;
+            int mipCount = !mipChain ? 1 : -1;
+            return CreateUninitializedTexture2D(
+                width, height, mipCount,
+                GraphicsFormatUtility.GetGraphicsFormat(format, isSRGB: !linear),
+                flags);
+        }
+
+        private static Texture2D CreateUninitializedTexture2D(
+            int width,
+            int height,
+            int mipCount,
+            GraphicsFormat format,
+            InternalTextureCreationFlags flags = InternalTextureCreationFlags.None)
+        {
+            Texture2D tex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
+            if (!tex.ValidateFormat(GraphicsFormatUtility.GetTextureFormat(format)))
+                return tex;
+
+            flags |= InternalTextureCreationFlags.DontInitializePixels;
+            if (mipCount != 1)
+                flags |= InternalTextureCreationFlags.MipChain;
+
+            Texture2D.Internal_Create(
+                tex, width, height, mipCount, format,
+                (TextureCreationFlags)flags, IntPtr.Zero);
+
+            return tex;
+        }
+
+        // Wraps an inner format-specific coroutine with exception capture.
+        // C# does not allow yield inside a try/catch, so we manually drive MoveNext() and
+        // do the catch around just the MoveNext call. The driver detects completion via
+        // req.Status, so no other signaling is required here.
+        private static IEnumerator LoadTextureWrapperCoroutine(TextureLoadRequest req, IEnumerator inner)
+        {
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    req.Exception = e;
+                    req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                yield return current;
+            }
+
+            if (req.Status != TextureLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result != null)
+            {
+                req.Status = TextureLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.ErrorMessage ??= "Loader produced no result";
+                req.Status = TextureLoadRequest.State.Failed;
+            }
+        }
+
+        // The classic Texture2D object serializes a legacy TextureFormat plus a colour space; only
+        // graphics formats that survive the round-trip can go through the bundle path.
+        private static bool TryGetClassicFormat(GraphicsFormat format, out int textureFormat, out int colorSpace)
+        {
+            TextureFormat tf = GraphicsFormatUtility.GetTextureFormat(format);
+            bool srgb = GraphicsFormatUtility.IsSRGBFormat(format);
+            textureFormat = (int)tf;
+            colorSpace = srgb ? 1 : 0;
+            return GraphicsFormatUtility.GetGraphicsFormat(tf, srgb) == format;
+        }
+
+        // A texture is "block aligned" when it is uncompressed (block size 1x1, always aligned) or
+        // its dimensions are a multiple of the compression block size. Only misaligned compressed
+        // textures must avoid the background-upload bundle path.
+        private static bool IsBlockAligned(GraphicsFormat format, int width, int height)
+        {
+            if (!GraphicsFormatUtility.IsCompressedFormat(format))
+                return true;
+            int blockWidth = (int)GraphicsFormatUtility.GetBlockWidth(format);
+            int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
+            return width % blockWidth == 0 && height % blockHeight == 0;
+        }
+
+        // The number of mip levels Unity allocates for a full mip chain.
+        private static int ComputeMipCount(int width, int height)
+        {
+            int size = Math.Max(width, height);
+            int count = 1;
+            while (size > 1)
+            {
+                size >>= 1;
+                count++;
+            }
+            return count;
+        }
+
+        // Total byte size of the mip chain as laid out in a Texture2D's raw data: for each level,
+        // ceil(w/blockW) * ceil(h/blockH) * blockSize. Matches Unity's GetRawTextureData layout.
+        private static long ComputeMipChainSize(GraphicsFormat format, int width, int height, int mipCount)
+        {
+            int blockWidth = (int)GraphicsFormatUtility.GetBlockWidth(format);
+            int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
+            int blockSize = (int)GraphicsFormatUtility.GetBlockSize(format);
+            long total = 0;
+            for (int mip = 0; mip < mipCount; ++mip)
+            {
+                int mipWidth = Math.Max(1, width >> mip);
+                int mipHeight = Math.Max(1, height >> mip);
+                int blocksX = Math.Max(1, (mipWidth + blockWidth - 1) / blockWidth);
+                int blocksY = Math.Max(1, (mipHeight + blockHeight - 1) / blockHeight);
+                total += (long)blocksX * blocksY * blockSize;
+            }
+            return total;
+        }
+
+        private static IEnumerator LoadDDSCoroutine(TextureLoadRequest req)
+        {
+            string path = req.File.fullPath;
+            Task<DDSPreparedHeader> prepTask = Task.Run(() =>
+            {
+                using (s_pmParseDDSHeader.Auto())
+                    return ParseDDSHeader(path);
+            });
+            while (!prepTask.IsCompleted)
+                yield return null;
+            if (prepTask.IsFaulted)
+                throw UnwrapFaultedTask(prepTask, "DDS header parse failed");
+            DDSPreparedHeader hdr = prepTask.Result;
+            req.FileLength = hdr.FileLength;
+
+            if (!SupportedFormatCache.IsSupported(hdr.Format))
+            {
+                req.ErrorMessage = $"DDS: format '{hdr.Format}' is not supported by your GPU";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            Texture2D tex = CreateUninitializedTexture2D(
+                hdr.Width, hdr.Height,
+                hdr.MipChain ? -1 : 1,
+                hdr.Format);
+            if (tex.IsNullOrDestroyed())
+            {
+                req.ErrorMessage = "DDS: Texture2D allocation failed";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            // Wait until the texture is finished uploading so unity doesn't
+            // copy its internal buffer when we call GetRawTextureData
+            yield return WaitForGraphicsThread();
+
+            NativeArray<byte> dst;
+            using (s_pmGetRawDataDDS.Auto())
+                dst = tex.GetRawTextureData<byte>();
+            long expectedSize = dst.Length;
+            if (hdr.FileLength - hdr.DataOffset < expectedSize)
+            {
+                UnityEngine.Object.Destroy(tex);
+                req.ErrorMessage = $"DDS: file is too small for declared format (need {expectedSize} bytes after offset {hdr.DataOffset}, have {hdr.FileLength - hdr.DataOffset})";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            ReadHandle handle = BeginAsyncRead(path, dst, hdr.DataOffset, expectedSize);
+
+            while (handle.Status == ReadStatus.InProgress)
+                yield return null;
+
+            ReadStatus status = handle.Status;
+            handle.Dispose();
+
+            if (status != ReadStatus.Complete)
+            {
+                UnityEngine.Object.Destroy(tex);
+                req.ErrorMessage = $"DDS: AsyncReadManager.Read failed (status={status})";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            tex.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+            req.Result = new TextureInfo(req.File, tex, hdr.IsNormalMap, false, true);
+            req.Status = TextureLoadRequest.State.Ready;
+        }
+
+        private static IEnumerator LoadUWRCoroutine(TextureLoadRequest req)
+        {
+            string filePath = req.File.fullPath;
+            req.FileLength = new FileInfo(filePath).Length;
+            string url = "file:///" + filePath.Replace('\\', '/');
+
+            UnityWebRequest uwr = UnityWebRequestTexture.GetTexture(url, nonReadable: false);
+            try
+            {
+                yield return uwr.SendWebRequest();
+
+                if (uwr.isNetworkError || uwr.isHttpError)
+                {
+                    req.ErrorMessage = $"UWR: {uwr.error}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                Texture2D src = DownloadHandlerTexture.GetContent(uwr);
+                if (src.IsNullOrDestroyed())
+                {
+                    req.ErrorMessage = "UWR: GetContent returned null";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                // Wait until the texture is finished uploading so unity doesn't
+                // copy its internal buffer when we operate on it.
+                yield return WaitForGraphicsThread();
+
+                bool isNormalMap = req.File.name.EndsWith("NRM");
+                bool canCompress = src.width % 4 == 0 && src.height % 4 == 0;
+
+                // UWR returns a Texture2D with a mipchain already populated, so for normal
+                // maps we swizzle every level of its CPU buffer in place — no dst alloc,
+                // no copy, no Apply(true).
+                if (isNormalMap)
+                {
+                    src.wrapMode = TextureWrapMode.Repeat;
+
+                    NativeArray<byte> allLevels;
+                    using (s_pmGetRawDataUWR.Auto())
+                        allLevels = src.GetRawTextureData<byte>();
+                    Task swizzleTask = Task.Run(() =>
+                    {
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(allLevels);
+                    });
+                    while (!swizzleTask.IsCompleted)
+                        yield return null;
+                    if (swizzleTask.IsFaulted)
+                    {
+                        UnityEngine.Object.Destroy(src);
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                    }
+                }
+
+                if (canCompress)
+                {
+                    // Avoid making the compress call if the frame time is already > 25ms
+                    while (true)
+                    {
+                        float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                        if (frameTime < 0.025)
+                            break;
+
+                        yield return null;
+                    }
+
+                    using (s_pmCompress.Auto())
+                        src.Compress(highQuality: !isNormalMap);
+                }
+                else if (!isNormalMap)
+                    Debug.LogWarning($"Texture '{req.File.url}' isn't eligible for DXT compression, width and height must be multiples of 4");
+
+                // Persist the compressed PNG to the on-disk cache (before the pixels are freed below) so
+                // future loads can stream it straight from the combined bundle instead of decoding again.
+                if (textureCacheEnabled && req.AssetType == RawAsset.AssetType.TexturePNG)
+                    TryWritePngCache(req.File, src);
+
+                src.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+
+                bool isCompressed =
+                    src.graphicsFormat == GraphicsFormat.RGBA_DXT5_UNorm
+                    || src.graphicsFormat == GraphicsFormat.RGBA_DXT5_SRGB
+                    || src.graphicsFormat == GraphicsFormat.RGBA_DXT1_UNorm
+                    || src.graphicsFormat == GraphicsFormat.RGBA_DXT1_SRGB;
+                req.Result = new TextureInfo(req.File, src, isNormalMap, isReadable: false, isCompressed: isCompressed);
+                req.Status = TextureLoadRequest.State.Ready;
+            }
+            finally
+            {
+                uwr.Dispose();
+            }
+        }
+
+        private static IEnumerator LoadTRUECOLORCoroutine(TextureLoadRequest req)
+        {
+            string path = req.File.fullPath;
+            Task<long> sizeTask = Task.Run(() =>
+            {
+                using (s_pmFileSize.Auto())
+                    return new FileInfo(path).Length;
+            });
+            while (!sizeTask.IsCompleted)
+                yield return null;
+            if (sizeTask.IsFaulted)
+                throw UnwrapFaultedTask(sizeTask, "file size read failed");
+
+            long len = sizeTask.Result;
+            req.FileLength = len;
+            if (len <= 0 || len > int.MaxValue)
+            {
+                req.ErrorMessage = $"TRUECOLOR: invalid file length {len}";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            NativeArray<byte> data = new NativeArray<byte>((int)len, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            ReadHandle handle = BeginAsyncRead(path, data, 0, len);
+            while (handle.Status == ReadStatus.InProgress)
+                yield return null;
+            ReadStatus rs = handle.Status;
+            handle.Dispose();
+
+            if (rs != ReadStatus.Complete)
+            {
+                data.Dispose();
+                req.ErrorMessage = $"TRUECOLOR: AsyncReadManager.Read failed (status={rs})";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            byte[] managed = data.ToArray();
+            data.Dispose();
+
+            // Create as RGBA32 with mipchain when this is a normal map: LoadImage will
+            // populate every mip level for us, so we can swizzle the whole thing in place.
+            // Non-normals keep the existing single-mip readable behavior.
+            bool isNormalMap = req.File.name.EndsWith("NRM");
+            Texture2D tex = CreateUninitializedTexture2D(2, 2, TextureFormat.RGBA32, mipChain: isNormalMap);
+            if (!tex.LoadImage(managed, markNonReadable: false))
+            {
+                UnityEngine.Object.Destroy(tex);
+                req.ErrorMessage = "TRUECOLOR: ImageConversion.LoadImage failed";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            if (isNormalMap)
+            {
+                bool isPot = Numerics.IsPowerOfTwo(tex.width) && Numerics.IsPowerOfTwo(tex.height);
+                tex.wrapMode = TextureWrapMode.Repeat;
+
+                // Wait until the texture is finished uploading so unity doesn't
+                // copy its internal buffer when we call GetRawTextureData
+                yield return WaitForGraphicsThread();
+
+                NativeArray<byte> allLevels;
+                using (s_pmGetRawDataTRUECOLOR.Auto())
+                    allLevels = tex.GetRawTextureData<byte>();
+                Task swizzleTask = Task.Run(() =>
+                {
+                    using (s_pmSwizzleNormalMap.Auto())
+                        SwizzleNormalMap(allLevels);
+                });
+                while (!swizzleTask.IsCompleted)
+                    yield return null;
+                if (swizzleTask.IsFaulted)
+                {
+                    UnityEngine.Object.Destroy(tex);
+                    throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                }
+
+                if (isPot)
+                {
+                    // Avoid making the compress call if the frame time is already > 25ms
+                    while (true)
+                    {
+                        float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                        if (frameTime < 0.025)
+                            break;
+
+                        yield return null;
+                    }
+
+                    using (s_pmCompress.Auto())
+                        tex.Compress(highQuality: false);
+                }
+                tex.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+
+                req.Result = new TextureInfo(req.File, tex, true, isReadable: false, isCompressed: isPot);
+            }
+            else
+            {
+                tex.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+                req.Result = new TextureInfo(req.File, tex, false, isReadable: true, isCompressed: false);
+            }
+            req.Status = TextureLoadRequest.State.Ready;
+        }
+
+        private static IEnumerator LoadMBMCoroutine(TextureLoadRequest req)
+        {
+            string path = req.File.fullPath;
+            Task<byte[]> readTask = Task.Run(() =>
+            {
+                using (s_pmReadAllBytes.Auto())
+                    return File.ReadAllBytes(path);
+            });
+            while (!readTask.IsCompleted)
+                yield return null;
+            if (readTask.IsFaulted)
+                throw UnwrapFaultedTask(readTask, "MBM file read failed");
+
+            byte[] buffer = readTask.Result;
+            req.FileLength = buffer.Length;
+
+            Texture2D texture;
+            bool isNormalMap;
+            using (MemoryStream ms = new MemoryStream(buffer, 0, buffer.Length))
+            using (BinaryReader br = new BinaryReader(ms))
+            {
+                texture = MBMReader.ReadTexture2D(buffer, br, true, true, out isNormalMap);
+            }
+            if (texture.IsNullOrDestroyed())
+            {
+                req.ErrorMessage = "MBM: ReadTexture2D failed";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            req.Result = new TextureInfo(req.File, texture, isNormalMap, isReadable: false, isCompressed: true);
+            req.Status = TextureLoadRequest.State.Ready;
+        }
+
+        private static IEnumerator LoadTGACoroutine(TextureLoadRequest req)
+        {
+            string path = req.File.fullPath;
+            Task<byte[]> readTask = Task.Run(() =>
+            {
+                using (s_pmReadAllBytes.Auto())
+                    return File.ReadAllBytes(path);
+            });
+            while (!readTask.IsCompleted)
+                yield return null;
+            if (readTask.IsFaulted)
+                throw UnwrapFaultedTask(readTask, "TGA file read failed");
+
+            byte[] buffer = readTask.Result;
+            req.FileLength = buffer.Length;
+            if (buffer.Length < 18)
+            {
+                req.ErrorMessage = $"TGA invalid length of only {buffer.Length} bytes";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            TGAImage tgaImage = new TGAImage();
+            TGAImage.header = new TGAHeader(buffer);
+            TGAImage.colorData = tgaImage.ReadImage(TGAImage.header, buffer);
+            if (TGAImage.colorData == null)
+            {
+                req.ErrorMessage = "TGA: ReadImage failed";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            Texture2D texture = tgaImage.CreateTexture(mipmap: true, linear: false, compress: true, compressHighQuality: true, allowRead: true);
+            if (texture.IsNullOrDestroyed())
+            {
+                req.ErrorMessage = "TGA: CreateTexture failed";
+                req.Status = TextureLoadRequest.State.Failed;
+                yield break;
+            }
+
+            bool isNormalMap = req.File.name.EndsWith("NRM");
+            if (isNormalMap)
+            {
+                bool isPot = Numerics.IsPowerOfTwo(texture.width) && Numerics.IsPowerOfTwo(texture.height);
+
+                if (texture.format == TextureFormat.RGBA32)
+                {
+                    // tgaImage.CreateTexture(mipmap: true, ...) already calls Apply(true)
+                    // and the texture is readable, so the CPU buffer holds every populated
+                    // mip level. Swizzle the whole thing in place.
+                    texture.wrapMode = TextureWrapMode.Repeat;
+
+                    // Wait until the texture is finished uploading so unity doesn't
+                    // copy its internal buffer when we call GetRawTextureData
+                    yield return WaitForGraphicsThread();
+
+                    NativeArray<byte> allLevels;
+                    using (s_pmGetRawDataTGA.Auto())
+                        allLevels = texture.GetRawTextureData<byte>();
+                    Task swizzleTask = Task.Run(() =>
+                    {
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(allLevels);
+                    });
+                    while (!swizzleTask.IsCompleted)
+                        yield return null;
+                    if (swizzleTask.IsFaulted)
+                    {
+                        UnityEngine.Object.Destroy(texture);
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                    }
+
+                    if (isPot)
+                    {
+                        // Avoid making the compress call if the frame time is already > 25ms
+                        while (true)
+                        {
+                            float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                            if (frameTime < 0.025)
+                                break;
+
+                            yield return null;
+                        }
+
+                        using (s_pmCompress.Auto())
+                            texture.Compress(highQuality: false);
+                    }
+                    texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+                }
+                else
+                {
+                    // RGB24 (24bpp TGA): pixel size differs from RGBA32, so we can't
+                    // swizzle in place. Fall back to the legacy src->dst expansion
+                    // path. dst is allocated with a full mip chain so its byte layout
+                    // matches the mipmapped src (CreateTexture(mipmap: true) populates
+                    // every level), letting the swizzle fill dst end-to-end.
+                    Texture2D dst = CreateUninitializedTexture2D(texture.width, texture.height, TextureFormat.RGBA32, mipChain: true);
+                    dst.wrapMode = TextureWrapMode.Repeat;
+
+                    yield return null;
+
+                    NativeArray<byte> srcData;
+                    NativeArray<byte> dstData;
+                    using (s_pmGetRawDataTGA.Auto())
+                    {
+                        srcData = texture.GetRawTextureData<byte>();
+                        dstData = dst.GetRawTextureData<byte>();
+                    }
+
+                    TextureFormat srcFormat = texture.format;
+                    Task swizzleTask = Task.Run(() =>
+                    {
+                        using (s_pmSwizzleNormalMap.Auto())
+                            SwizzleNormalMap(srcData, dstData, srcFormat);
+                    });
+                    while (!swizzleTask.IsCompleted)
+                        yield return null;
+                    if (swizzleTask.IsFaulted)
+                    {
+                        UnityEngine.Object.Destroy(texture);
+                        UnityEngine.Object.Destroy(dst);
+                        throw UnwrapFaultedTask(swizzleTask, "swizzle task faulted");
+                    }
+                    UnityEngine.Object.Destroy(texture);
+                    texture = dst;
+
+                    if (isPot)
+                    {
+                        // Avoid making the compress call if the frame time is already > 25ms
+                        while (true)
+                        {
+                            float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                            if (frameTime < 0.025)
+                                break;
+
+                            yield return null;
+                        }
+
+                        using (s_pmCompress.Auto())
+                            texture.Compress(highQuality: false);
+                    }
+
+                    texture.Apply(updateMipmaps: false, makeNoLongerReadable: true);
+                }
+            }
+
+            req.Result = new TextureInfo(req.File, texture, isNormalMap, isReadable: !isNormalMap, isCompressed: true);
+            req.Status = TextureLoadRequest.State.Ready;
+        }
+
+        // Custom database loaders are singletons, so we cannot load more than
+        // one texture at a time with them. This class serves to ensure that
+        // doesn't happen.
+        class CustomLoaderGuard : CustomYieldInstruction, IDisposable
+        {
+            static readonly Dictionary<object, Queue<CustomLoaderGuard>> queues = [];
+
+            object loader;
+
+            public CustomLoaderGuard(object loader)
+            {
+                if (!queues.TryGetValue(loader, out var queue))
+                {
+                    queue = [];
+                    queues.Add(loader, queue);
+                }
+
+                queue.Enqueue(this);
+                this.loader = loader;
+            }
+
+            public override bool keepWaiting
+            {
+                get
+                {
+                    if (loader is null)
+                        return false;
+
+                    var queue = queues[loader];
+                    var head = queue.Peek();
+                    return !ReferenceEquals(head, this);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (loader is null)
+                    return;
+
+                queues[loader].Dequeue();
+                loader = null;
+            }
+
+            public static void Clear() => queues.Clear();
+        }
+
+        private static IEnumerator LoadCUSTOMCoroutine(TextureLoadRequest req)
+        {
+            UrlFile file = req.File;
+            var gdb = GameDatabase.Instance;
+
+            foreach (var loader in gdb.loadersTexture)
+            {
+                if (!loader.extensions.Contains(file.fileExtension))
+                    continue;
+
+                using var guard = new CustomLoaderGuard(loader);
+                yield return guard;
+
+                var inner = loader.Load(file, new FileInfo(file.fullPath));
+                using var _guard = inner as IDisposable;
+                while (inner.MoveNext())
+                    yield return inner.Current;
+
+                if (!loader.successful)
+                    break;
+
+                loader.obj.name = file.url;
+                loader.obj.texture.name = file.url;
+                req.Result = loader.obj;
+                req.Status = TextureLoadRequest.State.Ready;
+                yield break;
+            }
+
+            // Some modded loaders (e.g. shabby) use the texture loader to load
+            // non-texture things. In this case they'll load the file but not
+            // mark the load as successful. KSP does nothing in this case, so
+            // we reproduce these by explicitly skipping them, which prints the
+            // "Loaded texture: ..." message but doesn't print any error messages.
+            req.Status = TextureLoadRequest.State.Skip;
+        }
+
+        private static IEnumerator TextureDriverCoroutine(
+            BlockingCollection<TextureLoadRequest> requests,
+            HashSet<string> loadedUrls,
+            BundleState state,
+            int totalTextureCount)
+        {
+            GameDatabase gdb = GameDatabase.Instance;
+            Queue<TextureLoadRequest> active = new();
+            int start = loadedAssetCount;
+
+            while (true)
+            {
+                for (int i = 0; i < MaxTextureSpawnsPerFrame; ++i)
+                {
+                    if (!requests.TryTake(out var request))
+                        break;
+
+                    gdb.StartCoroutine(LoadTextureCoroutine(request));
+                    active.Enqueue(request);
+                }
+
+                while (active.TryPeek(out var pending))
+                {
+                    if (pending.Status == TextureLoadRequest.State.Pending)
+                        break;
+
+                    active.Dequeue();
+                    InsertReadyRequest(pending, loadedUrls);
+
+                    float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                    if (frameTime > 0.1)
+                        break;
+                }
+
+                int completed = loadedAssetCount - start;
+                int progress = completed + (int)(state.Progress * state.Count);
+
+                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
+                gdb.progressTitle = $"Loading texture asset {progress}/{totalTextureCount}";
+
+                // Done when the producers have finished and everything spawned has been drained.
+                if (requests.IsCompleted && active.Count == 0)
+                    break;
+
+                yield return null;
+            }
+
+            CustomLoaderGuard.Clear();
+        }
+
+        struct AssetCountGuard() : IDisposable
+        {
+            public void Dispose() => loadedAssetCount++;
+        }
+
+        private static IEnumerator LoadTextureCoroutine(TextureLoadRequest req)
+        {
+            using var guard = new AssetCountGuard();
+
+            IEnumerator inner;
+            switch (req.AssetType)
+            {
+                case RawAsset.AssetType.TextureDDS:
+                    inner = LoadDDSCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TexturePNG:
+                case RawAsset.AssetType.TextureJPG:
+                    inner = LoadUWRCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTRUECOLOR:
+                    inner = LoadTRUECOLORCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureMBM:
+                    inner = LoadMBMCoroutine(req);
+                    break;
+                case RawAsset.AssetType.TextureTGA:
+                    inner = LoadTGACoroutine(req);
+                    break;
+                default:
+                    inner = LoadCUSTOMCoroutine(req);
+                    break;
+            }
+
+            using var _guard = inner as IDisposable;
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    req.Exception = e;
+                    req.ErrorMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = TextureLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                yield return current;
+            }
+
+            if (req.Status != TextureLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result != null)
+            {
+                req.Status = TextureLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.ErrorMessage ??= "Loader produced no result";
+                req.Status = TextureLoadRequest.State.Failed;
+            }
+        }
+
+        private static void InsertReadyRequest(TextureLoadRequest req, HashSet<string> loadedUrls)
+        {
+            Debug.Log($"Load Texture: {req.File.url}");
+
+            if (req.Status == TextureLoadRequest.State.Skip)
+                return;
+
+            if (req.Status == TextureLoadRequest.State.Failed)
+            {
+                Debug.LogWarning($"LOAD FAILED: {req.File.url}: {req.ErrorMessage}");
+                if (req.Result != null && req.Result.texture.IsNotNullOrDestroyed())
+                    UnityEngine.Object.Destroy(req.Result.texture);
+                return;
+            }
+
+            if (!loadedUrls.Add(req.File.url))
+            {
+                Debug.LogWarning($"Duplicate texture asset '{req.File.url}' with extension '{req.File.fileExtension}' won't be loaded");
+                if (req.Result != null && req.Result.texture.IsNotNullOrDestroyed())
+                    UnityEngine.Object.Destroy(req.Result.texture);
+                return;
+            }
+
+            req.Result.name = req.File.url;
+            req.Result.texture.name = req.File.url;
+            GameDatabase.Instance.databaseTexture.Add(req.Result);
+            texturesByUrl[req.File.url] = req.Result;
+            KSPCFFastLoaderReport.texturesBytesLoaded += req.FileLength;
+            KSPCFFastLoaderReport.texturesLoaded++;
         }
 
         #endregion
@@ -2313,216 +3415,12 @@ namespace KSPCommunityFixes.Performance
         }
         #endregion
 
-        #region PNG texture cache
+        #region User opt-in popup
 
-        private static void SetupTextureCacheThread(List<RawAsset> textures)
-        {
-            loader.SetupTextureCache();
-
-            foreach (RawAsset rawAsset in textures)
-                rawAsset.CheckTextureCache();
-        }
-
-        private void SetupTextureCache()
-        {
-            textureCacheDataPath = Path.Combine(textureCachePath, "textureData.json");
-            textureProgressMarkerPath = Path.Combine(textureCachePath, "progressMarker");
-
-            textureCacheData = new Dictionary<string, CachedTextureInfo>(2000);
-            textureDataIds = new HashSet<uint>(2000);
-
-            if (Directory.Exists(textureCachePath))
-            {
-                if (File.Exists(textureProgressMarkerPath))
-                {
-                    // If progress marker is still here, the game somehow crashed during loading on
-                    // the previous run, so we delete the whole cache to avoid orphan cached texture
-                    // files from lying around
-                    Directory.Delete(textureCachePath, true);
-                    Directory.CreateDirectory(textureCachePath);
-                }
-                else if (File.Exists(textureCacheDataPath))
-                {
-                    string[] textureCacheDataContent = File.ReadAllLines(textureCacheDataPath);
-
-                    if (textureCacheDataContent.Length > 0 && textureCacheDataContent[0].StartsWith(textureCacheVersion))
-                    {
-                        for (int i = 1; i < textureCacheDataContent.Length; i++)
-                        {
-                            string json = textureCacheDataContent[i];
-                            CachedTextureInfo cachedTextureInfo = JsonUtility.FromJson<CachedTextureInfo>(json);
-                            textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
-                            textureDataIds.Add(cachedTextureInfo.id);
-                        }
-                    }
-                    else
-                    {
-                        Directory.Delete(textureCachePath, true);
-                        Directory.CreateDirectory(textureCachePath);
-                    }
-                }
-            }
-            else
-            {
-                Directory.CreateDirectory(textureCachePath);
-            }
-
-            File.WriteAllText(textureProgressMarkerPath, string.Empty);
-        }
-
-        private void WriteTextureCache()
-        {
-            if (!userOptInChoiceDone || !textureCacheEnabled)
-            {
-                if (Directory.Exists(textureCachePath))
-                    Directory.Delete(textureCachePath, true);
-            }
-            else
-            {
-                foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
-                {
-                    if (!cachedTextureInfo.loaded)
-                    {
-                        cacheUpdated = true;
-                        File.Delete(cachedTextureInfo.FilePath);
-                    }
-                }
-
-                if (cacheUpdated)
-                {
-                    File.Delete(textureCacheDataPath);
-
-                    List<string> textureCacheDataContent = new List<string>(textureCacheData.Count + 1);
-                    textureCacheDataContent.Add(textureCacheVersion);
-
-                    foreach (CachedTextureInfo cachedTextureInfo in textureCacheData.Values)
-                        if (cachedTextureInfo.loaded)
-                            textureCacheDataContent.Add(JsonUtility.ToJson(cachedTextureInfo));
-
-                    File.WriteAllLines(textureCacheDataPath, textureCacheDataContent);
-                }
-
-                File.Delete(textureProgressMarkerPath);
-            }
-        }
-
-        [Serializable]
-        private class CachedTextureInfo
-        {
-            private static readonly System.Random random = new System.Random();
-
-            public string name;
-            public uint id;
-            public long time;
-            public long size;
-            public int width;
-            public int height;
-            public int mipCount;
-            public bool readable;
-            public bool normal;
-            [NonSerialized] public bool loaded = false;
-
-            public string FilePath => Path.Combine(loader.textureCachePath, id.ToString());
-
-            public CachedTextureInfo() { }
-
-            public CachedTextureInfo(UrlFile urlFile, Texture2D texture, bool isNormalMap, long size, long time)
-            {
-                name = urlFile.url;
-                do
-                {
-                    unchecked
-                    {
-                        id = (uint)random.Next();
-                    }
-                }
-                while (loader.textureDataIds.Contains(id));
-
-                this.size = size;
-                this.time = time;
-                width = texture.width;
-                height = texture.height;
-                mipCount = texture.mipmapCount;
-                normal = isNormalMap;
-                readable = !isNormalMap && !name.Contains("@thumbs");
-                loaded = true;
-            }
-
-            public void SaveRawTextureData(Texture2D texture)
-            {
-                byte[] rawData = texture.GetRawTextureData();
-                File.WriteAllBytes(Path.Combine(loader.textureCachePath, id.ToString()), rawData);
-            }
-
-            public bool TryCreateTexture(byte[] buffer, out Texture2D texture)
-            {
-                try
-                {
-                    texture = new Texture2D(width, height, GraphicsFormat.RGBA_DXT5_UNorm, mipCount, mipCount == 1 ? TextureCreationFlags.None : TextureCreationFlags.MipChain);
-                    texture.LoadRawTextureData(buffer);
-                    texture.Apply(false, !readable);
-                    loaded = true;
-                    return true;
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[KSPCF] Failed to load cached PNG texture '{name}'\n{e}");
-                    texture = null;
-                    return false;
-                }
-            }
-        }
-
-        private static CachedTextureInfo GetCachedTextureInfo(UrlDir.UrlFile file)
-        {
-            if (!loader.textureCacheData.TryGetValue(file.url, out CachedTextureInfo cachedTextureInfo))
-                return null;
-
-            if (!GetFileStats(file.fullPath, out long size, out long time) || size != cachedTextureInfo.size || time != cachedTextureInfo.time)
-            {
-                loader.textureCacheData.Remove(file.url);
-                loader.textureDataIds.Remove(cachedTextureInfo.id);
-                File.Delete(cachedTextureInfo.FilePath);
-                loader.cacheUpdated = true;
-                return null;
-            }
-
-            return cachedTextureInfo;
-        }
-
-        private static bool GetFileStats(string path, out long size, out long time)
-        {
-            MonoIO.GetFileStat(path, out MonoIOStat stat, out MonoIOError error);
-            if (error == MonoIOError.ERROR_FILE_NOT_FOUND || error == MonoIOError.ERROR_PATH_NOT_FOUND || error == MonoIOError.ERROR_NOT_READY)
-            {
-                size = 0;
-                time = 0;
-                return false;
-            }
-
-            size = stat.Length;
-            time = Math.Max(stat.CreationTime, stat.LastWriteTime);
-            if (size <= 0 || time <= 0)
-                return false;
-
-            return true;
-        }
-
-        private static void SaveCachedTexture(UrlDir.UrlFile urlFile, Texture2D texture, bool isNormalMap)
-        {
-            if (!GetFileStats(urlFile.fullPath, out long size, out long creationTime))
-            {
-                Debug.LogWarning($"[KSPCF] PNG texture '{urlFile.url}' couldn't be cached : IO error");
-                return;
-            }
-
-            CachedTextureInfo cachedTextureInfo = new CachedTextureInfo(urlFile, texture, isNormalMap, size, creationTime);
-            cachedTextureInfo.SaveRawTextureData(texture);
-            loader.textureCacheData.Add(cachedTextureInfo.name, cachedTextureInfo);
-            loader.textureDataIds.Add(cachedTextureInfo.id);
-            loader.cacheUpdated = true;
-            Debug.Log($"[KSPCF] PNG texture '{urlFile.url}' was converted to DXT5 and has been cached for future reloads");
-        }
+        // Shown once on first launch (from FastAssetLoader, gated on userOptInChoiceDone) to let the user
+        // enable the on-disk PNG texture cache. The choice is persisted to PNGTextureCache.cfg and drives
+        // textureCacheEnabled; the popup also estimates the loading-time saving and disk cost from the
+        // install's PNG textures.
 
         private static IEnumerator WaitForUserOptIn()
         {
@@ -2601,15 +3499,6 @@ namespace KSPCommunityFixes.Performance
             if (!Directory.Exists(pluginDataPath))
                 Directory.CreateDirectory(pluginDataPath);
 
-            config.Save(ConfigPath);
-        }
-
-        internal static void OnToggleCacheFromSettings(bool cacheEnabled)
-        {
-            textureCacheEnabled = cacheEnabled;
-            ConfigNode config = new ConfigNode();
-            config.AddValue(nameof(userOptInChoiceDone), true);
-            config.AddValue(nameof(textureCacheEnabled), cacheEnabled);
             config.Save(ConfigPath);
         }
 
@@ -2797,6 +3686,56 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
+        // A helper that yields until it has been processed on the render thread.
+        // Use this to delay until the render thread is no longer using a texture
+        // (or any other resource).
+        private unsafe class WaitForGraphicsThreadInst : CustomYieldInstruction
+        {
+            static CommandBuffer DispatchCB;
+            static readonly IntPtr NotifyPtr = (IntPtr)Marshal.GetFunctionPointerForDelegate((Action<int, IntPtr>)Notify);
+            static readonly int GchandleOffset = UnsafeUtility.GetFieldOffset(
+                typeof(WaitForGraphicsThreadInst).GetField(nameof(gchandle), BindingFlags.Instance | BindingFlags.NonPublic));
+            static readonly int ReadyOffset = UnsafeUtility.GetFieldOffset(
+                typeof(WaitForGraphicsThreadInst).GetField(nameof(ready), BindingFlags.Instance | BindingFlags.NonPublic));
+
+            ulong gchandle = 0;
+            bool ready = false;
+
+            public override bool keepWaiting => !ready;
+
+            public WaitForGraphicsThreadInst()
+            {
+                DispatchCB ??= new CommandBuffer()
+                {
+                    name = "KSPCF.WaitForGraphicsThreadCB"
+                };
+
+                void* addr = UnsafeUtility.PinGCObjectAndGetAddress(this, out gchandle);
+                try
+                {
+                    DispatchCB.Clear();
+                    DispatchCB.IssuePluginEventAndData(NotifyPtr, 0, (IntPtr)addr);
+                    Graphics.ExecuteCommandBuffer(DispatchCB);
+                }
+                catch
+                {
+                    UnsafeUtility.ReleaseGCObject(gchandle);
+                    throw;
+                }
+            }
+
+            static void Notify(int _, IntPtr data)
+            {
+                ulong gchandle = *(ulong*)((byte*)data + GchandleOffset);
+                bool* ready = (bool*)((byte*)data + ReadyOffset);
+
+                *ready = true;
+                UnsafeUtility.ReleaseGCObject(gchandle);
+            }
+        }
+
+        private static WaitForGraphicsThreadInst WaitForGraphicsThread() =>
+            new WaitForGraphicsThreadInst();
 
         #endregion
 
