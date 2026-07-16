@@ -674,9 +674,8 @@ namespace KSPCommunityFixes.Performance
             // call our custom loader
             yield return gdb.StartCoroutine(TextureDriverCoroutine(textureQueue, allTextureFiles, bundleState, textureCount));
 
-            while (!bundleState.Done)
-                yield return null;
-            InsertBundledTextures(bundleState, allTextureFiles);
+            // Now wait for all asset bundle textures to finish
+            yield return gdb.StartCoroutine(InsertBundledTextures(bundleState, allTextureFiles, textureCount));
 
             QualitySettings.asyncUploadTimeSlice = 2;
 
@@ -1450,13 +1449,23 @@ namespace KSPCommunityFixes.Performance
             state.Map = map;
         }
 
-        private static void InsertBundledTextures(
+        private static IEnumerator InsertBundledTextures(
             BundleState state,
-            HashSet<string> loadedUrls)
+            HashSet<string> loadedUrls,
+            int totalTextureCount)
         {
+            var gdb = GameDatabase.Instance;
+            while (!state.Done)
+            {
+                int progress = (int)(state.Progress * state.Count);
+                gdb.progressFraction = (float)(loadedAssetCount + progress) / totalAssetCount;
+                gdb.progressTitle = $"Loading texture asset {progress}/{totalTextureCount}";
+                yield return null;
+            }
+
             List<BundleItem> items = state.Items;
             if (items == null || items.Count == 0)
-                return;
+                yield break;
 
             Dictionary<string, Texture2D> map = state.Map;
 
@@ -1478,6 +1487,10 @@ namespace KSPCommunityFixes.Performance
 
                 InsertReadyRequest(req, loadedUrls);
                 loadedAssetCount++;
+
+                float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                if (frameTime > 0.1)
+                    yield return null;
             }
         }
         #endregion
@@ -2732,10 +2745,6 @@ namespace KSPCommunityFixes.Performance
             req.Status = TextureLoadRequest.State.Skip;
         }
 
-        // Drains the shared texture queue, spawning up to MaxTextureSpawnsPerFrame concurrent
-        // per-request loaders per frame and inserting finished ones in FIFO order. The queue is fed
-        // by the enumeration loop (non-DDS) and the background bucketer (non-bundled DDS); the
-        // bucketer calls CompleteAdding when done, so IsCompleted && empty means no more will arrive.
         private static IEnumerator TextureDriverCoroutine(
             BlockingCollection<TextureLoadRequest> requests,
             HashSet<string> loadedUrls,
@@ -2744,7 +2753,7 @@ namespace KSPCommunityFixes.Performance
         {
             GameDatabase gdb = GameDatabase.Instance;
             Queue<TextureLoadRequest> active = new();
-            int completed = 0;
+            int start = loadedAssetCount;
 
             while (true)
             {
@@ -2764,10 +2773,13 @@ namespace KSPCommunityFixes.Performance
 
                     active.Dequeue();
                     InsertReadyRequest(pending, loadedUrls);
-                    loadedAssetCount++;
-                    completed++;
+
+                    float frameTime = Time.realtimeSinceStartup - Time.unscaledTime;
+                    if (frameTime > 0.1)
+                        break;
                 }
 
+                int completed = loadedAssetCount - start;
                 int progress = completed + (int)(state.Progress * state.Count);
 
                 gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
@@ -2783,8 +2795,15 @@ namespace KSPCommunityFixes.Performance
             CustomLoaderGuard.Clear();
         }
 
+        struct AssetCountGuard() : IDisposable
+        {
+            public void Dispose() => loadedAssetCount++;
+        }
+
         private static IEnumerator LoadTextureCoroutine(TextureLoadRequest req)
         {
+            using var guard = new AssetCountGuard();
+
             IEnumerator inner;
             switch (req.AssetType)
             {
