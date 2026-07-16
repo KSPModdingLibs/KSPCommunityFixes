@@ -63,9 +63,8 @@ namespace KSPCommunityFixes.Library.Model
         public MeshBoneAABB[] BonesAABB;
 
         /// <summary>
-        /// UV distribution metrics (<c>m_MeshMetrics[0..1]</c>). 1.0 is a neutral default: these values
-        /// only feed texture-mip <i>streaming priority</i> (which mips to keep resident), not per-pixel
-        /// mip selection, so leaving them at 1 has no visual effect. Real values are computed later.
+        /// UV distribution metrics (<c>m_MeshMetrics[0..1]</c>), one per UV channel, baked by
+        /// <see cref="MeshMetrics.Compute"/> during compilation. A channel with no UVs keeps the neutral 1.0.
         /// </summary>
         public float MeshMetric0 = 1f;
         public float MeshMetric1 = 1f;

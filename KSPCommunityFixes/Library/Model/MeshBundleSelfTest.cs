@@ -56,6 +56,7 @@ namespace KSPCommunityFixes.Library.Model
 
             var sb = new StringBuilder();
             bool ok = Compare(src, loaded, sb);
+            ok &= CheckMetrics(blob, loaded, sb);
 
             // Exercise the render path: put it on a GameObject with a renderer (no exception == ok).
             bool rendered = true;
@@ -115,6 +116,28 @@ namespace KSPCommunityFixes.Library.Model
             mesh.SetTriangles(new[] { 0, 1, 2, 0, 2, 3 }, 0);
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        // Verifies the baked UV distribution metric survives serialization. GetUVDistributionMetric is a
+        // pure getter of the stored m_MeshMetrics, so the loaded mesh must read back the value baked into
+        // the blob. The source quad is a unit square (each triangle's object area 0.5); UV0 covers the
+        // full [0,1] square (UV area 0.5 -> ratio 1) and UV1 a [0,0.5] square (UV area 0.125 -> ratio 4),
+        // so the metrics are exactly 1 and 4.
+        static bool CheckMetrics(MeshBlob blob, Mesh loaded, StringBuilder sb)
+        {
+            bool ok = CheckMetric("uv0", 1f, blob.MeshMetric0, loaded.GetUVDistributionMetric(0), sb);
+            ok &= CheckMetric("uv1", 4f, blob.MeshMetric1, loaded.GetUVDistributionMetric(1), sb);
+            return ok;
+        }
+
+        static bool CheckMetric(string n, float expected, float baked, float readBack, StringBuilder sb)
+        {
+            bool ok = true;
+            if (Mathf.Abs(baked - expected) > 1e-4f)
+            { ok = false; sb.Append($"\n  metric {n} baked {baked} != expected {expected}"); }
+            if (Mathf.Abs(readBack - baked) > 1e-6f)
+            { ok = false; sb.Append($"\n  metric {n} read-back {readBack} != baked {baked}"); }
+            return ok;
         }
 
         static bool Compare(Mesh a, Mesh b, StringBuilder sb)

@@ -265,6 +265,11 @@ namespace KSPCommunityFixes.Library.Model
                     bonesAABB[i] = new MeshBoneAABB(boneMin, boneMax);
             }
 
+            // UV distribution metrics (m_MeshMetrics[0..1]): one baked value per present UV channel; an
+            // absent channel keeps the neutral 1.0.
+            float meshMetric0 = hasUv0 ? MeshMetrics.Compute(verts, a.Uv0, tris) : 1f;
+            float meshMetric1 = hasUv1 ? MeshMetrics.Compute(verts, a.Uv1, tris) : 1f;
+
             return new MeshBlob
             {
                 Name = name,
@@ -279,6 +284,8 @@ namespace KSPCommunityFixes.Library.Model
                 BoneNameHashes = boneNameHashes,
                 RootBoneNameHash = rootBoneNameHash,
                 BonesAABB = bonesAABB,
+                MeshMetric0 = meshMetric0,
+                MeshMetric1 = meshMetric1,
             };
         }
 
