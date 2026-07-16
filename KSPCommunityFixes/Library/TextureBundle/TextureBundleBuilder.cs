@@ -346,7 +346,7 @@ namespace KSPCommunityFixes.Library.TextureBundle
             // Opt this texture into Unity's mipmap streaming manager only when the caller marked it
             // eligible (its mip levels stay block aligned under the deepest streaming reduction, so the
             // reduced base mip can still be uploaded). The feature is also gated globally by
-            // QualitySettings.streamingMipmapsActive (see KSPCFFastLoader.ApplyStreamingQualitySettings),
+            // QualitySettings.streamingMipmapsActive (see TextureStreaming.ApplyStreamingQualitySettings),
             // and each realized streaming texture is pinned full-res until a model/part binds it.
             w.WriteBool(req.StreamingMipmaps); // m_StreamingMipmaps
             w.Align(4);
