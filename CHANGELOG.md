@@ -3,6 +3,7 @@
 ##### Unreleased
 **Bug Fixes**
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
+- **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
 
 ##### 1.41.1
 **Bug Fixes**
