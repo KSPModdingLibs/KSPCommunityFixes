@@ -769,7 +769,7 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            DateTime recentConfigCutoffUtc = DateTime.UtcNow.AddSeconds(-4.0);
+            DateTime recentConfigCutoffUtc = DateTime.UtcNow.AddSeconds(-Time.realtimeSinceStartup);
             for (int i = 0; i < root.children.Count; i++)
                 RefreshDirectoryRecursive(root.children[i], fileConfig, recentConfigCutoffUtc);
 
