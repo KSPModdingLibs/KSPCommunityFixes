@@ -25,6 +25,10 @@ namespace KSPCommunityFixes.Performance
             // we don't patch the GetModelFile(string) variant as it would require an additional dictionary,
             // is unused in stock and very unlikely to ever be used by anyone.
 
+            AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetAudioClip));
+            AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.ExistsAudioClip));
+            AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.RemoveAudioClip));
+
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetTextureInfo));
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetTextureInfoIn));
             AddPatch(PatchType.Override, typeof(GameDatabase), nameof(GameDatabase.GetTexture));
@@ -126,6 +130,53 @@ namespace KSPCommunityFixes.Performance
         static bool GameDatabase_ExistsModel_Override(GameDatabase gdb, string url)
         {
             return GameDatabase_GetModelPrefab_Override(gdb, url).IsNotNullRef();
+        }
+
+        static AudioClip GameDatabase_GetAudioClip_Override(GameDatabase gdb, string url)
+        {
+            if (url == null)
+                return null;
+
+            if (!KSPCFFastLoader.audioByUrl.TryGetValue(url, out AudioClip result))
+            {
+                // Fallback in case audio is added after indexing
+                List<AudioClip> audioClips = gdb.databaseAudio;
+                for (int i = audioClips.Count - 1; i >= 0; i--)
+                {
+                    if (audioClips[i].name == url)
+                    {
+                        result = audioClips[i];
+                        KSPCFFastLoader.audioByUrl.Add(url, result);
+                        break;
+                    }
+                }
+
+                KSPCFFastLoader.audioByUrl.Remove(url);
+                return null;
+            }
+
+            return result;
+        }
+
+        static bool GameDatabase_ExistsAudioClip_Override(GameDatabase gdb, string url)
+        {
+            return GameDatabase_GetAudioClip_Override(gdb, url).IsNotNullOrDestroyed();
+        }
+
+        static bool GameDatabase_RemoveAudioClip_Override(GameDatabase gdb, string url)
+        {
+            List<AudioClip> audioClips = gdb.databaseAudio;
+
+            for (int i = 0; i < audioClips.Count; i++)
+            {
+                if (audioClips[i].name == url)
+                {
+                    audioClips.RemoveAt(i);
+                    KSPCFFastLoader.audioByUrl.Remove(url);
+                    return true;
+                }
+            }
+            return false;
         }
 
         internal static int txcallCount;

@@ -166,7 +166,7 @@ namespace KSPCommunityFixes.Performance
 
         private static Harmony assetAndPartLoaderHarmony;
         private static string AssetAndPartLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "AssetAndPartLoader";
-
+        
         private static Harmony expansionsLoaderHarmony;
         private static string ExpansionsLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "ExpansionsLoader";
 
@@ -185,6 +185,7 @@ namespace KSPCommunityFixes.Performance
         internal static Dictionary<string, GameObject> modelsByUrl;
         internal static Dictionary<string, GameObject> modelsByDirectoryUrl;
         internal static Dictionary<GameObject, UrlFile> urlFilesByModel;
+        internal static Dictionary<string, AudioClip> audioByUrl;
         internal static Dictionary<string, TextureInfo> texturesByUrl;
 
         private void Awake()
@@ -657,6 +658,18 @@ namespace KSPCommunityFixes.Performance
             }
 
             loadedAssetCount += audioFilesLoaded;
+
+            // index audio clips by url
+            audioByUrl = new Dictionary<string, AudioClip>(gdb.databaseAudio.Count);
+            for (int i = 0; i < gdb.databaseAudio.Count; i++)
+            {
+                AudioClip audioClip = gdb.databaseAudio[i];
+
+                string url = audioClip.name;
+                if (url != null)
+                    audioByUrl.TryAdd(url, audioClip);
+            }
+
 
             // start texture loading
             gdb.progressFraction = 0.25f;
