@@ -431,15 +431,11 @@ namespace KSPCommunityFixes.Performance
             gdb.progressTitle = "Loading configs...";
             gdb.progressFraction = 0f;
 
-            // note : rebuilding the whole database here can be very long in a modde dinstall and
-            // is quite silly since it was already built just before.
-            // The intent is just to mark assets files with their type (UrlFile.fileType) according to
-            // the registered type in configFileTypes.
-            // However, the full reload means mods can take the opportunity to generate configs/assets on
-            // the fly from Awake() in a Startup.Instantly KSPAddon and have it being loaded. I've found
-            // at least 2 mods doing that, so unfortunately this can't really be optimized...
             KSPCFFastLoaderReport.wSecondConfigLoad.Restart();
-            gdb._root = new UrlDir(gdb.urlConfig.ToArray(), configFileTypes.ToArray());
+            ConfigDirectory[] configDirectories = gdb.urlConfig.ToArray();
+            ConfigFileType[] fileConfig = configFileTypes.ToArray();
+            if (!TryRefreshRoot(gdb._root, configDirectories, fileConfig))
+                gdb._root = new UrlDir(configDirectories, fileConfig);
             KSPCFFastLoaderReport.wSecondConfigLoad.Stop();
 
             // Optimized version of GameDatabase.translateLoadedNodes()
@@ -746,6 +742,133 @@ namespace KSPCommunityFixes.Performance
             KSPCFFastLoaderReport.wModelLoading.Stop();
             KSPCFFastLoaderReport.wAssetsLoading.Stop();
         }
+
+        #region Second config load
+
+        /// <summary>
+        /// Depending on number of mods can shave off up to a few seconds. Around 8 seconds with 5k .cfg files in a modded install.
+        /// </summary>
+        private static bool TryRefreshRoot(UrlDir root, ConfigDirectory[] configDirectories, ConfigFileType[] fileConfig)
+        {
+            if (root == null || root.children.Count != configDirectories.Length)
+                return false;
+
+            for (int i = 0; i < root.children.Count; i++)
+            {
+                UrlDir child = root.children[i];
+                ConfigDirectory configDirectory = configDirectories[i];
+                string configuredPath = new DirectoryInfo(CreateApplicationPath(configDirectory.directory)).FullName;
+
+                if (child.name != configDirectory.urlRoot
+                    || child.type != configDirectory.type
+                    || !string.Equals(child.path, configuredPath, StringComparison.Ordinal)
+                    || !Directory.Exists(child.path))
+                {
+                    return false;
+                }
+            }
+
+            DateTime recentConfigCutoffUtc = DateTime.UtcNow.AddSeconds(-Time.realtimeSinceStartup);
+            for (int i = 0; i < root.children.Count; i++)
+                RefreshDirectoryRecursive(root.children[i], fileConfig, recentConfigCutoffUtc);
+
+            return true;
+        }
+
+        private static void RefreshDirectoryRecursive(UrlDir dir, ConfigFileType[] fileConfig, DateTime recentConfigCutoffUtc)
+        {
+            var directoryInfo = new DirectoryInfo(dir.path);
+            var existingFiles = new Dictionary<string, UrlFile>(dir.files.Count, StringComparer.Ordinal);
+            for (int i = 0; i < dir.files.Count; i++)
+                existingFiles[dir.files[i].fullPath] = dir.files[i];
+
+            var refreshedFiles = new List<UrlFile>(dir.files.Count);
+            foreach (FileInfo file in directoryInfo.GetFiles())
+            {
+                // Files changed by Startup.Instantly need a new UrlFile so config contents and
+                // metadata such as fileTime match the second stock directory scan.
+                if (!existingFiles.Remove(file.FullName, out UrlFile urlFile)
+                    || !CanReuseFile(urlFile, file, recentConfigCutoffUtc))
+                {
+                    urlFile = new UrlFile(dir, file);
+                }
+
+                urlFile.ConfigureFile(fileConfig);
+                refreshedFiles.Add(urlFile);
+            }
+
+            dir.files.Clear();
+            dir.files.AddRange(refreshedFiles);
+
+            var existingChildren = new Dictionary<string, UrlDir>(dir.children.Count, StringComparer.Ordinal);
+            for (int i = 0; i < dir.children.Count; i++)
+                existingChildren[dir.children[i].path] = dir.children[i];
+
+            var refreshedChildren = new List<UrlDir>(dir.children.Count);
+            foreach (DirectoryInfo directory in directoryInfo.GetDirectories())
+            {
+                if (ShouldSkipStockDirectory(directory.Name))
+                    continue;
+
+                if (!existingChildren.Remove(directory.FullName, out UrlDir childDir))
+                {
+                    childDir = new UrlDir(dir, directory);
+                    foreach (UrlFile file in childDir.files)
+                        file.ConfigureFile(fileConfig);
+                    foreach (UrlFile file in childDir.AllFiles)
+                        file.ConfigureFile(fileConfig);
+                }
+                else
+                {
+                    RefreshDirectoryRecursive(childDir, fileConfig, recentConfigCutoffUtc);
+                }
+
+                refreshedChildren.Add(childDir);
+            }
+
+            dir.children.Clear();
+            dir.children.AddRange(refreshedChildren);
+        }
+
+        private static bool CanReuseFile(UrlFile urlFile, FileInfo file, DateTime recentConfigCutoffUtc)
+        {
+            if (urlFile.fileTime != GetLastWriteTime(file))
+                return false;
+
+            if (urlFile.fileType != FileType.Config)
+                return true;
+
+            try
+            {
+                return file.LastWriteTimeUtc < recentConfigCutoffUtc
+                    && file.CreationTimeUtc < recentConfigCutoffUtc;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static DateTime GetLastWriteTime(FileInfo file)
+        {
+            try
+            {
+                return file.LastWriteTime;
+            }
+            catch
+            {
+                return DateTime.MinValue;
+            }
+        }
+
+        private static bool ShouldSkipStockDirectory(string directoryName)
+        {
+            return directoryName == ".svn"
+                || directoryName == "PluginData"
+                || directoryName == "zDeprecated";
+        }
+
+        #endregion
 
         /// <summary>
         /// ~100 times faster replacement for the stock GameDatabase.translateLoadedNodes() method (RP1 install 12500 ms -> 80 ms)
