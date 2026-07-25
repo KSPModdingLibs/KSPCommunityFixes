@@ -6,8 +6,7 @@ using HarmonyLib;
 using KSP.Localization;
 using KSPAssets;
 using KSPAssets.Loaders;
-using KSPCommunityFixes.Library.Buffers;
-using KSPCommunityFixes.Library.Collections;
+using KSPCommunityFixes.Library.Model;
 using KSPCommunityFixes.Library.TextureBundle;
 using System;
 using System.Buffers.Binary;
@@ -157,6 +156,10 @@ namespace KSPCommunityFixes.Performance
         // Max number of new texture load coroutines that will be spawned each frame.
         // This should roughly limit the max frame time spent on loading textures.
         private const int MaxTextureSpawnsPerFrame = 64;
+
+        // Max number of new model load coroutines that will be spawned each frame.
+        // This roughly limits the max frame time spent replaying models / loading their meshes.
+        private const int MaxModelSpawnsPerFrame = 64;
 
         private static Harmony persistentHarmony;
         private static string PersistentHarmonyID => typeof(KSPCFFastLoader).FullName;
@@ -537,11 +540,11 @@ namespace KSPCommunityFixes.Performance
                             switch (file.fileExtension)
                             {
                                 case "mu":
-                                    modelAssets.Add(new RawAsset(file, RawAsset.AssetType.ModelMU));
+                                    modelAssets.Add(new RawAsset(file));
                                     break;
                                 case "dae":
                                 case "DAE":
-                                    modelAssets.Add(new RawAsset(file, RawAsset.AssetType.ModelDAE));
+                                    modelAssets.Add(new RawAsset(file));
                                     break;
                                 default:
                                     unsupportedModelFiles.Add(file);
@@ -569,6 +572,11 @@ namespace KSPCommunityFixes.Performance
             // Kick off the background bundle build
             BundleState bundleState = new();
             gdb.StartCoroutine(LoadBundledAssets(bundleState, bundleRequests, textureQueue));
+
+            // Kick off the background model build
+            var modelQueue = new BlockingCollection<ModelLoadRequest>();
+            var modelTask = Task.Run(() => CompileModelGroups(modelAssets));
+            gdb.StartCoroutine(PreloadModelBundles(modelTask, modelQueue));
 
             gdb.progressTitle = "Loading sound assets...";
             KSPCFFastLoaderReport.wAudioLoading.Restart();
@@ -654,9 +662,6 @@ namespace KSPCommunityFixes.Performance
 
             loadedAssetCount += audioFilesLoaded;
 
-            // initialize array pool
-            arrayPool = ArrayPool<byte>.Create(1024 * 1024 * 20, 50);
-
             // start texture loading
             gdb.progressFraction = 0.25f;
             KSPCFFastLoaderReport.wAudioLoading.Stop();
@@ -676,8 +681,6 @@ namespace KSPCommunityFixes.Performance
 
             // Now wait for all asset bundle textures to finish
             yield return gdb.StartCoroutine(InsertBundledTextures(bundleState, allTextureFiles, textureCount));
-
-            QualitySettings.asyncUploadTimeSlice = 2;
 
             // start model loading
             gdb.progressFraction = 0.75f;
@@ -731,13 +734,9 @@ namespace KSPCommunityFixes.Performance
                 }
             }
 
-            // call our custom loader
-            yield return gdb.StartCoroutine(FilesLoader(modelAssets, allModelFiles, "Loading model asset"));
+            yield return gdb.StartCoroutine(ModelDriverCoroutine(modelQueue, allModelFiles, modelAssets.Count, modelTask));
 
-            // all done, do some cleanup
-            arrayPool = null;
-            MuParser.ReleaseBuffers();
-
+            QualitySettings.asyncUploadTimeSlice = 2;
             QualitySettings.asyncUploadBufferSize = 32;
 
             // stock stuff
@@ -844,133 +843,8 @@ namespace KSPCommunityFixes.Performance
 
         #region Asset loader reimplementation (texture/model loader)
 
-        static ArrayPool<byte> arrayPool;
-        static int loadedBytes;
-        static object lockObject = new object();
-
         /// <summary>
-        /// Textures / models loader coroutine implementing threaded disk reads and framerate decoupling
-        /// </summary>
-        static IEnumerator FilesLoader(List<RawAsset> assets, HashSet<string> loadedUrls, string loadingLabel)
-        {
-            GameDatabase gdb = GameDatabase.Instance;
-
-            Deque<RawAsset> assetBuffer = new Deque<RawAsset>();
-            int assetCount = assets.Count;
-            int currentAssetIndex = 0;
-
-            Thread readerThread = new Thread(() => ReadAssetsThread(assets, assetBuffer));
-            readerThread.Start();
-
-            double nextFrameTime = ElapsedTime + minFrameTimeD;
-            SpinWait spinWait = new SpinWait();
-
-            while (currentAssetIndex < assetCount)
-            {
-                while (!Monitor.TryEnter(lockObject))
-                    spinWait.SpinOnce();
-
-                RawAsset rawAsset;
-                int bufferTotalSize;
-
-                try
-                {
-                    if (assetBuffer.Count > 0)
-                    {
-                        rawAsset = assetBuffer.RemoveFromBack();
-                        loadedBytes -= rawAsset.DataLength;
-                        bufferTotalSize = loadedBytes;
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
-                finally
-                {
-                    Monitor.Exit(lockObject);
-                }
-
-                try
-                {
-                    if (!loadedUrls.Add(rawAsset.File.url))
-                    {
-                        rawAsset.Dispose();
-                        Debug.LogWarning($"Duplicate {rawAsset.TypeName} '{rawAsset.File.url}' with extension '{rawAsset.File.fileExtension}' won't be loaded");
-                        continue;
-                    }
-
-                    Debug.Log($"Load {rawAsset.TypeName}: {rawAsset.File.url}");
-                    rawAsset.LoadAndDisposeMainThread();
-
-                    if (rawAsset.State == RawAsset.Result.Failed)
-                    {
-                        Debug.LogWarning($"LOAD FAILED : {rawAsset.Message}");
-                    }
-                    else if (rawAsset.State == RawAsset.Result.Warning)
-                    {
-                        Debug.LogWarning(rawAsset.Message);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogException(e);
-                }
-                finally
-                {
-                    loadedAssetCount++;
-                    currentAssetIndex++;
-                    spinWait = new SpinWait();
-                }
-
-                if (ElapsedTime > nextFrameTime)
-                {
-                    nextFrameTime = ElapsedTime + minFrameTimeD;
-                    gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
-                    gdb.progressTitle = $"{loadingLabel} {currentAssetIndex}/{assetCount} (buffer={bufferTotalSize / (1024 * 1024)}MB)";
-                    yield return null;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Disk read thread started from FilesLoader
-        /// </summary>
-        static void ReadAssetsThread(List<RawAsset> files, Deque<RawAsset> buffer)
-        {
-            foreach (RawAsset rawAsset in files)
-            {
-                rawAsset.ReadFromDiskWorkerThread();
-
-                SpinWait spin = new SpinWait();
-                bool assetAdded = false;
-
-                while (!assetAdded)
-                {
-                    while (!Monitor.TryEnter(lockObject))
-                        spin.SpinOnce();
-
-                    try
-                    {
-                        // load next file if already sum of already loaded file size is less than 50 MB
-                        // or if less than 10 files are loaded
-                        if (loadedBytes < maxBufferSize || buffer.Count < minFileRead)
-                        {
-                            loadedBytes += rawAsset.DataLength;
-                            buffer.AddToFront(rawAsset);
-                            assetAdded = true;
-                        }
-                    }
-                    finally
-                    {
-                        Monitor.Exit(lockObject);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Asset wrapper class, actual implementation of the disk reader, individual texture/model formats loaders
+        /// Wrapper around a model file to be loaded.
         /// </summary>
         private class RawAsset
         {
@@ -987,233 +861,14 @@ namespace KSPCommunityFixes.Performance
                 ModelDAE
             }
 
-            private static readonly string[] assetTypeNames =
-            {
-                "DDS texture",
-                "JPG texture",
-                "MBM texture",
-                "PNG texture",
-                "TGA texture",
-                "TRUECOLOR texture",
-                "MU model",
-                "DAE model"
-            };
-
-            public enum Result
-            {
-                Valid,
-                Warning,
-                Failed
-            }
-
             private UrlFile file;
-            private AssetType assetType;
-            private bool useRentedBuffer;
-            private byte[] buffer;
-            private int dataLength;
-            private Result result;
-            private string resultMessage;
 
             public UrlFile File => file;
-            public Result State => result;
-            public string Message => resultMessage;
-            public int DataLength => dataLength;
-            public string TypeName => assetTypeNames[(int)assetType];
 
-            public RawAsset(UrlFile file, AssetType assetType)
+            public RawAsset(UrlFile file)
             {
-                this.result = Result.Valid;
                 this.file = file;
-                this.assetType = assetType;
             }
-
-            private void SetError(string message)
-            {
-                result = Result.Failed;
-                if (resultMessage == null)
-                    resultMessage = message;
-                else
-                    resultMessage = $"{resultMessage}\n{message}";
-            }
-
-            private void SetWarning(string message)
-            {
-                if (result == Result.Failed)
-                {
-                    if (resultMessage == null)
-                        resultMessage = message;
-                    else
-                        resultMessage = $"{resultMessage}\nWARNING: {message}";
-                }
-                else
-                {
-                    result = Result.Warning;
-                    if (resultMessage == null)
-                        resultMessage = message;
-                    else
-                        resultMessage = $"{resultMessage}\n{message}";
-                }
-            }
-
-            public void ReadFromDiskWorkerThread()
-            {
-                switch (assetType)
-                {
-                    case AssetType.ModelMU:
-                    case AssetType.ModelDAE:
-                        useRentedBuffer = true;
-                        break;
-                }
-
-                try
-                {
-                    string path = file.fullPath;
-
-                    using (FileStream fileStream = System.IO.File.OpenRead(path))
-                    {
-                        long length = fileStream.Length;
-                        if (length > int.MaxValue)
-                        {
-                            throw new IOException("Reading more than 2GB with this call is not supported");
-                        }
-                        dataLength = (int)length;
-                        int offset = 0;
-                        int count = dataLength;
-
-                        // Don't use array pool for small files < 1KB (allocating is faster)
-                        // Don't use array pool for huge files > 20MB (memory usage concerns)
-                        if (useRentedBuffer)
-                            if (dataLength < 1024 || dataLength > 1024 * 1024 * 20)
-                                useRentedBuffer = false;
-
-                        if (useRentedBuffer)
-                            buffer = arrayPool.Rent(dataLength);
-                        else
-                            buffer = new byte[dataLength];
-
-                        try
-                        {
-                            while (count > 0)
-                            {
-                                int read = fileStream.Read(buffer, offset, count);
-                                if (read == 0)
-                                {
-                                    throw new IOException("Unexpected end of stream");
-                                }
-                                offset += read;
-                                count -= read;
-                            }
-                        }
-                        catch
-                        {
-                            if (useRentedBuffer)
-                            {
-                                arrayPool.Return(buffer);
-                                buffer = null;
-                            }
-                            throw;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    SetError(e.Message);
-                }
-            }
-
-            public void LoadAndDisposeMainThread()
-            {
-                try
-                {
-                    if (result == Result.Failed)
-                        return;
-
-                    if (file.fileType == FileType.Model)
-                    {
-                        GameObject model;
-                        switch (assetType)
-                        {
-                            case AssetType.ModelMU:
-                                model = LoadMU();
-                                break;
-                            case AssetType.ModelDAE:
-                                model = LoadDAE();
-                                break;
-                            default:
-                                SetError("Unknown model format");
-                                return;
-                        }
-
-                        if (result == Result.Failed || model.IsNullOrDestroyed())
-                        {
-                            result = Result.Failed;
-                            if (string.IsNullOrEmpty(resultMessage))
-                                resultMessage = $"{TypeName} load error";
-                        }
-                        else
-                        {
-                            model.transform.name = file.url;
-                            model.transform.parent = Instance.transform;
-                            model.transform.localPosition = Vector3.zero;
-                            model.transform.localRotation = Quaternion.identity;
-                            model.SetActive(false);
-                            Instance.databaseModel.Add(model);
-                            Instance.databaseModelFiles.Add(file);
-                            modelsByUrl[file.url] = model;
-                            // if multiple models in the same dir, we only add the first
-                            // to ensure identical behavior as the GameDatabase.GetModelPrefabIn() method
-                            modelsByDirectoryUrl.TryAdd(file.parent.url, model);
-                            urlFilesByModel.Add(model, file);
-                            KSPCFFastLoaderReport.modelsBytesLoaded += dataLength;
-                            KSPCFFastLoaderReport.modelsLoaded++;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    SetError(e.ToString());
-                }
-                finally
-                {
-                    Dispose();
-                }
-            }
-
-            public void Dispose()
-            {
-                if (useRentedBuffer)
-                    arrayPool.Return(buffer);
-            }
-
-            private GameObject LoadMU()
-            {
-                return MuParser.Parse(file.parent.url, buffer, dataLength);
-            }
-
-            private GameObject LoadDAE()
-            {
-                // given that this is a quite obsolete thing and that it's mess to reimplement, just call the stock
-                // stuff and re-load the file
-
-                GameObject gameObject = new DatabaseLoaderModel_DAE.DAE().Load(file, new FileInfo(file.fullPath));
-                if (gameObject.IsNotNullOrDestroyed())
-                {
-                    MeshFilter[] componentsInChildren = gameObject.GetComponentsInChildren<MeshFilter>();
-                    foreach (MeshFilter meshFilter in componentsInChildren)
-                    {
-                        if (meshFilter.gameObject.name == "node_collider")
-                        {
-                            meshFilter.gameObject.AddComponent<MeshCollider>().sharedMesh = meshFilter.mesh;
-                            MeshRenderer component = meshFilter.gameObject.GetComponent<MeshRenderer>();
-                            UnityEngine.Object.Destroy(meshFilter);
-                            UnityEngine.Object.Destroy(component);
-                        }
-                    }
-                }
-
-                return gameObject;
-            }
-
         }
 
         #endregion
@@ -1492,6 +1147,443 @@ namespace KSPCommunityFixes.Performance
                 if (frameTime > 0.1)
                     yield return null;
             }
+        }
+        #endregion
+
+        #region Model bundle loader
+
+        private readonly struct QueueWriteGuard<T>(BlockingCollection<T> queue) : IDisposable
+        {
+            public void Dispose() => queue.CompleteAdding();
+        }
+
+        static readonly ProfilerMarker s_pmCompileOne = new("KSPCF.CompileOne");
+        private static ModelLoadRequest CompileOne(RawAsset asset, ThreadLocal<MuModelCompiler> tl)
+        {
+            using var scope = s_pmCompileOne.Auto();
+
+            UrlFile file = asset.File;
+            ModelLoadRequest req = new()
+            {
+                File = file,
+            };
+
+            try
+            {
+                // .dae/.DAE never touch the compiler; the main-thread Dae path reloads them via the stock loader.
+                string ext = file.fileExtension;
+                if (ext == "dae" || ext == "DAE")
+                {
+                    req.ModelKind = ModelLoadRequest.Kind.Dae;
+                    return req;
+                }
+
+                byte[] data = File.ReadAllBytes(file.fullPath);
+                var cm = tl.Value.Compile(file.url, file.parent.url, data, data.Length);
+
+                req.Compiled = cm;
+                req.FileLength = data.Length;
+                req.ModelKind = ModelLoadRequest.Kind.CompiledMu;
+            }
+            catch (Exception e)
+            {
+                req.FailureMessage = $"{e.GetType()}: {e}";
+                req.ModelKind = ModelLoadRequest.Kind.Failed;
+            }
+
+            return req;
+        }
+
+        static readonly ProfilerMarker s_pmCompileModelGroup = new("KSPCF.CompileModelGroup");
+        private static ModelGroup CompileModelGroup(
+            IEnumerable<ModelLoadRequest> results)
+        {
+            using var scope = s_pmCompileModelGroup.Auto();
+            var requests = results.ToList();
+
+            ModelGroup group = new()
+            {
+                Requests = requests,
+            };
+
+            var blobs = new List<MeshBlob>(requests.Count);
+            var bundleReqs = new List<ModelLoadRequest>(requests.Count);
+
+            try
+            {
+                foreach (var req in requests)
+                {
+                    if (req.ModelKind != ModelLoadRequest.Kind.CompiledMu)
+                        continue;
+
+                    blobs.AddRange(req.Compiled.Blobs);
+
+                    req.Compiled.Blobs = null; // now lives in the bundle
+                    req.Group = group;
+                }
+
+                if (blobs.Count == 0)
+                    return group;
+
+                group.BundleBytes = MeshBundleBuilder.BuildMany(blobs);
+            }
+            catch (Exception ex)
+            {
+                group.BundleBytes = null;
+
+                var message = $"failed to build mesh bundle: {ex}";
+                foreach (var req in requests)
+                {
+                    if (req.ModelKind != ModelLoadRequest.Kind.CompiledMu)
+                        continue;
+
+                    req.ModelKind = ModelLoadRequest.Kind.Failed;
+                    req.FailureMessage = message;
+                    if (req.Compiled is not null)
+                        req.Compiled.Blobs = null;
+                }
+            }
+
+            return group;
+        }
+
+        static readonly ProfilerMarker s_pmCompileModelGroups = new("KSPCF.CompileModelGroups");
+
+        // Compiles all models off-thread and packs each group's meshes into a shared asset bundle.
+        private static async Task<List<ModelGroup>> CompileModelGroups(
+            List<RawAsset> modelAssets)
+        {
+            // The max number of models we are willing to shove in the same bundle.
+            const int GroupModelCap = 512;
+
+            using var scope = s_pmCompileModelGroups.Auto();
+
+            // MuModelCompiler has internal shared state, so each thread gets its own instance.
+            using var tl = new ThreadLocal<MuModelCompiler>(() => new MuModelCompiler());
+
+            return modelAssets
+                .AsParallel()
+                .Select((asset, index) => (index, CompileOne(asset, tl)))
+                .GroupBy<(int index, ModelLoadRequest request), int>((elem) => elem.index / GroupModelCap)
+                .Select(group => (group.Key, CompileModelGroup(group.Select(elem => elem.request))))
+                .OrderBy<(int index, ModelGroup group), int>(elem => elem.index)
+                .Select(elem => elem.group)
+                .ToList();
+        }
+
+        static readonly ProfilerMarker s_pmLoadModelBundle = new("KSPCF.LoadModelBundleAsync");
+
+        // Loads each compiled group's mesh bundle and queues its models for the driver.
+        private static IEnumerator PreloadModelBundles(
+            Task<List<ModelGroup>> groupTask,
+            BlockingCollection<ModelLoadRequest> modelQueue)
+        {
+            using var wguard = new QueueWriteGuard<ModelLoadRequest>(modelQueue);
+            var gdb = GameDatabase.Instance;
+
+            while (!groupTask.IsCompleted)
+                yield return null;
+
+            List<ModelGroup> groups;
+            try
+            {
+                groups = groupTask.Result;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Failed to build asset bundles for models");
+                Debug.LogException(ex);
+                yield break;
+            }
+
+            foreach (var group in groups)
+            {
+                if (group.BundleBytes is null)
+                    continue;
+
+                using var scope = s_pmLoadModelBundle.Auto();
+
+                var request = AssetBundle.LoadFromStreamAsync(new MemoryStream(group.BundleBytes));
+                request.priority = -15;
+
+                foreach (var req in group.Requests)
+                    modelQueue.Add(req);
+
+                gdb.StartCoroutine(PopulateModelIndex(group, request));
+            }
+        }
+
+        readonly struct TaskLostGuard<T>(TaskCompletionSource<T> tcs) : IDisposable
+        {
+            public void Dispose() => tcs.TrySetCanceled();
+        }
+
+        private static IEnumerator PopulateModelIndex(
+            ModelGroup group,
+            AssetBundleCreateRequest bundleRequest
+        )
+        {
+            var tcs = new TaskCompletionSource<Dictionary<string, UnityEngine.Object>>();
+            group.Index = tcs.Task;
+            using var guard = new TaskLostGuard<Dictionary<string, UnityEngine.Object>>(tcs);
+
+            yield return bundleRequest;
+
+            var bundle = bundleRequest.assetBundle;
+            if (bundle == null)
+            {
+                tcs.SetException(new Exception("asset bundle failed to load"));
+                yield break;
+            }
+
+            var request = bundle.LoadAllAssetsAsync();
+            request.priority = -100;
+            yield return request;
+
+            var assets = request.allAssets;
+            if (assets == null)
+            {
+                tcs.SetException(new Exception("no assets were loaded from the bundle"));
+                yield break;
+            }
+
+            var index = new Dictionary<string, UnityEngine.Object>();
+            foreach (var asset in assets)
+                index.Add(asset.name, asset);
+            tcs.SetResult(index);
+        }
+
+        private static IEnumerator ModelDriverCoroutine(
+            BlockingCollection<ModelLoadRequest> modelQueue,
+            HashSet<string> loadedUrls,
+            int totalModelCount,
+            Task<List<ModelGroup>> groupTask)
+        {
+            GameDatabase gdb = GameDatabase.Instance;
+            Queue<ModelLoadRequest> active = new();
+            int completed = 0;
+
+            while (true)
+            {
+                for (int i = 0; i < MaxModelSpawnsPerFrame; ++i)
+                {
+                    if (!modelQueue.TryTake(out ModelLoadRequest request))
+                        break;
+
+                    gdb.StartCoroutine(LoadModelCoroutine(request));
+                    active.Enqueue(request);
+                }
+
+                while (active.TryPeek(out ModelLoadRequest pending))
+                {
+                    if (pending.Status == ModelLoadRequest.State.Pending)
+                        break;
+
+                    active.Dequeue();
+                    try
+                    {
+                        InsertReadyModel(pending, loadedUrls);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogException(e);
+                    }
+                    loadedAssetCount++;
+                    completed++;
+                }
+
+                gdb.progressFraction = (float)loadedAssetCount / totalAssetCount;
+                gdb.progressTitle = $"Loading model asset {completed}/{totalModelCount}";
+
+                if (modelQueue.IsCompleted && active.Count == 0)
+                    break;
+
+                yield return null;
+            }
+
+            try
+            {
+                List<ModelGroup> groups = groupTask.Result;
+
+                foreach (var group in groups)
+                {
+                    var bundle = group.Bundle;
+                    if (bundle == null)
+                        continue;
+
+                    bundle.Unload(false);
+                }
+            }
+            catch
+            {
+                yield break;
+            }
+        }
+
+        private static IEnumerator LoadModelCoroutine(ModelLoadRequest req)
+        {
+            IEnumerator inner = req.ModelKind switch
+            {
+                ModelLoadRequest.Kind.CompiledMu => LoadCompiledModelCoroutine(req),
+                ModelLoadRequest.Kind.Dae => LoadDaeModelCoroutine(req),
+                _ => LoadFailedModelCoroutine(req),
+            };
+
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext())
+                        break;
+
+                    current = inner.Current;
+                }
+                catch (Exception e)
+                {
+                    req.FailureMessage = $"{e.GetType().Name}: {e.Message}";
+                    req.Status = ModelLoadRequest.State.Failed;
+                    yield break;
+                }
+
+                yield return current;
+            }
+
+            if (req.Status != ModelLoadRequest.State.Pending)
+                yield break;
+
+            if (req.Result.IsNotNullOrDestroyed())
+            {
+                req.Status = ModelLoadRequest.State.Ready;
+            }
+            else
+            {
+                req.FailureMessage ??= "Loader produced no result";
+                req.Status = ModelLoadRequest.State.Failed;
+            }
+        }
+
+        private static IEnumerator LoadCompiledModelCoroutine(ModelLoadRequest req)
+        {
+            CompiledModel cm = req.Compiled;
+            MeshBinding[] bindings = cm.Bindings;
+            var locals = new UnityEngine.Object[cm.LocalCount];
+
+            if (bindings.Length > 0)
+            {
+                ModelGroup group = req.Group;
+                var indexTask = group.Index;
+
+                while (!indexTask.IsCompleted)
+                    yield return null;
+
+                var index = indexTask.Result;
+
+                for (int i = 0; i < bindings.Length; i++)
+                {
+                    var binding = bindings[i];
+                    locals[binding.Slot] = index[bindings[i].CanonicalName];
+                }
+            }
+
+            IModelInstruction[] instructions = cm.Instructions;
+            for (int i = 0; i < instructions.Length; i++)
+                instructions[i].Execute(locals);
+
+            GameObject go = (GameObject)locals[0];
+            if (go.IsNotNullOrDestroyed())
+                go.SetActive(false);
+
+            req.Result = go;
+            req.Status = ModelLoadRequest.State.Ready;
+        }
+
+        private static IEnumerator LoadDaeModelCoroutine(ModelLoadRequest req)
+        {
+            GameObject go = LoadDAE(req.File);
+
+            if (go.IsNullOrDestroyed())
+            {
+                req.FailureMessage = "DAE model load error";
+                req.Status = ModelLoadRequest.State.Failed;
+                yield break;
+            }
+
+            go.SetActive(false);
+
+            req.FileLength = new FileInfo(req.File.fullPath).Length;
+            req.Result = go;
+            req.Status = ModelLoadRequest.State.Ready;
+        }
+
+        private static IEnumerator LoadFailedModelCoroutine(ModelLoadRequest req)
+        {
+            req.Status = ModelLoadRequest.State.Failed;
+            yield break;
+        }
+
+        private static void InsertReadyModel(ModelLoadRequest req, HashSet<string> loadedUrls)
+        {
+            Debug.Log($"Load Model: {req.File.url}");
+
+            req.Compiled?.FlushLogs();
+
+            if (req.Status == ModelLoadRequest.State.Failed)
+            {
+                Debug.LogWarning($"LOAD FAILED: {req.File.url}: {req.FailureMessage}");
+                if (req.Result.IsNotNullOrDestroyed())
+                    UnityEngine.Object.Destroy(req.Result);
+                return;
+            }
+
+            // A duplicate url means the GameObject was already built, so it must be destroyed. First-wins.
+            if (!loadedUrls.Add(req.File.url))
+            {
+                Debug.LogWarning($"Duplicate model asset '{req.File.url}' with extension '{req.File.fileExtension}' won't be loaded");
+                if (req.Result.IsNotNullOrDestroyed())
+                    UnityEngine.Object.Destroy(req.Result);
+                return;
+            }
+
+            GameObject model = req.Result;
+            model.transform.name = req.File.url;
+            model.transform.parent = Instance.transform;
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+            model.SetActive(false);
+            Instance.databaseModel.Add(model);
+            Instance.databaseModelFiles.Add(req.File);
+            modelsByUrl[req.File.url] = model;
+            // if multiple models in the same dir, we only add the first
+            // to ensure identical behavior as the GameDatabase.GetModelPrefabIn() method
+            modelsByDirectoryUrl.TryAdd(req.File.parent.url, model);
+            urlFilesByModel.Add(model, req.File);
+            KSPCFFastLoaderReport.modelsBytesLoaded += req.FileLength;
+            KSPCFFastLoaderReport.modelsLoaded++;
+        }
+
+        private static GameObject LoadDAE(UrlFile file)
+        {
+            // given that this is a quite obsolete thing and that it's mess to reimplement, just call the stock
+            // stuff and re-load the file
+
+            GameObject gameObject = new DatabaseLoaderModel_DAE.DAE().Load(file, new FileInfo(file.fullPath));
+            if (gameObject.IsNotNullOrDestroyed())
+            {
+                MeshFilter[] componentsInChildren = gameObject.GetComponentsInChildren<MeshFilter>();
+                foreach (MeshFilter meshFilter in componentsInChildren)
+                {
+                    if (meshFilter.gameObject.name == "node_collider")
+                    {
+                        meshFilter.gameObject.AddComponent<MeshCollider>().sharedMesh = meshFilter.mesh;
+                        MeshRenderer component = meshFilter.gameObject.GetComponent<MeshRenderer>();
+                        Destroy(meshFilter);
+                        Destroy(component);
+                    }
+                }
+            }
+
+            return gameObject;
         }
         #endregion
 
