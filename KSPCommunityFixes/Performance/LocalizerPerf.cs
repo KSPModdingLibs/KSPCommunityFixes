@@ -192,7 +192,7 @@ namespace KSPCommunityFixes.Performance
             int length = formattedString.Length;
             int removed = 0;
 
-            fixed (char* charPtr = &formattedString.m_firstChar)
+            fixed (char* charPtr = formattedString)
             {
                 for (int i = 0; i < length; i++)
                 {
