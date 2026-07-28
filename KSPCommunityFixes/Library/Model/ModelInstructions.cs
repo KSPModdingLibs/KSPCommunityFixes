@@ -170,8 +170,6 @@ namespace KSPCommunityFixes.Library.Model
                         else
                         {
                             mat.SetTexture(t.Name, tex);
-                            // This texture is used by rendered geometry: release it from the load-time full-res
-                            // pin so Unity's mipmap streaming can manage its residency (no-op when disabled).
                             KSPCFFastLoader.ReleaseToStreaming(tex);
                         }
                     }

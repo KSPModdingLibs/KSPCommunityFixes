@@ -1,27 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using UnityEngine;
 
 namespace KSPCommunityFixes.Library.TextureBundle
 {
     /// <summary>
-    /// Builds a minimal UnityFS bundle wrapping a single streamed <c>Texture2D</c> and the
-    /// <c>AssetBundle</c> that references it, where the texture's pixel data lives in an existing
-    /// DDS file on disk. The generated bundle carries only ~1&#160;KB of metadata: the texture's
-    /// <c>m_StreamData.path</c> is the absolute path of the DDS file and <c>m_StreamData.offset</c>
-    /// is its data offset, so Unity opens the file and streams the compressed pixels itself. Pure
-    /// CPU work; safe to call from a background thread.
-    /// </summary>
-    /// <remarks>
-    /// The whole prefix is written into a single <see cref="BundleBufferWriter"/>: the UnityFS
-    /// framing (<see cref="BundleWriter"/>), the serialized-file framing
-    /// (<see cref="SerializedFileWriter"/>) and the two object bodies written here by hand. The
-    /// bodies reproduce the exact field order, sizes and alignment padding of Unity 2019.4's own
-    /// layout — the same layout the embedded type tree encodes.
-    ///
-    /// <para>Borrowed from KSPTextureLoader
-    /// (../KSPTextureLoader/src/KSPTextureLoader/Format/Bundle/TextureBundleBuilder.cs), stripped
-    /// to the classic Texture2D + external-file path.</para>
+    /// A builder for UnityFS bundles that contain <see cref="Texture2D" />s.
+    /// The special bit is that these bundles refer to the actual contents of
+    /// the dds files on disk instead of storing them directly.
     /// </remarks>
     internal static class TextureBundleBuilder
     {
@@ -68,9 +55,6 @@ namespace KSPCommunityFixes.Library.TextureBundle
             /// <summary>Whether Unity should keep a CPU-side copy of the pixels.</summary>
             public bool Readable;
 
-            /// <summary>Serialized <c>m_StreamingMipmaps</c>. When true, the texture joins Unity's
-            /// mipmap streaming system. The caller decides eligibility (only set it when the mip
-            /// levels stay block aligned under the deepest streaming reduction).</summary>
             public bool StreamingMipmaps;
         }
 
@@ -109,8 +93,6 @@ namespace KSPCommunityFixes.Library.TextureBundle
 
             public readonly bool Readable;
 
-            /// <summary>Serialized <c>m_StreamingMipmaps</c>: whether this texture joins Unity's
-            /// mipmap streaming system.</summary>
             public readonly bool StreamingMipmaps;
 
             /// <summary>Absolute path of the DDS file the pixels are streamed from.</summary>
@@ -343,11 +325,6 @@ namespace KSPCommunityFixes.Library.TextureBundle
             w.WriteBool(req.Readable); // m_IsReadable
             w.WriteBool(false); // m_IgnoreMasterTextureLimit
             w.WriteBool(false); // m_IsPreProcessed
-            // Opt this texture into Unity's mipmap streaming manager only when the caller marked it
-            // eligible (its mip levels stay block aligned under the deepest streaming reduction, so the
-            // reduced base mip can still be uploaded). The feature is also gated globally by
-            // QualitySettings.streamingMipmapsActive (see TextureStreaming.ApplyStreamingQualitySettings),
-            // and each realized streaming texture is pinned full-res until a model/part binds it.
             w.WriteBool(req.StreamingMipmaps); // m_StreamingMipmaps
             w.Align(4);
             w.WriteInt32(0); // m_StreamingMipmapsPriority

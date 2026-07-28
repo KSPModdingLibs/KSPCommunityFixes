@@ -176,10 +176,6 @@ namespace KSPCommunityFixes.Performance
         // Vestigial: kept so the popup can persist its choice across launches once it is repurposed.
         private static bool textureCacheEnabled;
 
-        // Mipmap streaming for part/mesh textures. The load-time plumbing lives here (bake eligibility, the
-        // full-res pin, and the two PartLoader release postfixes registered in Awake); the runtime settings and
-        // QualitySettings application live in TextureStreaming.
-
         private static string ModPath => Path.GetDirectoryName(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         private static string ConfigPath => Path.Combine(ModPath, "PluginData", "PNGTextureCache.cfg");
 
@@ -239,8 +235,8 @@ namespace KSPCommunityFixes.Performance
 
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
 
-            // Release part-compilation texture replacements to the mipmap streaming manager at their bind
-            // sites. These are the only two texture-assignment points in stock part compilation.
+            // These enable texture streaming for any texture used in a model,
+            // for a part, or for an IVA.
             MethodInfo m_PartLoader_ReplaceTextures = AccessTools.Method(typeof(PartLoader), "ReplaceTextures");
             MethodInfo po_PartLoader_ReplaceTextures = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_ReplaceTextures_Postfix));
             assetAndPartLoaderHarmony.Patch(m_PartLoader_ReplaceTextures, null, new HarmonyMethod(po_PartLoader_ReplaceTextures));
@@ -1286,10 +1282,8 @@ namespace KSPCommunityFixes.Performance
                     req.Result = new TextureInfo(req.File, tex, item.IsNormalMap, isReadable: false, isCompressed: true);
                     req.Status = TextureLoadRequest.State.Ready;
 
-                    // Pin every streaming texture full-res on load. It stays pinned (never streamed down)
-                    // until a model material or a part texture-replacement releases it via ReleaseToStreaming;
-                    // textures with no owning mesh (UI, icons, ...) therefore never blur. The pin is latent
-                    // until streamingMipmapsActive is turned on (after MM patching, see PatchSettings).
+                    // Disable mipmap streaming if enabled. We'll re-enable it on a case-by-case
+                    // basis when textures are used in parts or models.
                     if (tex.streamingMipmaps)
                         tex.requestedMipmapLevel = 0;
                 }
@@ -1311,19 +1305,16 @@ namespace KSPCommunityFixes.Performance
 
         #region Mipmap streaming
 
-        // Release a just-bound mesh/part texture back to automatic streaming, undoing the load-time full-res
-        // pin from InsertBundledTextures. Idempotent (ClearRequestedMipmapLevel is a no-op the second time and
-        // on non-streaming textures), so the shared database Texture2D can be released by whichever model or
-        // part binds it first, with no dedup bookkeeping.
+        /// <summary>
+        /// Enable mipmpa streaming for <paramref name="tex"/>.
+        /// </summary>
+        /// <param name="tex"></param>
         internal static void ReleaseToStreaming(Texture tex)
         {
             if (tex is Texture2D t2d && t2d.streamingMipmaps)
                 t2d.ClearRequestedMipmapLevel();
         }
 
-        // Postfix on PartLoader.ReplaceTextures (MODEL-node "texture = orig, new" swaps): release each
-        // config-declared replacement texture. Releasing a declared-but-unmatched entry is harmless (idempotent
-        // + a texture with no owning renderer would only stream down when it is genuinely unused).
         private static void PartLoader_ReplaceTextures_Postfix(List<TextureInfo> newTextures)
         {
             if (newTextures == null)
@@ -1339,9 +1330,6 @@ namespace KSPCommunityFixes.Performance
             }
         }
 
-        // Postfix on PartLoader.ReplacePartTexture (part-level "texture"/"bump" field): the resolved texture is
-        // a local in the stock method, so recompute the URL from the parameters exactly as the method does and
-        // release the shared database texture (GetTexture is a dictionary lookup, fast-pathed by KSPCF).
         private static void PartLoader_ReplacePartTexture_Postfix(UrlConfig urlConfig, string textureName, bool normalMap)
         {
             string url = urlConfig.parent.parent.url + "/textures/" + Path.GetFileNameWithoutExtension(textureName);
@@ -2470,15 +2458,12 @@ namespace KSPCommunityFixes.Performance
             return width % blockWidth == 0 && height % blockHeight == 0;
         }
 
-        // Textures smaller than this (whole mip chain) aren't worth streaming: the VRAM they could
-        // free is negligible next to the per-texture bookkeeping the streaming manager keeps for them.
+        // Textures smaller than 4KB are too small to be worth streaming.
         private const long MinStreamingBytes = 4 * 1024;
 
-        // A texture is baked into the streaming system (m_StreamingMipmaps) only if it's large enough to bother
-        // with and still block aligned at TextureStreaming.MaxStreamingMipReduction: streaming reduces the
-        // resident base mip by up to that many levels and re-uploads the reduced mip as the new base, and a
-        // block-compressed base upload only works when its dims are a whole number of blocks. Uncompressed
-        // formats have a 1x1 block and always qualify.
+        // Attempting to load a compressed mipmap whose size is not a multiple of the
+        // DDS block size (4x4) causes unity to crash. To avoid this we need to
+        // only include textures whose mipmaps are the correct size.
         private static bool EligibleForStreaming(in DDSPreparedHeader hdr) =>
             hdr.StreamedSize >= MinStreamingBytes
             && IsBlockAligned(
@@ -3803,9 +3788,6 @@ namespace KSPCommunityFixes.Performance
             SaveConfig();
         }
 
-        // Rewrite the fast-loader PluginData config from current in-memory state. This file holds only the
-        // opt-in choice (the mipmap-streaming settings live in KSPCF's own settings, see PatchSettings), so a
-        // full rewrite is safe.
         private static void SaveConfig()
         {
             ConfigNode config = new ConfigNode();
