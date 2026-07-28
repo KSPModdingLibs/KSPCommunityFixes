@@ -276,12 +276,6 @@ namespace KSPCommunityFixes.Performance
                 if (!config.TryGetValue(nameof(textureCacheEnabled), ref textureCacheEnabled))
                     userOptInChoiceDone = false;
             }
-
-            // TEMPORARY: force the texture cache on and skip the opt-in popup while iterating on the
-            // mipmap-streaming work (DeployToKSP wipes the cfg each build, so the popup blocks unattended
-            // loads). Revert to the config-driven / popup behavior before shipping.
-            userOptInChoiceDone = true;
-            textureCacheEnabled = true;
         }
 
         /// <summary>
