@@ -141,7 +141,7 @@ namespace KSPCommunityFixes.Performance
             {
                 // Fallback in case audio is added after indexing
                 List<AudioClip> audioClips = gdb.databaseAudio;
-                for (int i = audioClips.Count - 1; i >= 0; i--)
+                for (int i = audioClips.Count; i-- > 0;)
                 {
                     if (audioClips[i].name == url)
                     {
@@ -150,9 +150,6 @@ namespace KSPCommunityFixes.Performance
                         break;
                     }
                 }
-
-                KSPCFFastLoader.audioByUrl.Remove(url);
-                return null;
             }
 
             return result;
