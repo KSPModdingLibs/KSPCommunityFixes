@@ -3450,11 +3450,18 @@ namespace KSPCommunityFixes.Performance
                 .AsParallel()
                 .AsOrdered()
                 .SelectMany(dir => dir.GetFiles(glob, SearchOption.AllDirectories))
+                .Concat(
+                    // Make sure to also grab bundles in the root directory
+                    assetDir
+                        .GetFiles(glob, SearchOption.TopDirectoryOnly)
+                        .AsParallel()
+                        .AsOrdered()
+                )
                 .Where(file => !assetBlacklist.Contains(file.Name))
                 .AsSequential();
 
-            loader.allFilesList = new List<FileInfo>();
-            AssetBundleRequestCache = new List<AssetBundleCreateRequest>();
+            loader.allFilesList = [];
+            AssetBundleRequestCache = [];
 
             var seen = new HashSet<string>();
             var requestCache = AssetBundleRequestCache;
