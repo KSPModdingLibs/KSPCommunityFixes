@@ -166,7 +166,7 @@ namespace KSPCommunityFixes.Performance
 
         private static Harmony assetAndPartLoaderHarmony;
         private static string AssetAndPartLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "AssetAndPartLoader";
-        
+
         private static Harmony expansionsLoaderHarmony;
         private static string ExpansionsLoaderHarmonyID => typeof(KSPCFFastLoader).FullName + "ExpansionsLoader";
 
@@ -782,95 +782,130 @@ namespace KSPCommunityFixes.Performance
             }
 
             DateTime recentConfigCutoffUtc = DateTime.UtcNow.AddSeconds(-Time.realtimeSinceStartup);
+
+            var directoriesToRefresh = new List<UrlDir>();
             for (int i = 0; i < root.children.Count; i++)
-                RefreshDirectoryRecursive(root.children[i], fileConfig, recentConfigCutoffUtc);
+            {
+                UrlDir directory = root.children[i];
+                directoriesToRefresh.Add(directory);
+                directoriesToRefresh.AddRange(directory.AllDirectories);
+            }
+
+            Parallel.For(0, directoriesToRefresh.Count,
+                i => RefreshDirectory(directoriesToRefresh[i], fileConfig, recentConfigCutoffUtc));
 
             return true;
         }
 
-        private static void RefreshDirectoryRecursive(UrlDir dir, ConfigFileType[] fileConfig, DateTime recentConfigCutoffUtc)
+        // Not safe to create UrlFile on multiple threads
+        private static readonly object urlCreationLock = new object();
+
+        private static void RefreshDirectory(UrlDir dir, ConfigFileType[] fileConfig, DateTime recentConfigCutoffUtc)
         {
-            var directoryInfo = new DirectoryInfo(dir.path);
+            string[] entries;
+            try
+            {
+                // Fastest way to get all files and directories in a directory with ksp's mono
+                entries = Directory.GetFileSystemEntries(dir.path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+
             var existingFiles = new Dictionary<string, UrlFile>(dir.files.Count, StringComparer.Ordinal);
             for (int i = 0; i < dir.files.Count; i++)
                 existingFiles[dir.files[i].fullPath] = dir.files[i];
-
-            var refreshedFiles = new List<UrlFile>(dir.files.Count);
-            foreach (FileInfo file in directoryInfo.GetFiles())
-            {
-                // Files changed by Startup.Instantly need a new UrlFile so config contents and
-                // metadata such as fileTime match the second stock directory scan.
-                if (!existingFiles.Remove(file.FullName, out UrlFile urlFile)
-                    || !CanReuseFile(urlFile, file, recentConfigCutoffUtc))
-                {
-                    urlFile = new UrlFile(dir, file);
-                }
-
-                urlFile.ConfigureFile(fileConfig);
-                refreshedFiles.Add(urlFile);
-            }
-
-            dir.files.Clear();
-            dir.files.AddRange(refreshedFiles);
 
             var existingChildren = new Dictionary<string, UrlDir>(dir.children.Count, StringComparer.Ordinal);
             for (int i = 0; i < dir.children.Count; i++)
                 existingChildren[dir.children[i].path] = dir.children[i];
 
+            var refreshedFiles = new List<UrlFile>(dir.files.Count);
             var refreshedChildren = new List<UrlDir>(dir.children.Count);
-            foreach (DirectoryInfo directory in directoryInfo.GetDirectories())
+
+            for (int i = 0; i < entries.Length; i++)
             {
-                if (ShouldSkipStockDirectory(directory.Name))
+                string entryPath = entries[i];
+                if (!TryGetFileStat(entryPath, out MonoIOStat stat))
                     continue;
 
-                if (!existingChildren.Remove(directory.FullName, out UrlDir childDir))
+                // If directory
+                if ((stat.fileAttributes & FileAttributes.Directory) != 0)
                 {
-                    childDir = new UrlDir(dir, directory);
+                    if (existingChildren.TryGetValue(entryPath, out UrlDir childDir))
+                    {
+                        refreshedChildren.Add(childDir);
+                        continue;
+                    }
+
+                    var directory = new DirectoryInfo(entryPath);
+                    if (ShouldSkipStockDirectory(directory.Name))
+                        continue;
+
+                    lock (urlCreationLock)
+                        childDir = new UrlDir(dir, directory);
+
                     foreach (UrlFile file in childDir.files)
                         file.ConfigureFile(fileConfig);
                     foreach (UrlFile file in childDir.AllFiles)
                         file.ConfigureFile(fileConfig);
+
+                    refreshedChildren.Add(childDir);
                 }
                 else
                 {
-                    RefreshDirectoryRecursive(childDir, fileConfig, recentConfigCutoffUtc);
-                }
+                    if (!existingFiles.TryGetValue(entryPath, out UrlFile urlFile)
+                        || !CanReuseFile(urlFile, stat, recentConfigCutoffUtc))
+                    {
+                        lock (urlCreationLock)
+                            urlFile = new UrlFile(dir, new FileInfo(entryPath));
+                    }
 
-                refreshedChildren.Add(childDir);
+                    urlFile.ConfigureFile(fileConfig);
+                    refreshedFiles.Add(urlFile);
+                }
             }
 
+            dir.files.Clear();
+            dir.files.AddRange(refreshedFiles);
             dir.children.Clear();
             dir.children.AddRange(refreshedChildren);
         }
 
-        private static bool CanReuseFile(UrlFile urlFile, FileInfo file, DateTime recentConfigCutoffUtc)
+        // Much faster than FileInfo
+        private static bool TryGetFileStat(string path, out MonoIOStat stat)
         {
-            if (urlFile.fileTime != GetLastWriteTime(file))
-                return false;
-
-            if (urlFile.fileType != FileType.Config)
+            if (MonoIO.GetFileStat(path, out stat, out MonoIOError error))
                 return true;
 
+            if (error == MonoIOError.ERROR_FILE_NOT_FOUND
+                || error == MonoIOError.ERROR_PATH_NOT_FOUND
+                || error == MonoIOError.ERROR_NOT_READY)
+            {
+                return false;
+            }
+
+            throw MonoIO.GetException(path, error);
+        }
+
+        private static bool CanReuseFile(UrlFile urlFile, MonoIOStat stat, DateTime recentConfigCutoffUtc)
+        {
             try
             {
-                return file.LastWriteTimeUtc < recentConfigCutoffUtc
-                    && file.CreationTimeUtc < recentConfigCutoffUtc;
+                DateTime lastWriteTimeUtc = DateTime.FromFileTimeUtc(stat.LastWriteTime);
+                if (urlFile.fileTime != lastWriteTimeUtc.ToLocalTime())
+                    return false;
+
+                if (urlFile.fileType != FileType.Config)
+                    return true;
+
+                return lastWriteTimeUtc < recentConfigCutoffUtc
+                    && DateTime.FromFileTimeUtc(stat.CreationTime) < recentConfigCutoffUtc;
             }
             catch
             {
                 return false;
-            }
-        }
-
-        private static DateTime GetLastWriteTime(FileInfo file)
-        {
-            try
-            {
-                return file.LastWriteTime;
-            }
-            catch
-            {
-                return DateTime.MinValue;
             }
         }
 
