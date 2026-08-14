@@ -2,6 +2,7 @@
 //#define COMPARE_PARSE_RESULTS
 //#define CONFIGNODE_PERF_TEST
 using HarmonyLib;
+using KSPCommunityFixes.Library.Buffers;
 using KSP.Localization;
 using System;
 using System.Collections;
@@ -27,10 +28,11 @@ namespace KSPCommunityFixes.Performance
 
         const int _SaveBufferSize = 64 * 1024;
         const int _ReadBufferSize = 1024 * 1024;
-        private static readonly char[] _charBuf = new char[_ReadBufferSize];
+        private static readonly ArrayPool<char> _charBufPool = ArrayPool<char>.Create(_ReadBufferSize, 1);
         static readonly UTF8Encoding _UTF8NoBOM = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
         static readonly string _Newline = Environment.NewLine;
-        static readonly Stack<ConfigNode> _nodeStack = new Stack<ConfigNode>(128);
+        [ThreadStatic]
+        private static Stack<ConfigNode> _nodeStack;
         public static bool _doClean = true; // so it is accessible from ModUpgradePipeline
         public static bool _AllowSkipIndent = false; // so it is accessible from other things if needed
         // This large-size stringbuilder is used for writing ConfigNodes to string.
@@ -749,45 +751,50 @@ namespace KSPCommunityFixes.Performance
 #endif
             char[] chars = null;
             int numChars = 0;
-            using (var reader = new StreamReader(path, Encoding.UTF8, true, 1024 * 1024))
+            try
             {
-                FileInfo fi = new FileInfo(path);
-                if (fi.Length > int.MaxValue)
-                    throw new FileLoadException("file size too large for int length");
-                int fLength = (int)fi.Length;
-                if (fLength > _ReadBufferSize)
-                    chars = new char[fLength];
-                else
-                    chars = _charBuf;
+                using (var reader = new StreamReader(path, Encoding.UTF8, true, 1024 * 1024))
+                {
+                    FileInfo fi = new FileInfo(path);
+                    if (fi.Length > int.MaxValue)
+                        throw new FileLoadException("file size too large for int length");
+                    int fLength = (int)fi.Length;
+                    chars = _charBufPool.Rent(Math.Max(fLength, _ReadBufferSize));
 
-                numChars = reader.Read(chars, 0, chars.Length);
-            }
+                    numChars = reader.Read(chars, 0, chars.Length);
+                }
 #if DEBUG_CONFIGNODE_PERF
-            _readTime = sw.ElapsedMilliseconds;
+                _readTime = sw.ElapsedMilliseconds;
 #endif
 
-            ConfigNode result;
-            if (numChars == 0)
-            {
-                result = new ConfigNode("root");
-            }
-            else
-            {
-                fixed (char* pBase = chars)
+                ConfigNode result;
+                if (numChars == 0)
                 {
-                    result = ParseConfigNode(pBase, numChars);
+                    result = new ConfigNode("root");
                 }
-            }
+                else
+                {
+                    fixed (char* pBase = chars)
+                    {
+                        result = ParseConfigNode(pBase, numChars);
+                    }
+                }
 
 #if COMPARE_PARSE_RESULTS
-            string input = new string(chars, 0, numChars);
-            ConfigNode stockNode = RecurseFormat(PreFormatConfig(input.Split('\n', '\r')));
-            if (!AreNodesEqual(result, stockNode, true))
-            {
-                Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf : mismatch in parsed node !\nSTOCK NODE\n{stockNode}\nKSPCF NODE\n{result}");
-            }
+                string input = new string(chars, 0, numChars);
+                ConfigNode stockNode = RecurseFormat(PreFormatConfig(input.Split('\n', '\r')));
+                if (!AreNodesEqual(result, stockNode, true))
+                {
+                    Debug.LogError($"[KSPCommunityFixes] ConfigNodePerf : mismatch in parsed node !\nSTOCK NODE\n{stockNode}\nKSPCF NODE\n{result}");
+                }
 #endif
-            return result;
+                return result;
+            }
+            finally
+            {
+                if (chars != null)
+                    _charBufPool.Return(chars);
+            }
         }
 
         public static unsafe ConfigNode ParseConfigNode(char* pBase, int numChars)
@@ -796,6 +803,7 @@ namespace KSPCommunityFixes.Performance
             int pos = 0;
             string savedName = string.Empty;
             ParseMode mode = ParseMode.SkipToKey;
+            _nodeStack ??= new Stack<ConfigNode>(128);
             _nodeStack.Push(node);
 
 

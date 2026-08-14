@@ -797,9 +797,6 @@ namespace KSPCommunityFixes.Performance
             return true;
         }
 
-        // Not safe to create UrlFile on multiple threads
-        private static readonly object urlCreationLock = new object();
-
         private static void RefreshDirectory(UrlDir dir, ConfigFileType[] fileConfig, DateTime recentConfigCutoffUtc)
         {
             string[] entries;
@@ -843,8 +840,7 @@ namespace KSPCommunityFixes.Performance
                     if (ShouldSkipStockDirectory(directory.Name))
                         continue;
 
-                    lock (urlCreationLock)
-                        childDir = new UrlDir(dir, directory);
+                    childDir = new UrlDir(dir, directory);
 
                     foreach (UrlFile file in childDir.files)
                         file.ConfigureFile(fileConfig);
@@ -858,8 +854,7 @@ namespace KSPCommunityFixes.Performance
                     if (!existingFiles.TryGetValue(entryPath, out UrlFile urlFile)
                         || !CanReuseFile(urlFile, stat, recentConfigCutoffUtc))
                     {
-                        lock (urlCreationLock)
-                            urlFile = new UrlFile(dir, new FileInfo(entryPath));
+                        urlFile = new UrlFile(dir, new FileInfo(entryPath));
                     }
 
                     urlFile.ConfigureFile(fileConfig);
