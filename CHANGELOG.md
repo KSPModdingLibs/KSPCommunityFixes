@@ -8,6 +8,9 @@
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
 
+**Internal changes**
+- Added vessel wide `PartModule` lookup extension methods : `Vessel.FindPartModuleImplementingFast<T>()`, `Vessel.HasPartModuleImplementingFast<T>()` and `Vessel.FindPartModulesImplementingReadOnly<T>()`. Unlike the stock `Vessel.FindPartModuleImplementing<T>()` / `FindPartModulesImplementing<T>()`, results (including "no such module on this vessel") are cached per vessel and per type, and invalidated when the vessel part list or the module list of one of its parts changes.
+
 ##### 1.41.1
 **Bug Fixes**
 - **ActiveRadiatorPerf** : Fixed a `NullReferenceException` ([issue #397](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/397)) thrown from `ModuleActiveRadiator.Start` in the editor.
