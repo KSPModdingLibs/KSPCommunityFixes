@@ -3,6 +3,7 @@
 ##### Unreleased
 **New/Improved patches**
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
+- Improved the **AsteroidAndCometDrillCache** patch to use the new vessel wide `PartModule` lookup cache instead of piggybacking on the `ModuleResourceHarvester` cache. The asteroid/comet lookups done by `ModuleAsteroidDrill` and `ModuleCometDrill` on every update now never fall back to a full vessel scan.
 
 **Bug Fixes**
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.

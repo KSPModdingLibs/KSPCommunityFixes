@@ -1,19 +1,21 @@
 ﻿// see https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/67
 
 // The stock ModuleAsteroidDrill and ModuleCometDrill do a lot of unnecessary iterating over all
-// PartModules on the vessel to see if an asteroid or comet is attached.
-// ModuleResourceHarvester already keeps a cache of this information, and all the stock drills
-// have all 3 modules.  This patch replaces the logic in the asteroid and comet drills with 
-// lookups in the cache.  This has a bigger effect the more drills and parts/partmodules on the ship.
+// PartModules on the vessel to see if an asteroid or comet is attached : IsSituationValid() is
+// called from OnUpdate() and GetAttachedPotato() from PrepareRecipe(), and both walk every module
+// of every part on the vessel.
+// This patch replaces those lookups with the vessel wide module cache, which keeps the result
+// (including the "there is no asteroid/comet on this vessel" one, the expensive case) until the
+// vessel or the module list of one of its parts is modified.
 
 // Note from @Got : this introduce a behavior change in which asteroid/comet will be selected by drills
 // on a multi-asteroid vessel when a new asteroid is attached. But since the whole multi-asteroid
 // situation isn't handled correctly by stock anyway (all drills on the vessel will mine the first
 // found one regardless of which asteroid part the drill is actually in contact with), we don't care.
+// Note that on such a vessel the selected asteroid/comet can also differ from the stock one, as the
+// cache returns the first match in the vessel part list while stock searches that list backwards.
 
 using System;
-using HarmonyLib;
-using System.Collections.Generic;
 
 namespace KSPCommunityFixes.Performance
 {
@@ -34,23 +36,8 @@ namespace KSPCommunityFixes.Performance
 
         static bool ModuleAsteroidDrill_IsSituationValid_Prefix(ModuleAsteroidDrill __instance, ref bool __result)
         {
-            // easy check: if the current potato is still attached, we're valid
-            if (__instance._potato.IsNotNullOrDestroyed() && __instance._potato.vessel == __instance._part.vessel)
-            {
-                __result = true;
-                return false;
-            }
-
-            // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
-            if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
-            {
-                __result = !resourceHarvester.cachedWasNotAsteroid;
-                return false;
-            }
-
-            // if the cache isn't available, just let the original run
-            return true;
+            __result = __instance._part.vessel.HasPartModuleImplementingFast<ModuleAsteroid>();
+            return false;
         }
 
         static bool ModuleAsteroidDrill_GetAttachedPotato_Prefix(ModuleAsteroidDrill __instance, ref Part __result)
@@ -62,41 +49,15 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
-            // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
-            if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
-            {
-                // if the cache says there's no asteroid on board, we're done
-                if (resourceHarvester.cachedWasNotAsteroid)
-                {
-                    __result = null;
-                    return false;
-                }
-            }
-
-            // if the cache isn't available, just let the original run
-            return true;
+            ModuleAsteroid moduleAsteroid = __instance._part.vessel.FindPartModuleImplementingFast<ModuleAsteroid>();
+            __result = moduleAsteroid.IsNullOrDestroyed() ? null : moduleAsteroid.part;
+            return false;
         }
 
         static bool ModuleCometDrill_IsSituationValid_Prefix(ModuleCometDrill __instance, ref bool __result)
         {
-            // easy check: if the current potato is still attached, we're valid
-            if (__instance._potato.IsNotNullOrDestroyed() && __instance._potato.vessel == __instance._part.vessel)
-            {
-                __result = true;
-                return false;
-            }
-
-            // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
-            if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
-            {
-                __result = !resourceHarvester.cachedWasNotComet;
-                return false;
-            }
-
-            // if the cache isn't available, just let the original run
-            return true;
+            __result = __instance._part.vessel.HasPartModuleImplementingFast<ModuleComet>();
+            return false;
         }
 
         static bool ModuleCometDrill_GetAttachedPotato_Prefix(ModuleCometDrill __instance, ref Part __result)
@@ -108,20 +69,9 @@ namespace KSPCommunityFixes.Performance
                 return false;
             }
 
-            // the resource harvester module keeps a cache of whether the vessel has a comet or asteroid attached
-            var resourceHarvester = __instance.part.FindModuleImplementingFast<ModuleResourceHarvester>();
-            if (resourceHarvester.IsNotNullOrDestroyed() && resourceHarvester.partCountCache == __instance._part.vessel.parts.Count)
-            {
-                // if the cache says there's no Comet on board, we're done
-                if (resourceHarvester.cachedWasNotComet)
-                {
-                    __result = null;
-                    return false;
-                }
-            }
-
-            // if the cache isn't available, just let the original run
-            return true;
+            ModuleComet moduleComet = __instance._part.vessel.FindPartModuleImplementingFast<ModuleComet>();
+            __result = moduleComet.IsNullOrDestroyed() ? null : moduleComet.part;
+            return false;
         }
     }
 }
