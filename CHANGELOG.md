@@ -5,6 +5,7 @@
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
 
 **Bug Fixes**
+- **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
 
