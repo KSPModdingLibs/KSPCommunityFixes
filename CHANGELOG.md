@@ -2,6 +2,7 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
 
 **Bug Fixes**
