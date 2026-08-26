@@ -29,6 +29,9 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.IntersectAndDoSkip));
 
             AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.Draw3D));
+
+            AddPatch(PatchType.Prefix, typeof(VectorLine), nameof(VectorLine.Draw3D));
+            AddPatch(PatchType.Prefix, typeof(VectorLine), nameof(VectorLine.Draw));
         }
 
         #region VectorLine Patches
@@ -41,6 +44,17 @@ namespace KSPCommunityFixes.Performance
 
         static IEnumerable<CodeInstruction> VectorLine_IntersectAndDoSkip_Transpiler(IEnumerable<CodeInstruction> instructions) =>
             ReplaceWorldToScreenPoint(instructions, 2);
+
+        // Because draw calls originate from multiple LateUpdate methods with unpredictable
+        // execution orders, the camera pose might change mid-frame. To ensure consistency,
+        // we scope the cache strictly to a single draw call.
+        static void VectorLine_Draw3D_Prefix() => VectorLineCameraProjection.UpdateCache();
+
+        static void VectorLine_Draw_Prefix(VectorLine __instance)
+        {
+            if (!__instance.is2D)
+                VectorLineCameraProjection.UpdateCache();
+        }
 
         static IEnumerable<CodeInstruction> VectorLine_Draw3D_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
@@ -145,7 +159,7 @@ namespace KSPCommunityFixes.Performance
 
         private static ViewportInfo viewport;
 
-        private static void UpdateCache()
+        internal static void UpdateCache()
         {
             lastCachedFrame = KSPCommunityFixes.UpdateCount;
             Camera camera = VectorLine.cam3D;

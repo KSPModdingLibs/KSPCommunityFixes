@@ -5,6 +5,7 @@
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
 
 **Bug Fixes**
+- **OptimisedVectorLines** : Fixed orbit and CommNet lines lagging the camera by a frame, seen as the lines sliding against the bodies whenever the camera moved. The cached camera projection matrix was scoped to a frame and filled lazily by whichever `LateUpdate` drew first. Every Vectrosity consumer draws from its own `LateUpdate` and the cameras move during `LateUpdate` too, with no defined order between them, so a draw issued before the camera moved would pin the previous frame's pose for every line drawn after it. The cache is now refreshed per draw call.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
 
