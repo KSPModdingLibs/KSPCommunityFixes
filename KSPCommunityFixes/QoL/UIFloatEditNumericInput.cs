@@ -120,12 +120,30 @@ namespace KSPCommunityFixes
             fieldNameNumeric.text = field.guiName;
             inputField.onEndEdit.AddListener(OnFieldInput);
             inputField.onSelect.AddListener(AddInputFieldLock);
-            GameEvents.onPartActionNumericSlider.Add(ToggleNumericSlider);
+            // OnEnable() has already run by now (the window instantiates the item and activates it
+            // before calling Setup()) and couldn't subscribe because the item had no field yet, so
+            // do it here. Any further enable/disable cycle is handled by OnEnable()/OnDisable().
+            if (isActiveAndEnabled)
+                GameEvents.onPartActionNumericSlider.Add(ToggleNumericSlider);
             ToggleNumericSlider(GameSettings.PAW_NUMERIC_SLIDERS);
             window.usingNumericValue = true;
         }
 
-        private void OnDestroy()
+        private void OnEnable()
+        {
+            // onPartActionNumericSlider is a global event, so only stay subscribed while this item
+            // is actually shown. An item that isn't (a collapsed PAW group, a closed window, or the
+            // prefab itself) would otherwise keep handling toggles, and would push its input field
+            // content into a part or module that may not even exist anymore.
+            if (field == null)
+                return;
+
+            GameEvents.onPartActionNumericSlider.Add(ToggleNumericSlider);
+            // toggles that happened while we were disabled were missed, so resync
+            ToggleNumericSlider(GameSettings.PAW_NUMERIC_SLIDERS);
+        }
+
+        private void OnDisable()
         {
             GameEvents.onPartActionNumericSlider.Remove(ToggleNumericSlider);
         }
@@ -146,7 +164,14 @@ namespace KSPCommunityFixes
             }
             else
             {
-                OnFieldInput(inputField.text);
+                // Only push the input field content back to the field if it was actually edited.
+                // Doing this unconditionally results in a ton of unnecessary change callbacks
+                // and rounds the field value unnecessarily.
+                if (inputField.text != GetFieldValue().ToString($"F{floatControl.sigFigs}"))
+                    OnFieldInput(inputField.text);
+                else
+                    RemoveInputfieldLock();
+
                 float value = GetFieldValue();
                 string unit = floatControl.unit;
                 int sigFigs = floatControl.sigFigs;
