@@ -26,7 +26,7 @@ namespace KSPCommunityFixes.Performance
             AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.Line3D));
 
             AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.BehindCamera));
-            AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.IntersectAndDoSkip));
+            AddPatch(PatchType.Override, typeof(VectorLine), nameof(VectorLine.IntersectAndDoSkip));
 
             AddPatch(PatchType.Transpiler, typeof(VectorLine), nameof(VectorLine.Draw3D));
         }
@@ -39,8 +39,27 @@ namespace KSPCommunityFixes.Performance
         static IEnumerable<CodeInstruction> VectorLine_BehindCamera_Transpiler(IEnumerable<CodeInstruction> instructions) =>
             ReplaceWorldToViewportPoint(instructions, 2);
 
-        static IEnumerable<CodeInstruction> VectorLine_IntersectAndDoSkip_Transpiler(IEnumerable<CodeInstruction> instructions) =>
-            ReplaceWorldToScreenPoint(instructions, 2);
+        // The stock implementation of VectorLine.IntersectAndDoSkip has a precision
+        // problem on large orbits. When line segments are big enough the float precision
+        // can end up being larger than the near clip distance (~0.2). This makes the
+        // line appear to rapidly jitter, because points behind the camera are projected
+        // as if they are mirrored to the opposite side of the screen.
+        //
+        // We fix this by instead interpolating in screen space so that the line segment
+        // will never end up partially behind the camera.
+        static bool VectorLine_IntersectAndDoSkip_Override(VectorLine __instance, ref Vector3 pos1, ref Vector3 pos2, ref Vector3 p1, ref Vector3 p2, ref float screenHeight, ref Ray ray, ref Plane cameraPlane)
+        {
+            if (__instance.BehindCamera(p1, p2))
+                return true;
+
+            if (pos1.z < 0f)
+                pos1 = VectorLineCameraProjection.NearPlaneScreenPoint(p1, p2);
+
+            if (pos2.z < 0f)
+                pos2 = VectorLineCameraProjection.NearPlaneScreenPoint(p2, p1);
+
+            return false;
+        }
 
         static IEnumerable<CodeInstruction> VectorLine_Draw3D_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
@@ -121,6 +140,7 @@ namespace KSPCommunityFixes.Performance
         private static TransformMatrix worldToClip;
         private static TransformMatrix screenToWorld; // Not a normal transformation matrix, do not use as such.
         private static Matrix4x4 projectionMatrix;
+        private static double nearClipPlane;
 
         // Storing viewport info instead of using Rect properties grants us a few extra frames.
         public struct ViewportInfo
@@ -152,6 +172,7 @@ namespace KSPCommunityFixes.Performance
 
             viewport = new ViewportInfo(camera.pixelRect);
             projectionMatrix = camera.projectionMatrix;
+            nearClipPlane = camera.nearClipPlane;
 
             // WorldToClip.
             // Normally this would be a 4x4 matrix, but we omit the third row.
@@ -235,6 +256,48 @@ namespace KSPCommunityFixes.Performance
             CheckResult(nameof(WorldToViewportPoint), in worldPosition, camera.WorldToViewportPoint(worldPosition), in result);
             return result;
 #endif
+        }
+
+        /// <summary>
+        /// Screen space position of the point where the segment [clipped, other] crosses the
+        /// camera near plane. Used to clip line segments that extend behind the camera.
+        /// </summary>
+        /// <remarks>
+        /// The interpolation runs on the clip space (x, y, w) coordinates of the endpoints.
+        /// Projection is linear in world space, so this is exact, and the result has a view
+        /// depth of exactly nearClipPlane — unlike a world-space plane raycast, it cannot end
+        /// up behind the camera through float error and project mirrored.
+        /// </remarks>
+        public static Vector3 NearPlaneScreenPoint(Vector3 clipped, Vector3 other)
+        {
+            if (lastCachedFrame != KSPCommunityFixes.UpdateCount)
+                UpdateCache();
+
+            double x1 = clipped.x;
+            double y1 = clipped.y;
+            double w1 = clipped.z;
+            worldToClip.MutateMultiplyPoint3x4(ref x1, ref y1, ref w1);
+
+            double x2 = other.x;
+            double y2 = other.y;
+            double w2 = other.z;
+            worldToClip.MutateMultiplyPoint3x4(ref x2, ref y2, ref w2);
+
+            // w1 < 0 (behind the camera) and w2 > 0 are guaranteed by the callsite : the
+            // clipped endpoint tested z < 0, and BehindCamera() already rejected segments
+            // with both endpoints behind the camera. If the other endpoint sits between the
+            // camera and the near plane (0 < w2 < near), t > 1 extends the segment up to the
+            // near plane, which draws marginally more line in the correct direction.
+            double t = (nearClipPlane - w1) / (w2 - w1);
+            double x = x1 + (x2 - x1) * t;
+            double y = y1 + (y2 - y1) * t;
+
+            // Perspective division and viewport conversion.
+            double num = 0.5 / nearClipPlane;
+            x = (0.5 + num * x) * viewport.width + viewport.x;
+            y = (0.5 + num * y) * viewport.height + viewport.y;
+
+            return new Vector3((float)x, (float)y, (float)nearClipPlane);
         }
 
         #endregion
