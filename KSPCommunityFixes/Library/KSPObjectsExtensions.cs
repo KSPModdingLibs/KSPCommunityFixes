@@ -132,6 +132,57 @@ namespace KSPCommunityFixes
         }
 
         /// <summary>
+        /// Faster version of <see cref="Vessel.FindPartModuleImplementing{T}"/><para/>
+        /// The result is cached per vessel and per type, and the cache is invalidated when the
+        /// vessel part list or the module list of one of its parts changes.
+        /// </summary>
+        /// <typeparam name="T">The type of the module to search. Can be an interface.</typeparam>
+        /// <returns>The first found instance of type <typeparamref name="T"/>, or <see langword="null"/> if not present on the <see cref="Vessel"/></returns>
+        public static T FindPartModuleImplementingFast<T>(this Vessel vessel) where T : class
+        {
+            VesselPartModuleCache cache = VesselPartModuleCache.Get(vessel);
+
+            if (cache.IsNullRef())
+                return null;
+
+            return cache.FindModule<T>();
+        }
+
+        /// <summary>
+        /// Check if a <see cref="PartModule"/> of type <typeparamref name="T"/> is present on the vessel.<para/>
+        /// The result is cached per vessel and per type, and the cache is invalidated when the
+        /// vessel part list or the module list of one of its parts changes.
+        /// </summary>
+        /// <typeparam name="T">The type of the module to search. Can be an interface.</typeparam>
+        /// <returns><see langword="true"/> if a <see cref="PartModule"/> of type <typeparamref name="T"/> is present on the <see cref="Vessel"/></returns>
+        public static bool HasPartModuleImplementingFast<T>(this Vessel vessel) where T : class
+        {
+            VesselPartModuleCache cache = VesselPartModuleCache.Get(vessel);
+
+            if (cache.IsNullRef())
+                return false;
+
+            return cache.HasModule<T>();
+        }
+
+        /// <summary>
+        /// Return the cached list of <see cref="PartModule"/> instances of type <typeparamref name="T"/> present on the vessel.<para/>
+        /// The list is cached per vessel and per type, and the cache is invalidated when the vessel
+        /// part list or the module list of one of its parts changes.<para/>
+        /// Do NOT modify the returned list, it is a direct reference to the cache.
+        /// </summary>
+        /// <typeparam name="T">The type of the modules to search. Can be an interface.</typeparam>
+        public static List<T> FindPartModulesImplementingReadOnly<T>(this Vessel vessel) where T : class
+        {
+            VesselPartModuleCache cache = VesselPartModuleCache.Get(vessel);
+
+            if (cache.IsNullRef())
+                return new List<T>(0);
+
+            return cache.FindModules<T>();
+        }
+
+        /// <summary>
         /// Return the top level <see cref="Transform"/> of the part model.
         /// </summary>
         public static Transform FindModelTransform(this Part part)

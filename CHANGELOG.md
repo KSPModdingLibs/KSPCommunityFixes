@@ -6,12 +6,16 @@
 - New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
 - Improved the **FastLoader** second config pass by refreshing GameData directories in parallel and using faster filesystem functions.
+- Improved the **AsteroidAndCometDrillCache** patch to use the new vessel wide `PartModule` lookup cache instead of piggybacking on the `ModuleResourceHarvester` cache. The asteroid/comet lookups done by `ModuleAsteroidDrill` and `ModuleCometDrill` on every update now never fall back to a full vessel scan.
 
 **Bug Fixes**
 - **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **OptimisedVectorLines** : Fixed a stock Vectrosity precision issue causing map view orbit lines to kink and flicker where they cross the camera near plane.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
+
+**Internal changes**
+- Added vessel wide `PartModule` lookup extension methods : `Vessel.FindPartModuleImplementingFast<T>()`, `Vessel.HasPartModuleImplementingFast<T>()` and `Vessel.FindPartModulesImplementingReadOnly<T>()`. Unlike the stock `Vessel.FindPartModuleImplementing<T>()` / `FindPartModulesImplementing<T>()`, results (including "no such module on this vessel") are cached per vessel and per type, and invalidated when the vessel part list or the module list of one of its parts changes.
 
 ##### 1.41.1
 **Bug Fixes**
