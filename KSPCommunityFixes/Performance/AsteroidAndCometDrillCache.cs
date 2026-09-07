@@ -25,53 +25,43 @@ namespace KSPCommunityFixes.Performance
 
         protected override void ApplyPatches()
         {
-            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid));
+            AddPatch(PatchType.Override, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.IsSituationValid));
 
-            AddPatch(PatchType.Prefix, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato));
+            AddPatch(PatchType.Override, typeof(ModuleAsteroidDrill), nameof(ModuleAsteroidDrill.GetAttachedPotato));
 
-            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid));
+            AddPatch(PatchType.Override, typeof(ModuleCometDrill), nameof(ModuleCometDrill.IsSituationValid));
 
-            AddPatch(PatchType.Prefix, typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato));
+            AddPatch(PatchType.Override, typeof(ModuleCometDrill), nameof(ModuleCometDrill.GetAttachedPotato));
         }
 
-        static bool ModuleAsteroidDrill_IsSituationValid_Prefix(ModuleAsteroidDrill __instance, ref bool __result)
+        static bool ModuleAsteroidDrill_IsSituationValid_Override(ModuleAsteroidDrill __instance)
         {
-            __result = __instance._part.vessel.HasPartModuleImplementingFast<ModuleAsteroid>();
-            return false;
+            return __instance._part.vessel.HasPartModuleImplementingFast<ModuleAsteroid>();
         }
 
-        static bool ModuleAsteroidDrill_GetAttachedPotato_Prefix(ModuleAsteroidDrill __instance, ref Part __result)
+        static Part ModuleAsteroidDrill_GetAttachedPotato_Override(ModuleAsteroidDrill __instance)
         {
             // easy check: if the current potato is still attached, we're valid
             if (__instance._potato.IsNotNullOrDestroyed() && __instance._potato.vessel == __instance._part.vessel)
-            {
-                __result = __instance._potato;
-                return false;
-            }
+                return __instance._potato;
 
             ModuleAsteroid moduleAsteroid = __instance._part.vessel.FindPartModuleImplementingFast<ModuleAsteroid>();
-            __result = moduleAsteroid.IsNullOrDestroyed() ? null : moduleAsteroid.part;
-            return false;
+            return moduleAsteroid.IsNullOrDestroyed() ? null : moduleAsteroid.part;
         }
 
-        static bool ModuleCometDrill_IsSituationValid_Prefix(ModuleCometDrill __instance, ref bool __result)
+        static bool ModuleCometDrill_IsSituationValid_Override(ModuleCometDrill __instance)
         {
-            __result = __instance._part.vessel.HasPartModuleImplementingFast<ModuleComet>();
-            return false;
+            return __instance._part.vessel.HasPartModuleImplementingFast<ModuleComet>();
         }
 
-        static bool ModuleCometDrill_GetAttachedPotato_Prefix(ModuleCometDrill __instance, ref Part __result)
+        static Part ModuleCometDrill_GetAttachedPotato_Override(ModuleCometDrill __instance)
         {
             // easy check: if the current potato is still attached, we're valid
             if (__instance._potato.IsNotNullOrDestroyed() && __instance._potato.vessel == __instance._part.vessel)
-            {
-                __result = __instance._potato;
-                return false;
-            }
+                return __instance._potato;
 
             ModuleComet moduleComet = __instance._part.vessel.FindPartModuleImplementingFast<ModuleComet>();
-            __result = moduleComet.IsNullOrDestroyed() ? null : moduleComet.part;
-            return false;
+            return moduleComet.IsNullOrDestroyed() ? null : moduleComet.part;
         }
     }
 }
