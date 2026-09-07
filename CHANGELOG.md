@@ -2,10 +2,14 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
+- New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
+- Improved the **FastLoader** second config pass by refreshing GameData directories in parallel and using faster filesystem functions.
 
 **Bug Fixes**
 - **OptimisedVectorLines** : Fixed orbit and CommNet lines lagging the camera by a frame, seen as the lines sliding against the bodies whenever the camera moved. The cached camera projection matrix was scoped to a frame and filled lazily by whichever `LateUpdate` drew first. Every Vectrosity consumer draws from its own `LateUpdate` and the cameras move during `LateUpdate` too, with no defined order between them, so a draw issued before the camera moved would pin the previous frame's pose for every line drawn after it. The cache is now refreshed per draw call.
+- **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
 
