@@ -9,6 +9,7 @@ namespace KSPCommunityFixes.Library.TextureBundle
     internal static class SerializedTypeTrees
     {
         public const int Texture2DClassId = 28;
+        public const int MeshClassId = 43;
         public const int AssetBundleClassId = 142;
     }
 }

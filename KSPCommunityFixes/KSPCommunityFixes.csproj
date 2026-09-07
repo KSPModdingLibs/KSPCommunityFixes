@@ -115,7 +115,6 @@
     <Publicize Include="mscorlib:System.IO.MonoIOError" />
     <Publicize Include="mscorlib:System.IO.MonoIOStat" />
     <Publicize Include="mscorlib:System.Reflection.Assembly.GetTypes" />
-    <Publicize Include="mscorlib:System.String.m_firstChar" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.ILGeneratorShimExt" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelInfo" />
     <Publicize Include="0Harmony:MonoMod.Utils.Cil.CecilILGenerator+LabelledExceptionHandler" />

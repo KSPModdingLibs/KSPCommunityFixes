@@ -1,0 +1,117 @@
+using UnityEngine;
+
+namespace KSPCommunityFixes.Library.Model;
+
+/// <summary>
+/// The data for a unity mesh in the format it would be stored in an asset bundle.
+/// </summary>
+internal sealed class MeshBlob
+{
+    /// <summary>
+    /// The mesh's serialized <c>m_Name</c> and its <c>m_Container</c> key.
+    /// </summary>
+    public string Name;
+
+    public int VertexCount;
+
+    /// <summary>
+    /// The full <c>m_Channels</c> descriptor array, one entry per Unity vertex attribute
+    /// (absent attributes have <see cref="MeshChannel.Dimension"/> 0). Describes how
+    /// <see cref="VertexData"/> is laid out.
+    /// </summary>
+    public MeshChannel[] Channels;
+
+    /// <summary>The interleaved vertex stream (<c>m_VertexData.m_DataSize</c>), inline.</summary>
+    public byte[] VertexData;
+
+    /// <summary>0 == 16-bit indices, 1 == 32-bit indices (Unity's <c>IndexFormat</c>).</summary>
+    public int IndexFormat;
+
+    /// <summary>The concatenated per-submesh index buffer (<c>m_IndexBuffer</c>), inline.</summary>
+    public byte[] IndexData;
+
+    public MeshSubMesh[] SubMeshes;
+
+    /// <summary>Whole-mesh local bounds (<c>m_LocalAABB</c>): center + extent (half-size).</summary>
+    public Bounds LocalBounds;
+
+    /// <summary>Skinning bind poses (<c>m_BindPose</c>); null/empty for a static mesh.</summary>
+    public Matrix4x4[] BindPose;
+
+    /// <summary>
+    /// One CRC32 per bone (<c>m_BoneNameHashes</c>); null/empty for a static mesh. Count must
+    /// equal <see cref="BindPose"/> and <see cref="BonesAABB"/>.
+    /// </summary>
+    public uint[] BoneNameHashes;
+
+    /// <summary>The root bone's hash (<c>m_RootBoneNameHash</c>); <c>BoneNameHashes[0]</c>, 0 for a static mesh.</summary>
+    public uint RootBoneNameHash;
+
+    /// <summary>
+    /// Per-bone local bounds (<c>m_BonesAABB</c>); null/empty for a static mesh. Count must equal
+    /// <see cref="BindPose"/>..
+    /// </summary>
+    public MeshBoneAABB[] BonesAABB;
+
+    /// <summary>
+    /// UV distribution metrics (<c>m_MeshMetrics[0..1]</c>), one per UV channel..
+    /// </summary>
+    public float MeshMetric0 = 1f;
+    public float MeshMetric1 = 1f;
+}
+
+/// <summary>
+/// One <c>MinMaxAABB</c> entry (<c>m_BonesAABB</c> element).
+/// </summary>
+internal readonly struct MeshBoneAABB(Vector3 min, Vector3 max)
+{
+    public readonly Vector3 Min = min;
+    public readonly Vector3 Max = max;
+}
+
+/// <summary>One <c>ChannelInfo</c> entry: which stream/offset/format/dimension a vertex attribute uses.</summary>
+internal readonly struct MeshChannel
+{
+    public readonly byte Stream;
+    public readonly byte Offset;
+    public readonly byte Format;
+    public readonly byte Dimension;
+
+    public MeshChannel(byte stream, byte offset, byte format, byte dimension)
+    {
+        Stream = stream;
+        Offset = offset;
+        Format = format;
+        Dimension = dimension;
+    }
+}
+
+/// <summary>One <c>SubMesh</c> record: an index range plus its bounds and topology.</summary>
+internal readonly struct MeshSubMesh
+{
+    public readonly uint FirstByte;
+    public readonly uint IndexCount;
+    public readonly int Topology;
+    public readonly uint BaseVertex;
+    public readonly uint FirstVertex;
+    public readonly uint VertexCount;
+    public readonly Bounds LocalBounds;
+
+    public MeshSubMesh(
+        uint firstByte,
+        uint indexCount,
+        int topology,
+        uint baseVertex,
+        uint firstVertex,
+        uint vertexCount,
+        Bounds localBounds)
+    {
+        FirstByte = firstByte;
+        IndexCount = indexCount;
+        Topology = topology;
+        BaseVertex = baseVertex;
+        FirstVertex = firstVertex;
+        VertexCount = vertexCount;
+        LocalBounds = localBounds;
+    }
+}
