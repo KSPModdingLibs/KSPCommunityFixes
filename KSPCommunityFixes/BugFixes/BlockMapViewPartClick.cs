@@ -13,7 +13,14 @@ namespace KSPCommunityFixes
 
         static bool Part_UpdateMouseOver_Prefix()
         {
-            return !HighLogic.LoadedSceneIsFlight || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Map;
+            if (!HighLogic.LoadedSceneIsFlight)
+                return true;
+
+            CameraManager cameraManager = CameraManager.Instance;
+            if (cameraManager.IsNullOrDestroyed())
+                return false;
+
+            return cameraManager.currentCameraMode != CameraManager.CameraMode.Map;
         }
     }
 }
