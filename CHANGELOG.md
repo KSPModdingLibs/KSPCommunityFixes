@@ -14,6 +14,7 @@
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **OptimisedVectorLines** : Fixed a stock Vectrosity precision issue causing map view orbit lines to kink and flicker where they cross the camera near plane.
 - **EditorAnimatedPartsShipModified** : This patch is now disabled if DMagic Orbital Science is installed because DMagic Orbital Science has a bug that causes a stack overflow crash if you ever call `DMSoilMoisture.OnStop`, which this patch does.
+- **UIFloatEditNumericInput** : Turning the numeric input ("#") mode off no longer re-applies the input field value to PAW items whose part or module has been destroyed, which could throw from the field change callbacks of third party modules. The value is also only re-applied when the input field was actually edited, instead of on every item on every toggle, which was silently rounding every float edit field value to its displayed precision.
 
 **Internal changes**
 - Added vessel wide `PartModule` lookup extension methods : `Vessel.FindPartModuleImplementingFast<T>()`, `Vessel.HasPartModuleImplementingFast<T>()` and `Vessel.FindPartModulesImplementingReadOnly<T>()`. Unlike the stock `Vessel.FindPartModuleImplementing<T>()` / `FindPartModulesImplementing<T>()`, results (including "no such module on this vessel") are cached per vessel and per type, and invalidated when the vessel part list or the module list of one of its parts changes.
