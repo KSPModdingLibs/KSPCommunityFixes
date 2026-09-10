@@ -19,6 +19,7 @@ namespace KSPCommunityFixes
         private static AltimeterHorizontalPosition altimeterPatch;
         private static DisableManeuverTool maneuverToolPatch;
         private static OptionalMakingHistoryDLCFeatures disableMHPatch;
+        private static TextureStreaming textureStreamingPatch;
 
         protected override void ApplyPatches()
         {
@@ -38,6 +39,10 @@ namespace KSPCommunityFixes
             if (disableMHPatch != null)
                 entryCount++;
 
+            textureStreamingPatch = KSPCommunityFixes.GetPatchInstance<TextureStreaming>();
+            if (textureStreamingPatch != null)
+                entryCount += 2;
+
             // NoIVA is always enabled
             entryCount++;
         }
@@ -49,8 +54,10 @@ namespace KSPCommunityFixes
 
             int count = __result.Length;
 
+            // +1 for the KSPCF title box; entryCount already accounts for every added row (the streaming
+            // patch contributes 2, see ApplyPatches).
             DialogGUIBase[] modifiedResult = new DialogGUIBase[count + entryCount + 1];
-            
+
             for (int i = 0; i < count; i++)
                 modifiedResult[i] = __result[i];
 
@@ -76,7 +83,7 @@ namespace KSPCommunityFixes
             if (maneuverToolPatch != null)
             {
                 DialogGUIToggle toggle = new DialogGUIToggle(DisableManeuverTool.enableManeuverTool,
-                    () => (!DisableManeuverTool.enableManeuverTool) 
+                    () => (!DisableManeuverTool.enableManeuverTool)
                         ? Localizer.Format("#autoLOC_6001071") //"Disabled"
                         : Localizer.Format("#autoLOC_6001072"), //"Enabled"
                     DisableManeuverTool.OnToggleApp, 150f);
@@ -91,7 +98,7 @@ namespace KSPCommunityFixes
 
             if (altimeterPatch != null)
             {
-                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate(float f)
+                DialogGUISlider slider = new DialogGUISlider(() => AltimeterHorizontalPosition.altimeterPosition, 0f, 1f, wholeNumbers: false, 200f, 20f, delegate (float f)
                 {
                     AltimeterHorizontalPosition.altimeterPosition = f;
                     AltimeterHorizontalPosition.SetTopFramePosition();
@@ -111,6 +118,46 @@ namespace KSPCommunityFixes
             modifiedResult[count] = new DialogGUIHorizontalLayout(TextAnchor.MiddleLeft,
                 new DialogGUILabel(NoIVA.LOC_SettingsTitle, 150f), noIVAslider, valueLabel, new DialogGUIFlexibleSpace());
             count++;
+
+            if (textureStreamingPatch != null)
+            {
+                DialogGUIToggle streamingToggle = new(
+                    TextureStreaming.MipmapStreamingEnabled,
+                    () => (!TextureStreaming.MipmapStreamingEnabled)
+                        ? Localizer.Format("#autoLOC_6001071")  //"Disabled"
+                        : Localizer.Format("#autoLOC_6001072"), //"Enabled"
+                    b => TextureStreaming.MipmapStreamingEnabled = b, 150f);
+                streamingToggle.tooltipText = TextureStreaming.LOC_StreamingEnabledTooltip;
+
+                modifiedResult[count] = new DialogGUIHorizontalLayout(
+                    TextAnchor.MiddleLeft,
+                    new DialogGUILabel(TextureStreaming.LOC_StreamingEnabledTitle, 150f),
+                    streamingToggle,
+                    new DialogGUIFlexibleSpace());
+                count++;
+
+                // Streaming memory budget, in MB (0 .. total VRAM). Only interactable while streaming is on.
+                float budgetMax = Math.Max(1024, SystemInfo.graphicsMemorySize);
+                DialogGUISlider budgetSlider = new(
+                    () => TextureStreaming.MipmapStreamingBudgetMb,
+                    0f,
+                    budgetMax,
+                    wholeNumbers: true,
+                    128f,
+                    20f,
+                    budget => TextureStreaming.MipmapStreamingBudgetMb = (int)budget);
+                budgetSlider.tooltipText = TextureStreaming.LOC_StreamingBudgetTooltip;
+                budgetSlider.OptionInteractableCondition = () => TextureStreaming.MipmapStreamingEnabled;
+                DialogGUILabel budgetValue = new(() => Localizer.Format(TextureStreaming.LOC_F_StreamingBudgetValue, TextureStreaming.MipmapStreamingBudgetMb));
+
+                modifiedResult[count] = new DialogGUIHorizontalLayout(
+                    TextAnchor.MiddleLeft,
+                    new DialogGUILabel(TextureStreaming.LOC_StreamingBudgetTitle, 150f),
+                    budgetSlider,
+                    budgetValue,
+                    new DialogGUIFlexibleSpace());
+                count++;
+            }
 
             __result = modifiedResult;
         }
@@ -133,12 +180,20 @@ namespace KSPCommunityFixes
 
             if (altimeterPatch != null)
             {
-                ConfigNode node = new ConfigNode();
+                ConfigNode node = new();
                 node.AddValue(nameof(AltimeterHorizontalPosition.altimeterPosition), AltimeterHorizontalPosition.altimeterPosition);
                 SaveData<AltimeterHorizontalPosition>(node);
             }
 
             NoIVA.SaveSettings();
+
+            if (textureStreamingPatch != null)
+            {
+                ConfigNode streamingNode = new();
+                streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingEnabled), TextureStreaming.MipmapStreamingEnabled);
+                streamingNode.AddValue(nameof(TextureStreaming.MipmapStreamingBudgetMb), TextureStreaming.MipmapStreamingBudgetMb);
+                SaveData<TextureStreaming>(streamingNode);
+            }
         }
     }
 }
