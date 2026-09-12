@@ -2,6 +2,7 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **ModernTargeting** Correct subdivision angles wrapping by half a turn instead of a full turn, and bound crossing and root-search recursion to prevent stack overflows during target selection or maneuver editing. Keeps the modern closest-approach solver and leaves the legacy targeting setting unchanged. Applies to KSP 1.12.5.
 - New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
 - New KSP bugfix : **BaseFieldUIControlCollision** Fix Part Action Window widgets being taken from the wrong field. `BaseField` caches the `UI_Control` attributes declared on a field in a dictionary keyed by `FieldInfo.GetHashCode()`, and a hash code isn't an identity. Depending on the control types involved, this results in a wrong PAW widget, or PAW breaking with exception spam.
