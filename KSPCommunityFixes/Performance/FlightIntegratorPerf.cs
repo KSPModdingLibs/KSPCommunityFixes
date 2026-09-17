@@ -1002,7 +1002,7 @@ namespace KSPCommunityFixes.Performance
 
             int lastPartIndex = fi.partThermalDataCount - 1;
             int partIndex = fi.partThermalDataCount;
-            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(Numerics.FromToRotation(velocity, Vector3d.up));
+            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(OcclusionFrame(velocity, fi.vessel));
             while (partIndex-- > 0)
             {
                 OcclusionData occlusionDataToUpdate = occlusionDataList[partIndex];
@@ -1146,7 +1146,7 @@ namespace KSPCommunityFixes.Performance
 
             int lastPartIndex = fi.partThermalDataCount - 1;
             int partIndex = fi.partThermalDataCount;
-            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(Numerics.FromToRotation(velocity, Vector3d.up));
+            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(OcclusionFrame(velocity, fi.vessel));
             while (partIndex-- > 0)
             {
                 OcclusionData occlusionDataToUpdate = occlusionDataList[partIndex];
@@ -1245,7 +1245,7 @@ namespace KSPCommunityFixes.Performance
 
             int lastPartIndex = fi.partThermalDataCount - 1;
             int partIndex = fi.partThermalDataCount;
-            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(Numerics.FromToRotation(velocity, Vector3d.up));
+            QuaternionDPointRotation velToUp = new QuaternionDPointRotation(OcclusionFrame(velocity, fi.vessel));
             while (partIndex-- > 0)
             {
                 OcclusionData occlusionDataToUpdate = occlusionDataList[partIndex];
@@ -1317,6 +1317,17 @@ namespace KSPCommunityFixes.Performance
                     occluderCount++;
                 }
             }
+        }
+
+        /// <summary>
+        /// The frame the occlusion rectangles are bounded in: stock's shortest rotation from the direction to the world
+        /// up axis, or, with the OcclusionVehicleFrame patch, the vessel's own (see that patch for why).
+        /// </summary>
+        static QuaternionD OcclusionFrame(Vector3d direction, Vessel vessel)
+        {
+            return BugFixes.OcclusionVehicleFrame.IsEnabled
+                ? BugFixes.OcclusionVehicleFrame.Frame(direction, vessel)
+                : Numerics.FromToRotation(direction, Vector3d.up);
         }
 
         // a lot of stuff is actually unused in OcclusionData
