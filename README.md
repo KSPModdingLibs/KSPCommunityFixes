@@ -52,6 +52,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Minor bugfixes
+- **CraftSaveFolder** [KSP 1.12.5]<br/>Ordinary editor saves retain the directory of the successfully loaded `.craft` file instead of silently creating a copy in the SPH/VAB root. Handles browser and direct file loads, leaves merge operations alone, and keeps the stock save-folder selection authoritative. New crafts and editor switches use stock defaults.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.5]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.5]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
@@ -255,3 +256,21 @@ To increment the version change the `<Version>` property in `KSPCommunityFixes.c
 
 The `Start` action of the IDE will trigger a build, update the `GameData` files in the KSP install and launch KSP.
 If doing so in the `Debug` configuration and if your KSP install is modified to be debuggable, you will be able to debug the code from within your IDE (if your IDE provides Unity debugging support).
+
+### Testing CraftSaveFolder
+
+The patch sets `EditorDriver.DefaultCraftSavePath` through stock `SetDefaultSaveFolder`; it does not replace saving. The browser's `onPipelineFinished` callback supplies the filename after the editor loads its `ConfigNode`, while `EditorLogic.StartEditor` handles direct file loads. Empty failed-load constructs are ignored. The save flyout gets exactly one selected radio button, without selection callbacks, even while inactive. Deferred flyout startup preserves the folder already committed in the current editor rather than resetting a browser/cache load to root. Equivalent root paths with trailing separators use the stock item's exact spelling.
+
+At the actual launch, the patch records the effective default folder, save name and editor facility. Revert-to-launch retains that snapshot; revert-to-editor restores it only for the same save and facility, regardless of editor/flyout startup order. Explicit folder choices take precedence over the original loaded filename. Confirmed New, facility changes, unrelated scene entries and failed/canceled transitions invalidate the snapshot. Launch autosaves remain stock saves beside the active craft in its selected folder; there is no autosave redirection. Making History mission/mission-builder modes retain their separate stock save/overwrite paths.
+
+After deploying and launching KSP, check `KSP.log` for `[KSPCommunityFixes] Patch CraftSaveFolder applied.` Use a disposable save and copies of your craft:
+
+1. In SPH, load `Ships/SPH/Spaceplanes/MyPlane.craft`, edit it, and save normally (button and Ctrl+S). Check the source file changes and no `Ships/SPH/MyPlane.craft` appears. Repeat in VAB, including a nested folder.
+2. Load a second craft from another folder, then one from the root. Check each ordinary save goes to that craft's own directory.
+3. In the save flyout, select another directory's **default-location radio button**, including the root. Subsequent ordinary saves must use that selection. Stock one-shot folder-save buttons remain one-shot.
+4. Rename a loaded craft to a filename already present in the selected folder. Verify the stock overwrite dialog appears and Cancel leaves that existing file unchanged.
+5. Launch and revert to the same editor. Check the loaded subfolder remains the default and ordinary saves still update its craft. Repeat after explicitly selecting another default folder, and after reverting to launch first.
+6. Confirm New, switch SPH/VAB, or leave and re-enter the editor normally. Check the next new/cache-loaded craft uses the appropriate stock default, not the previous loaded subfolder.
+7. Merge a craft from another folder, cancel a load, and try a missing/invalid craft. None should adopt the attempted craft's folder. Check undo/redo and backups still work. Launch from a subfolder and verify the autosaved craft remains alongside it, not in root.
+
+Headless managed smoke runs exercised the compiled Release callbacks and stock publicized method bodies. The radio regression reproduced root and subfolder both selected before the fix, then verified exactly one selection, no synchronization callbacks, active-group retention and explicit-root precedence. Real `GetSavePath`, `ConfigNode.Save` and stock `SaveShip` updated only the selected subfolder and left root duplicates unchanged, including launch autosave. Deferred flyout startup, editor-first/UI-first revert ordering, revert-to-launch continuity and snapshot invalidation passed. Native activity/profiling/thumbnail boundaries were isolated in disposable assembly copies; toggle/group selection and craft serialization remained stock. Scene flags were stock managed code, but startup/scene ordering was simulated: this is not a visual Unity integration test. Actual editor loading, prefab creation, scene transitions, thumbnails and keyboard interaction still require the in-game checklist.
