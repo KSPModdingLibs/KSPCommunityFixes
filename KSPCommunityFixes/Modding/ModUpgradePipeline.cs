@@ -31,8 +31,6 @@ namespace KSPCommunityFixes.Modding
 
             AddPatch(PatchType.Postfix, typeof(Game), nameof(Game.Save));
 
-            AddPatch(PatchType.Prefix, typeof(KSPUpgradePipeline), nameof(KSPUpgradePipeline.Process));
-
             AddPatch(PatchType.Postfix, typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.Init), nameof(SaveUpgradePipeline_Init_Postfix));
 
             AddPatch(PatchType.Prefix, typeof(SaveUpgradePipeline.SaveUpgradePipeline), nameof(SaveUpgradePipeline.SaveUpgradePipeline.SanityCheck), nameof(SaveUpgradePipeline_SanityCheck_Prefix));
@@ -51,6 +49,7 @@ namespace KSPCommunityFixes.Modding
                 }
             }
 
+            AddPatch(PatchType.Prefix, runMethod, nameof(SaveUpgradePipeline_Run_Prefix));
             AddPatch(PatchType.Postfix, runMethod, nameof(SaveUpgradePipeline_Run_Postfix));
 
             AddPatch(PatchType.Prefix, typeof(UpgradeScript), nameof(UpgradeScript.Test), nameof(UpgradeScript_Test_Prefix));
@@ -209,10 +208,11 @@ namespace KSPCommunityFixes.Modding
             return true;   
         }
 
-        private static void KSPUpgradePipeline_Process_Prefix(ConfigNode n, LoadContext loadContext)
+        // Some mods call SaveUpgradePipeline.Run directly instead of going through KSPUpgradePipeline.Process.
+        // Load the versions on every run so the tests use the versions stored in the node being upgraded.
+        private static void SaveUpgradePipeline_Run_Prefix(ConfigNode node, LoadContext ctx)
         {
-            TryLoadVersions(n, loadContext);
-            //UnityEngine.Debug.Log("$$ Ready to process.");
+            TryLoadVersions(node, ctx);
         }
 
         private static void SaveUpgradePipeline_Init_Postfix(SaveUpgradePipeline.SaveUpgradePipeline __instance)
