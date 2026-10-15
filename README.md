@@ -53,6 +53,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 
 #### Minor bugfixes
 - **CraftSaveFolder** [KSP 1.12.5]<br/>Ordinary editor saves retain the directory of the successfully loaded `.craft` file instead of silently creating a copy in the SPH/VAB root. Handles browser and direct file loads, leaves merge operations alone, and keeps the stock save-folder selection authoritative. New crafts and editor switches use stock defaults.
+- **KSCVesselMarkers** [KSP 1.12.5]<br/>Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.5]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.5]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
