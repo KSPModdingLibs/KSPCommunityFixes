@@ -2,15 +2,18 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **KSCVesselMarkers** Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - New KSP bugfix : **RCSInputLag** Fix RCS reacting late to SAS and autopilot commands. At normal speed the delay is too small to matter, but under physics warp or TimeControl's hyper-warp it can make RCS fire almost constantly, wasting propellant and pushing the vessel off its orbit.
 - New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
 - New KSP bugfix : **BaseFieldUIControlCollision** Fix Part Action Window widgets being taken from the wrong field. `BaseField` caches the `UI_Control` attributes declared on a field in a dictionary keyed by `FieldInfo.GetHashCode()`, and a hash code isn't an identity. Depending on the control types involved, this results in a wrong PAW widget, or PAW breaking with exception spam.
+- New KSP bugfix : **LinuxArialFallback** Linux only. Fix text in mod IMGUI windows wrapping or clipping due to missing Arial font.
 - Improved the **FastLoader** patch to reuse the initial GameDatabase directory tree during the second config pass while refreshing files and directories created or modified by `Startup.Instantly` addons. Avoids reparsing unchanged configs and saves several seconds in heavily modded installs.
 - Improved the **FastLoader** second config pass by refreshing GameData directories in parallel and using faster filesystem functions.
 - Improved the **AsteroidAndCometDrillCache** patch to use the new vessel wide `PartModule` lookup cache instead of piggybacking on the `ModuleResourceHarvester` cache. The asteroid/comet lookups done by `ModuleAsteroidDrill` and `ModuleCometDrill` on every update now never fall back to a full vessel scan.
 
 **Bug Fixes**
+- **OptimizedVectorLines** : Fixed Orbit and CommNet lines lagging behind the planet positions on screen by a frame. This was seen as the lines sliding against the bodies whenever the Map View / Tracking Station camera was moved. This was only visible under the condition that another mod patched the planetarium camera.
 - **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **OptimisedVectorLines** : Fixed a stock Vectrosity precision issue causing map view orbit lines to kink and flicker where they cross the camera near plane.

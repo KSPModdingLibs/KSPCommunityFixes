@@ -52,6 +52,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Minor bugfixes
+- **KSCVesselMarkers** [KSP 1.12.5]<br/>Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.5]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.5]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
@@ -110,6 +111,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**DuplicateAppLauncherButtons**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/426) [KSP 1.8.0 - 1.12.5]<br/>Fix the stock toolbar accumulating duplicate buttons (resource display, action groups, alarm clock, delta-v...) on switching scene, and the flood of `NullReferenceException` from `KSP.UI` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - **UncrewedControlPointFallback** [KSP 1.8.0 - 1.12.5]<br/>Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. `Vessel.FallBackReferenceTransform()` now falls back to the first uncrewed control source (probe core, empty command pod...) when `ShipConstruction.findFirstCrewablePart()` finds nothing.
 - **BaseFieldUIControlCollision** [KSP 1.12.0 - 1.12.5]<br/>Fix Part Action Window widgets being taken from the wrong field. `BaseField` caches the `UI_Control` attributes declared on a field in a dictionary keyed by `FieldInfo.GetHashCode()`, and a hash code isn't an identity. Depending on the control types involved, this results in a wrong PAW widget, or PAW breaking with exception spam.
+- **LinuxArialFallback** [KSP 1.12.0 - 1.12.5]<br/>Linux only. Fix text in mod IMGUI windows wrapping or clipping due to missing Arial font.
 - **PartTooltipUpgradesApplyToSubstituteParts** [KSP 1.12.0 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Fix part upgrades being applied directly to the prefab part when creating the `PartListTooltip`, instead using a substitute part instance. Requires **UpgradeBugs** to be enabled.
 
 #### Quality of Life tweaks 
