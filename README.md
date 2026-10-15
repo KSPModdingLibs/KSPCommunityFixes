@@ -52,6 +52,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Minor bugfixes
+- **KSCVesselMarkers** [KSP 1.12.5]<br/>Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.5]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.
 - **KerbalTooltipMaxSustainedG** [KSP 1.8.0 - 1.12.5]<br/>Fix the kerbals tooltip giving wrong "Max sustainable G" information.
