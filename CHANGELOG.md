@@ -13,6 +13,7 @@
 
 **Bug Fixes**
 - **OptimizedVectorLines** : Fixed Orbit and CommNet lines lagging behind the planet positions on screen by a frame. This was seen as the lines sliding against the bodies whenever the Map View / Tracking Station camera was moved. This was only visible under the condition that another mod patched the planetarium camera.
+- **PartBoundsIgnoreDisabledTransforms** : Fixed a regression introduced in 1.41.0 where parts picked up in the editor were treated as having zero size ([issue #410](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/410)). Mods that size parts when they are added in the editor got wrong results.
 - **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
 - **OptimisedVectorLines** : Fixed a stock Vectrosity precision issue causing map view orbit lines to kink and flicker where they cross the camera near plane.
