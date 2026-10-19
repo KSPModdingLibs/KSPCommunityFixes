@@ -234,6 +234,17 @@ namespace KSPCommunityFixes.Performance
             assetAndPartLoaderHarmony.Patch(m_PartLoader_StartLoad, null, null, new HarmonyMethod(t_PartLoader_StartLoad));
 
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(PartLoader), nameof(PartLoader.CompileParts)));
+
+            // These enable texture streaming for any texture used in a model,
+            // for a part, or for an IVA.
+            MethodInfo m_PartLoader_ReplaceTextures = AccessTools.Method(typeof(PartLoader), "ReplaceTextures");
+            MethodInfo po_PartLoader_ReplaceTextures = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_ReplaceTextures_Postfix));
+            assetAndPartLoaderHarmony.Patch(m_PartLoader_ReplaceTextures, null, new HarmonyMethod(po_PartLoader_ReplaceTextures));
+
+            MethodInfo m_PartLoader_ReplacePartTexture = AccessTools.Method(typeof(PartLoader), "ReplacePartTexture");
+            MethodInfo po_PartLoader_ReplacePartTexture = AccessTools.Method(typeof(KSPCFFastLoader), nameof(PartLoader_ReplacePartTexture_Postfix));
+            assetAndPartLoaderHarmony.Patch(m_PartLoader_ReplacePartTexture, null, new HarmonyMethod(po_PartLoader_ReplacePartTexture));
+
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.SetupDragCubeCoroutine), new[] { typeof(Part) }));
             PatchStartCoroutineInCoroutine(AccessTools.Method(typeof(DragCubeSystem), nameof(DragCubeSystem.RenderDragCubesCoroutine)));
 
@@ -1179,6 +1190,7 @@ namespace KSPCommunityFixes.Performance
                     req.File.url,
                     hdr.Width, hdr.Height, hdr.MipCount,
                     hdr.ClassicTextureFormat, hdr.ColorSpace, readable: false,
+                    EligibleForStreaming(hdr),
                     sourcePath, hdr.DataOffset, hdr.StreamedSize);
                 return new BundleClassification(entry, new BundleItem { Request = req, IsNormalMap = isNormalMap });
             }
@@ -1290,6 +1302,12 @@ namespace KSPCommunityFixes.Performance
 
             Dictionary<string, Texture2D> map = state.Map;
 
+            // Unity ignores Texture.requestedMipmapLevel unless mipmap streaming has
+            // been activated at some point. We activate it while pinning textures and
+            // reset it back once that is complete.
+            bool streamingWasActive = QualitySettings.streamingMipmapsActive;
+            QualitySettings.streamingMipmapsActive = true;
+
             foreach (var item in items)
             {
                 TextureLoadRequest req = item.Request;
@@ -1299,6 +1317,11 @@ namespace KSPCommunityFixes.Performance
                 {
                     req.Result = new TextureInfo(req.File, tex, item.IsNormalMap, isReadable: false, isCompressed: true);
                     req.Status = TextureLoadRequest.State.Ready;
+
+                    // Disable mipmap streaming if enabled. We'll re-enable it on a case-by-case
+                    // basis when textures are used in parts or models.
+                    if (tex.streamingMipmaps)
+                        tex.requestedMipmapLevel = 0;
                 }
                 else
                 {
@@ -1313,7 +1336,38 @@ namespace KSPCommunityFixes.Performance
                 if (frameTime > 0.1)
                     yield return null;
             }
+
+            QualitySettings.streamingMipmapsActive = streamingWasActive;
         }
+        #endregion
+
+        #region Mipmap streaming
+
+        /// <summary>
+        /// Enable mipmpa streaming for <paramref name="tex"/>.
+        /// </summary>
+        /// <param name="tex"></param>
+        internal static void ReleaseToStreaming(Texture tex)
+        {
+            if (tex is Texture2D t2d && t2d.streamingMipmaps)
+                t2d.ClearRequestedMipmapLevel();
+        }
+
+        private static void PartLoader_ReplaceTextures_Postfix(List<TextureInfo> newTextures)
+        {
+            if (newTextures == null)
+                return;
+
+            for (int i = 0; i < newTextures.Count; i++)
+                ReleaseToStreaming(newTextures[i]?.texture);
+        }
+
+        private static void PartLoader_ReplacePartTexture_Postfix(UrlConfig urlConfig, string textureName, bool normalMap)
+        {
+            string url = urlConfig.parent.parent.url + "/textures/" + Path.GetFileNameWithoutExtension(textureName);
+            ReleaseToStreaming(GameDatabase.Instance.GetTexture(url, normalMap));
+        }
+
         #endregion
 
         #region Model bundle loader
@@ -1501,6 +1555,8 @@ namespace KSPCommunityFixes.Performance
                 tcs.SetException(new Exception("asset bundle failed to load"));
                 yield break;
             }
+
+            group.Bundle = bundle;
 
             var request = bundle.LoadAllAssetsAsync();
             request.priority = -100;
@@ -2432,6 +2488,29 @@ namespace KSPCommunityFixes.Performance
             int blockWidth = (int)GraphicsFormatUtility.GetBlockWidth(format);
             int blockHeight = (int)GraphicsFormatUtility.GetBlockHeight(format);
             return width % blockWidth == 0 && height % blockHeight == 0;
+        }
+
+        // Textures smaller than 4KB are too small to be worth streaming.
+        private const long MinStreamingBytes = 4 * 1024;
+
+        // Attempting to load a compressed mipmap whose size is not a multiple of the
+        // DDS block size (4x4) causes unity to crash. To avoid this we need to
+        // only include textures whose mipmaps are the correct size.
+        //
+        // Every mip that streaming can load as the top mip has to be checked: NPOT
+        // sizes like 100 are aligned at mip 3 (12) but not at mip 1 (50).
+        private static bool EligibleForStreaming(in DDSPreparedHeader hdr)
+        {
+            if (hdr.StreamedSize < MinStreamingBytes)
+                return false;
+
+            for (int mip = 0; mip <= TextureStreaming.MaxStreamingMipReduction; mip++)
+            {
+                if (!IsBlockAligned(hdr.Format, Math.Max(1, hdr.Width >> mip), Math.Max(1, hdr.Height >> mip)))
+                    return false;
+            }
+
+            return true;
         }
 
         // The number of mip levels Unity allocates for a full mip chain.
@@ -3755,10 +3834,14 @@ namespace KSPCommunityFixes.Performance
             loader.userOptInChoiceDone = true;
             textureCacheEnabled = optIn;
             choosed = true;
+            SaveConfig();
+        }
 
+        private static void SaveConfig()
+        {
             ConfigNode config = new ConfigNode();
-            config.AddValue(nameof(userOptInChoiceDone), true);
-            config.AddValue(nameof(textureCacheEnabled), optIn);
+            config.AddValue(nameof(userOptInChoiceDone), loader.IsNotNullOrDestroyed() && loader.userOptInChoiceDone);
+            config.AddValue(nameof(textureCacheEnabled), textureCacheEnabled);
 
             string pluginDataPath = Path.Combine(ModPath, "PluginData");
             if (!Directory.Exists(pluginDataPath))
