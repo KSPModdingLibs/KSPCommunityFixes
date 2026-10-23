@@ -52,6 +52,8 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
 
 #### Minor bugfixes
+
+- **TargetBodyEncounterPeriapsis** [KSP 1.12.5]<br/>Show the targeted body's actual encounter periapsis altitude and time in the stock Approach panel. Uses the existing future patches, including maneuver previews, and preserves the original readout for vessel targets or trajectories without an encounter. Works with stock targeting and PatchedConicFixes; has no dependency on PatchedConicFixes.
 - **KSCVesselMarkers** [KSP 1.12.5]<br/>Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - **PAWGroupMemory** [KSP 1.8.0 - 1.12.5]<br/>Fix the expanded/retracted state of Part Action Window groups being reset when the PAW is closed or internally rebuilt (especially frequent in the editor).
 - **PAWItemsOrder** [KSP 1.8.0 - 1.12.5]<br/>Fix PAW items position randomly changing and flickering.

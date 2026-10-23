@@ -2,6 +2,7 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **TargetBodyEncounterPeriapsis** [KSP 1.12.5] Display the targeted celestial body's actual encounter periapsis altitude and time in the stock Approach panel. Fixes the panel skipping the encounter when a replacement solver rejects cross-body intersection calculations.
 - New KSP bugfix : **KSCVesselMarkers** Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
