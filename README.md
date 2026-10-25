@@ -50,6 +50,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - [**ModuleIndexingMismatch**](https://github.com/KSPModdingLibs/KSPCommunityFixes/pull/264) [KSP 1.8.0 - 1.12.5]<br/>Prevent modules persisted state from being lost in existing saves/ships following a mod installation/uninstallation/update. Note that this won't handle all cases, but it massively reduce occurrences of that issue.
 - **PackedPartsRotation** [KSP 1.8.0 - 1.12.5]<br/>Fix part rotations not being reset to their pristine value when a non-landed vessel is packed, resulting in permanent part rotation drift when docking and other minor/cosmetic issues.
 - **[PartStartStability](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/9)** [KSP 1.8.0 - 1.12.5]<br/>Fix vessel deformation and kraken events on flight scene load, also prevent some kraken issues when placing parts with EVA construction.
+- **NaNCameraShadowCrash** [KSP 1.12.0 - 1.12.5]<br/>Prevent a crash in Unity's shadow culling when a camera renders from a NaN or infinite position.
 
 #### Minor bugfixes
 - **KSCVesselMarkers** [KSP 1.12.5]<br/>Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
