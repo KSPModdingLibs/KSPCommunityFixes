@@ -149,6 +149,9 @@ namespace KSPCommunityFixes.Performance
         private static ListPool<DragRendererInfo> dragRendererInfoListPool = new ListPool<DragRendererInfo>();
         private static ObjectPool<CommandBuffer> commandBufferPool = new ObjectPool<CommandBuffer>();
 
+        private static Texture2D reducedTexture;
+        private static DragCubeGpuReduction.Statistics reducedStatistics;
+
         private struct DragRendererInfo
         {
             public Renderer renderer;
@@ -566,6 +569,16 @@ namespace KSPCommunityFixes.Performance
             
             RenderTexture current = RenderTexture.active;
 
+            reducedTexture = null;
+            if (!DragCubeDebugger.requireTextureCopy && output.format == TextureFormat.ARGB32
+                && output.width == textureSize && output.height == textureSize
+                && DragCubeGpuReduction.TryReduce(camera.targetTexture, out reducedStatistics))
+            {
+                reducedTexture = output;
+                if (DragCubeGpuReduction.verified)
+                    return;
+            }
+
             try
             {
                 RenderTexture.active = camera.targetTexture;
@@ -670,6 +683,14 @@ namespace KSPCommunityFixes.Performance
 
         private static void CalculateAerodynamics(Texture2D texture, float cameraSize, float farClipPlane, out float area, out float drag, out float depth)
         {
+            bool hasReduction = ReferenceEquals(texture, reducedTexture);
+            reducedTexture = null;
+            if (hasReduction && DragCubeGpuReduction.verified)
+            {
+                reducedStatistics.Calculate(cameraSize, farClipPlane, out area, out drag, out depth);
+                return;
+            }
+
             // assuming ARGB32 texture
             NativeArray<byte> pixels = texture.GetRawTextureData<byte>();
 
@@ -709,6 +730,9 @@ namespace KSPCommunityFixes.Performance
                 drag = totalDrag / (hits * 255f);
                 depth = farClipPlane * (maxDepth / 255f);
             }
+
+            if (hasReduction && hits > 0)
+                DragCubeGpuReduction.Verify(reducedStatistics, cameraSize, farClipPlane, area, drag, depth);
         }
 
         private static void AnalyzeDragRenderers(Part part, List<Renderer> partRenderers, bool checkActive, List<DragRendererInfo> result, out Bounds partBounds)
