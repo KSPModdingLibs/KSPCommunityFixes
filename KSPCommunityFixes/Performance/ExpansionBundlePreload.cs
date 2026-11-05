@@ -6,7 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using UnityEngine;
 using static Expansions.BundleLoader;
@@ -50,6 +49,7 @@ namespace KSPCommunityFixes.Performance
             if (instance is null)
                 return;
 
+            instance.gameObject.AddComponent<ExpansionBundleCache>();
             instance.StartCoroutine(LoadExpansionsV2(instance));
         }
 
@@ -346,14 +346,9 @@ namespace KSPCommunityFixes.Performance
              string path
          )
         {
-            var request = AssetBundle.LoadFromFileAsync(path);
-            var task = Task.Run(() =>
-            {
-                var bytes = File.ReadAllBytes(path);
-                return new MD5CryptoServiceProvider().ComputeHash(bytes);
-            });
+            var task = Task.Run(() => ExpansionBundleCache.ComputeHash(path));
 
-            yield return new WaitUntil(() => task.IsCompleted);
+            yield return new WaitUntil(() => task.IsCompleted && !ExpansionBundleCache.IsPreparing(path));
 
             try
             {
@@ -366,6 +361,29 @@ namespace KSPCommunityFixes.Performance
                 yield break;
             }
 
+            AssetBundleCreateRequest request = null;
+            try
+            {
+                string cached = ExpansionBundleCache.GetCachedPath(path, info.hash);
+                if (cached != null)
+                    request = AssetBundle.LoadFromFileAsync(cached);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[KSPCF/ExpansionBundlePreload] Cached bundle unavailable for {path}: {e.Message}");
+            }
+
+            if (request != null)
+            {
+                yield return request;
+                if (request.assetBundle != null)
+                {
+                    info.bundle = request.assetBundle;
+                    yield break;
+                }
+            }
+
+            request = AssetBundle.LoadFromFileAsync(path);
             yield return request;
             info.bundle = request.assetBundle;
         }
