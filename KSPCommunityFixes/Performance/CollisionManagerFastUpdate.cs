@@ -62,7 +62,8 @@ namespace KSPCommunityFixes.Performance
                     if (ignore && colliderA.sameVesselCollision && colliderB.sameVesselCollision && colliderA.partPersistentId != colliderB.partPersistentId)
                         ignore = false;
 
-                    Physics.IgnoreCollision(colliderA.collider, colliderB.collider, ignore);
+                    if (Physics.GetIgnoreCollision(colliderA.collider, colliderB.collider) != ignore)
+                        Physics.IgnoreCollision(colliderA.collider, colliderB.collider, ignore);
 #if CMFU_DEBUG
                     pairs++;
                     ColliderPair pair = new ColliderPair(colliderA.collider, colliderB.collider);
