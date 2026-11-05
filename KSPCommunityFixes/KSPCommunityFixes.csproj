@@ -37,6 +37,7 @@
     <GameDataFolderName>KSPCommunityFixes</GameDataFolderName>
     <AVCFilename>KSPCommunityFixes.version</AVCFilename>
     <CopyReleaseBinariesToRepo Condition="'$(CopyReleaseBinariesToRepo)' == ''">false</CopyReleaseBinariesToRepo>
+    <DeployToGame Condition="'$(DeployToGame)' == ''">true</DeployToGame>
   </PropertyGroup>
 
   <ItemGroup>
@@ -133,11 +134,11 @@
     <Publicize Include="0Harmony:Mono.Cecil.Cil.VariableReference.index" />
   </ItemGroup>
 
-  <!-- Deploy DLLs and GameData to the live KSP install, and (on Release) build the release zip. -->
+  <!-- Deploy DLLs and GameData unless disabled, and (on Release) build the release zip. -->
   <Target Name="DeployToKSP" AfterTargets="Build" DependsOnTargets="KSPBT_GenerateVersionFile">
     <Error Condition="'$(KSPBT_GameRoot)' == '' OR !Exists('$(KSPBT_GameRoot)')"
            Text="KSPBT_GameRoot='$(KSPBT_GameRoot)' is empty or does not exist. Set ReferencePath in $(MSBuildProjectName).csproj.user or the KSP_ROOT environment variable." />
-    <CallTarget Targets="CopyToKSP" />
+    <CallTarget Targets="CopyToKSP" Condition="'$(DeployToGame)' == 'true'" />
     <CallTarget Targets="CopyBinariesToRepo" Condition="'$(Configuration)' == 'Release' AND '$(CopyReleaseBinariesToRepo)' == 'true'" />
     <CallTarget Targets="MakeReleaseZip" Condition="'$(Configuration)' == 'Release'" />
   </Target>
