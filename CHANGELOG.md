@@ -2,6 +2,7 @@
 
 ##### Unreleased
 **New/Improved patches**
+- New KSP bugfix : **CraftSaveFolder** [KSP 1.12.5] Ordinary editor saves now retain the directory of a successfully loaded craft, including nested SPH/VAB subfolders. Handles browser upgrade/config callbacks and direct file loads without replacing stock save, overwrite, backup or launch logic. Merge/failed loads do not adopt the source folder; stock default-folder selection and new/editor-switch resets remain authoritative.
 - New KSP bugfix : **KSCVesselMarkers** Remove Space Center markers for vessels that no longer exist. Prevent duplicate vessel markers when the Space Center scene starts.
 - New KSP bugfix : **DuplicateAppLauncherButtons** Fix the stock toolbar accumulating duplicate buttons on switching scene, and the flood of `NullReferenceException` that follows. A `UIApp` adds itself to the toolbar again every time the app launcher restarts, losing track of the button it already has, and then destroys itself because its duplicate check tests whether an instance exists rather than whether it is a different one.
 - New KSP bugfix : **UncrewedControlPointFallback** Fix a vessel created by decoupling, undocking or a part being destroyed getting no control point unless it carries a part with a kerbal aboard, leaving the navball, SAS and autopilots oriented by its root part. An uncrewed control source (probe core, empty command pod...) is now used as a fallback.
@@ -12,6 +13,7 @@
 - Improved the **AsteroidAndCometDrillCache** patch to use the new vessel wide `PartModule` lookup cache instead of piggybacking on the `ModuleResourceHarvester` cache. The asteroid/comet lookups done by `ModuleAsteroidDrill` and `ModuleCometDrill` on every update now never fall back to a full vessel scan.
 
 **Bug Fixes**
+- **CraftSaveFolder** : Fixed inactive save-flyout radio buttons retaining both root and loaded subfolder, and deferred flyout startup resetting browser/cache loads to root. The effective folder now survives revert-to-launch and same-save/same-facility revert-to-editor, including late flyout startup. New/facility/unrelated-scene and failed-transition resets remain stock; launch autosaves keep their stock selected-folder location.
 - **OptimizedVectorLines** : Fixed Orbit and CommNet lines lagging behind the planet positions on screen by a frame. This was seen as the lines sliding against the bodies whenever the Map View / Tracking Station camera was moved. This was only visible under the condition that another mod patched the planetarium camera.
 - **BlockMapViewPartClick** : Fixed a `NullReferenceException` thrown from `Part.UpdateMouseOver` on every frame of a scene load into flight. The scene reports itself as flight well before `CameraManager.Instance` exists, and both the patch and stock dereferenced it unconditionally. `Part.UpdateMouseOver` is now skipped until there is a camera manager.
 - **EditorAnimatedPartsShipModified** : Fixed a memory leak ([issue #396](https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/396)) where listeners were not properly cleaned up.
