@@ -112,6 +112,7 @@ User options are available from the "ESC" in-game settings menu :<br/><img src="
 - **BaseFieldUIControlCollision** [KSP 1.12.0 - 1.12.5]<br/>Fix Part Action Window widgets being taken from the wrong field. `BaseField` caches the `UI_Control` attributes declared on a field in a dictionary keyed by `FieldInfo.GetHashCode()`, and a hash code isn't an identity. Depending on the control types involved, this results in a wrong PAW widget, or PAW breaking with exception spam.
 - **LinuxArialFallback** [KSP 1.12.0 - 1.12.5]<br/>Linux only. Fix text in mod IMGUI windows wrapping or clipping due to missing Arial font.
 - **PartTooltipUpgradesApplyToSubstituteParts** [KSP 1.12.0 - 1.12.5]<br/>Disabled by default, you can enable it with a MM patch. Fix part upgrades being applied directly to the prefab part when creating the `PartListTooltip`, instead using a substitute part instance. Requires **UpgradeBugs** to be enabled.
+- **AnimatedMOI** [KSP 1.12.0 - 1.12.5]<br/>Fix moment of inertia not updating on animated parts.
 
 #### Quality of Life tweaks 
 
