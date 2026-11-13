@@ -40,34 +40,30 @@ namespace KSPCommunityFixes
         static IEnumerable<CodeInstruction> GamePersistence_SaveGame_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             MethodInfo ConfigNode_Save = AccessTools.Method(typeof(ConfigNode), nameof(ConfigNode.Save), new Type[]{typeof(string)});
-            MethodInfo CachePersistentSFS = AccessTools.Method(typeof(SceneLoadSpeedBoost), nameof(SceneLoadSpeedBoost.CachePersistentSFS));
+            MethodInfo SaveAndCache = AccessTools.Method(typeof(SceneLoadSpeedBoost), nameof(SceneLoadSpeedBoost.SaveAndCache));
 
             List<CodeInstruction> code = new List<CodeInstruction>(instructions);
 
-            //IL_02dd: call string[mscorlib] System.String::Concat(string[])
-            //IL_02e2: stloc.1
-            //// CachePersistentSFS(saveFileName, saveFolder, configNode);
-            //IL_02e3: ldarg.1
-            //IL_02e4: ldarg.2
-            //IL_02e5: ldloc.0
-            //IL_02e6: call void KSPCommunityFixes.BugFixes.SceneLoadSpeedBoost::CachePersistentSFS(string, string, class ['Assembly-CSharp'] ConfigNode)
+            // Replace :
             //// configNode.Save(fileFullName);
-            //IL_02eb: ldloc.0
-            //IL_02ec: ldloc.1
-            //IL_02ed: callvirt instance bool['Assembly-CSharp'] ConfigNode::Save(string)
+            //callvirt instance bool ConfigNode::Save(string)
+            // By :
+            //// SaveAndCache(configNode, fileFullName, saveFileName, saveFolder);
+            //ldarg.1
+            //ldarg.2
+            //call bool SceneLoadSpeedBoost::SaveAndCache(ConfigNode, string, string, string)
+            // This doesn't rely on the method locals and keeps the stack balanced.
 
-            for (int i = 1; i < code.Count; i++)
+            for (int i = 0; i < code.Count; i++)
             {
                 if (code[i].opcode == OpCodes.Callvirt && ReferenceEquals(code[i].operand, ConfigNode_Save))
                 {
-                    int k = i;
-                    code.Insert(k++, new CodeInstruction(OpCodes.Stloc_1));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Ldarg_1));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Ldarg_2));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Ldloc_0));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Call, CachePersistentSFS));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Ldloc_0));
-                    code.Insert(k++, new CodeInstruction(OpCodes.Ldloc_1));
+                    code[i].opcode = OpCodes.Call;
+                    code[i].operand = SaveAndCache;
+                    code.Insert(i, new CodeInstruction(OpCodes.Ldarg_2));
+                    code.Insert(i, new CodeInstruction(OpCodes.Ldarg_1));
+                    code[i].labels.AddRange(code[i + 2].labels);
+                    code[i + 2].labels.Clear();
                     break;
                 }
             }
@@ -98,6 +94,12 @@ namespace KSPCommunityFixes
             }
 
             return code;
+        }
+
+        private static bool SaveAndCache(ConfigNode node, string path, string saveFileName, string saveFolder)
+        {
+            CachePersistentSFS(saveFileName, saveFolder, node);
+            return node.Save(path);
         }
 
         private static void CachePersistentSFS(string saveFileName, string saveFolder, ConfigNode configNode)
