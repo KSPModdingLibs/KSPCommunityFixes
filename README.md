@@ -236,6 +236,20 @@ This mod supports localization. If you wish to contribute a localization file, y
 
 ### Building
 
+#### Windows release in one command
+
+Requires the .NET SDK 8 or newer and a reference KSP 1.12.5 installation with ModuleManager installed. No native compiler is needed for this patch.
+
+```powershell
+.\Build-Release.ps1 -KspRoot 'C:\Games\Kerbal Space Program' -RunTests
+```
+
+This restores dependencies, builds the managed assemblies, runs the 20-case cache test, and checks the required DLLs in `Releases/KSPCommunityFixes_<version>.zip`. The reference game is neither modified nor launched. The cache test exercises the production helper with simulated Unity recompression. Omit `-RunTests` to skip testing. Existing IDE deployment remains enabled unless `DeployToGame=false` is passed.
+
+The DLC cache is prepared only when `ExpansionBundlePreload` is applied. Copies are stored under `GameData/KSPCommunityFixes/PluginData/DLC`, separated by Unity version and original bundle hash. Signatures are checked against the original file, and cache failures fall back to that file.
+
+#### IDE builds
+
 After loading the solution in your IDE, add a `ReferencePath` pointing to the root of your KSP install :
 
 For Visual Studio, right-click on the `KSPCommunityFixes` project > `Properties` > `Reference Paths`, add the path to your KSP install and save the changes. Closing and re-opening the solution might be needed for the changes to propagate.
