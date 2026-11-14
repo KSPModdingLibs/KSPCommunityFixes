@@ -14,6 +14,7 @@ namespace KSPCommunityFixes
         protected override void ApplyPatches()
         {
             AddPatch(PatchType.Postfix, typeof(Part), "SecureAutoStrut", new Type[]{typeof(Part), typeof(AttachNode), typeof(AttachNode), typeof(bool)});
+            AddPatch(PatchType.Postfix, typeof(PartJoint), "SetJointLimits", new Type[]{typeof(ConfigurableJoint), typeof(bool)});
         }
 
         static void Part_SecureAutoStrut_Postfix(Part __instance, Part anchor, ref PartJoint __result)
@@ -84,6 +85,17 @@ namespace KSPCommunityFixes
 
             // Set the joint rotation offset
             joint.targetRotation = resultRotation;
+        }
+
+        static void PartJoint_SetJointLimits_Postfix(ConfigurableJoint newJoint, bool rigidAttach)
+        {
+            if (rigidAttach || newJoint.IsNullOrDestroyed())
+                return;
+
+            // Stock sets both twist limits to +180, which locks the twist : targetRotation can't act on that axis
+            SoftJointLimit lowLimit = newJoint.lowAngularXLimit;
+            lowLimit.limit = -Mathf.Abs(newJoint.highAngularXLimit.limit);
+            newJoint.lowAngularXLimit = lowLimit;
         }
 
         private static Vector3 RandomOrthoVector(Vector3 vec)
