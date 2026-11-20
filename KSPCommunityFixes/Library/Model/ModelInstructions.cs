@@ -1,5 +1,6 @@
 using System;
 using KSPCommunityFixes.Library;
+using KSPCommunityFixes.Performance;
 using PartToolsLib;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -167,7 +168,10 @@ namespace KSPCommunityFixes.Library.Model
                         if (tex.IsNullOrDestroyed())
                             Debug.LogError($"Texture '{t.Url}' not found!");
                         else
+                        {
                             mat.SetTexture(t.Name, tex);
+                            KSPCFFastLoader.ReleaseToStreaming(tex);
+                        }
                     }
                 }
             }
