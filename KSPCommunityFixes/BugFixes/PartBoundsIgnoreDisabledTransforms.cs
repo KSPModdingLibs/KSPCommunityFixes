@@ -7,10 +7,7 @@ namespace KSPCommunityFixes
 {
     public class PartBoundsIgnoreDisabledTransforms : BasePatch
     {
-        static PartBoundsIgnoreDisabledTransforms()
-        {
-            PartGeometryUtil.disabledVariantGOs = [];
-        }
+        const int TransparentFX = 1;
 
         protected override Version VersionMin => new(1, 12, 3);
 
@@ -19,96 +16,126 @@ namespace KSPCommunityFixes
             AddPatch(PatchType.Prefix, typeof(PartGeometryUtil), nameof(PartGeometryUtil.GetPartRendererBounds));
         }
 
-        static readonly List<Renderer> partRenderersBuffer = [];
+        static readonly HashSet<string> disabledGOs = [];
+        static readonly List<Bounds> bounds = [];
+        static readonly List<Renderer> renderers = [];
 
         static bool PartGeometryUtil_GetPartRendererBounds_Prefix(Part p, out Bounds[] __result)
         {
-            PartGeometryUtil.disabledVariantGOs.Clear();
+            disabledGOs.Clear();
+            using var bguard = new ListClearGuard<Bounds>(bounds);
+            using var rguard = new ListClearGuard<Renderer>(renderers);
 
             // config defined ignores
-            for (int i = p.partRendererBoundsIgnore.Count; i-- > 0;)
-                PartGeometryUtil.disabledVariantGOs.Add(p.partRendererBoundsIgnore[i]);
+            foreach (string ignore in p.partRendererBoundsIgnore)
+                disabledGOs.Add(ignore);
 
             // stock variant switcher
             if (p.variants != null)
             {
-                PartVariant selectedVariant = p.variants.SelectedVariant;
-                for (int i = selectedVariant.InfoGameObjects.Count; i-- > 0;)
+                foreach (PartGameObjectInfo info in p.variants.SelectedVariant.InfoGameObjects)
                 {
-                    PartGameObjectInfo info = selectedVariant.InfoGameObjects[i];
                     if (!info.Status)
-                        PartGeometryUtil.disabledVariantGOs.Add(info.Name);
+                        disabledGOs.Add(info.Name);
                 }
             }
 
-            Transform modelTransform = GetPartModelTransform(p);
+            if (HighLogic.LoadedSceneIsEditor)
+                GetPartRendererBoundsEditor(p);
+            else
+                GetPartRendererBoundsFlight(p);
 
-            // Ignore renderers on the TransparentFX layer (layer 1).
-            //
-            // We can't do this unconditionally because when a part is detached in the editor KSP
-            // temporarily moves all its renderers to layer 1. If we were then we'd get 0-sized
-            // bounds. We instead take a cue from DragCubeGeneration and only filter out layer 1
-            // when the part is not frozen.
-            //
-            // This matches the same rule as done in https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150
-            // which isn't really perfect, but is probably good enough for our purposes.
-            bool ignoreTransparentFX = !p.frozen;
-
-            try
-            {
-                GetRenderersRecursive(modelTransform, partRenderersBuffer, PartGeometryUtil.disabledVariantGOs, ignoreTransparentFX);
-
-                __result = new Bounds[partRenderersBuffer.Count];
-                for (int i = __result.Length; i-- > 0;)
-                    __result[i] = partRenderersBuffer[i].bounds;
-            }
-            finally
-            {
-                partRenderersBuffer.Clear();
-            }
-
+            __result = [.. bounds];
             return false;
         }
 
-        static readonly List<Renderer> rendererBuffer = [];
-
-        static void GetRenderersRecursive(Transform parent, List<Renderer> renderers, List<string> excludedGOs, bool ignoreTransparentFX)
+        static void GetPartRendererBoundsFlight(Part p)
         {
-            // note : this will result in a slight change in behavior vs stock
-            // as this will exclude childs as well, wereas stock will still include them.
-            // But stock behavior could be classified as a bug...
-            if (excludedGOs.Contains(parent.name))
+            Transform modelTransform = GetPartModelTransform(p);
+            if (modelTransform.IsNullOrDestroyed())
                 return;
 
-            if (ignoreTransparentFX && parent.gameObject.layer == 1)
+            GetRenderersRecursive(modelTransform);
+        }
+
+        static void GetRenderersRecursive(Transform parent)
+        {
+            GameObject go = parent.gameObject;
+
+            if (!go.activeSelf)
                 return;
 
-            try
+            // Effect meshes (Waterfall, etc.) live on the TransparentFX layer.
+            // See https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/386
+            if (go.layer == TransparentFX)
+                return;
+
+            if (disabledGOs.Contains(go.name))
+                return;
+
+            parent.GetComponents(renderers);
+
+            foreach (Renderer r in renderers)
             {
-                parent.GetComponents(rendererBuffer);
-                for (int i = rendererBuffer.Count; i-- > 0;)
-                {
-                    Renderer r = rendererBuffer[i];
-                    Type rType = r.GetType();
-                    if (rType == typeof(MeshRenderer) || rType == typeof(SkinnedMeshRenderer))
-                        renderers.Add(r);
-                }
-            }
-            finally
-            {
-                rendererBuffer.Clear();
+                if (r is MeshRenderer || r is SkinnedMeshRenderer)
+                    bounds.Add(r.bounds);
             }
 
-            for (int i = parent.childCount; i-- > 0;)
+            int count = parent.childCount;
+            for (int i = 0; i < count; ++i)
+                GetRenderersRecursive(parent.GetChild(i));
+        }
+
+        /// <summary>
+        /// Same as <see cref="GetPartRendererBoundsFlight"/>, except that TransparentFX renderers
+        /// are included and renderers come from the part's cached model renderer lists.
+        /// </summary>
+        /// <remarks>
+        /// Layers can't be used in the editor because it moves all of a held part onto
+        /// TransparentFX, then back to the default layer when the part is dropped.
+        /// See https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/410
+        /// </remarks>
+        static void GetPartRendererBoundsEditor(Part p)
+        {
+            renderers.AddRange(p.FindModelMeshRenderersReadOnly());
+            renderers.AddRange(p.FindModelSkinnedMeshRenderersReadOnly());
+
+            Transform partTransform = p.partTransform.IsNullRef() ? p.transform : p.partTransform;
+
+            foreach (Renderer r in renderers)
             {
-                Transform child = parent.GetChild(i);
-                if (child.gameObject.activeSelf)
-                    GetRenderersRecursive(child, renderers, excludedGOs, ignoreTransparentFX);
+                if (IsRendererIncluded(r, partTransform))
+                    bounds.Add(r.bounds);
             }
+        }
+
+        /// <summary>
+        /// Returns false if the renderer's object, or any of its parents below
+        /// <paramref name="partTransform"/>, is inactive or named in <see cref="disabledGOs"/>.
+        /// </summary>
+        static bool IsRendererIncluded(Renderer r, Transform partTransform)
+        {
+            Transform t = r.transform;
+            while (t.IsNotNullOrDestroyed() && !ReferenceEquals(t, partTransform))
+            {
+                GameObject go = t.gameObject;
+                if (!go.activeSelf)
+                    return false;
+
+                if (disabledGOs.Contains(go.name))
+                    return false;
+
+                t = t.parent;
+            }
+
+            return true;
         }
 
         static Transform GetPartModelTransform(Part part)
         {
+            if (part.partTransform.IsNullOrDestroyed())
+                return null;
+
             if (part.HasModuleImplementing<KerbalEVA>())
             {
                 Transform result = part.partTransform.Find("model01");
@@ -131,6 +158,11 @@ namespace KSPCommunityFixes
             }
 
             return part.partTransform.Find("model");
+        }
+
+        readonly struct ListClearGuard<T>(List<T> list) : IDisposable
+        {
+            public void Dispose() => list.Clear();
         }
     }
 }
