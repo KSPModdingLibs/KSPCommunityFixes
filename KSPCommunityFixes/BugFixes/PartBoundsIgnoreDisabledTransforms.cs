@@ -52,7 +52,7 @@ namespace KSPCommunityFixes
             //
             // This matches the same rule as done in https://github.com/KSPModdingLibs/KSPCommunityFixes/issues/150
             // which isn't really perfect, but is probably good enough for our purposes.
-            bool ignoreTransparentFX = !p.frozen;
+            bool ignoreTransparentFX = !p.frozen && !AllParentsTransparent(p.transform);
 
             try
             {
@@ -68,6 +68,12 @@ namespace KSPCommunityFixes
             }
 
             return false;
+        }
+        static bool AllParentsTransparent(Transform t)
+        {
+            if (t.gameObject.layer != LayerMask.NameToLayer("TransparentFX")) return false;
+            if (t.parent == null) return true;
+            return AllParentsTransparent(t.parent);
         }
 
         static readonly List<Renderer> rendererBuffer = [];
