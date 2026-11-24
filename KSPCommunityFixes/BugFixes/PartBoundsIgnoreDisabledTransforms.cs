@@ -89,6 +89,9 @@ namespace KSPCommunityFixes
                 for (int i = rendererBuffer.Count; i-- > 0;)
                 {
                     Renderer r = rendererBuffer[i];
+                    if (!r.enabled)
+                        continue;
+
                     Type rType = r.GetType();
                     if (rType == typeof(MeshRenderer) || rType == typeof(SkinnedMeshRenderer))
                         renderers.Add(r);
