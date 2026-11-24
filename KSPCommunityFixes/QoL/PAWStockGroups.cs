@@ -122,7 +122,21 @@ namespace KSPCommunityFixes
 
         static void ModuleGimbal_OnStart_Postfix(ModuleGimbal __instance)
         {
-            BasePAWGroup pawGroup = new BasePAWGroup("CF_Attitude", attitudeControlGroupTitle, __instance.part.Modules.Count > 3);
+            BasePAWGroup pawGroup;
+
+            // if more than one gimbal, give each its own group so its controls stay together and can be told apart
+            if (__instance.part.FindModulesImplementingReadOnly<ModuleGimbal>().Count > 1)
+            {
+                string title = attitudeControlGroupTitle;
+                if (!string.IsNullOrEmpty(__instance.actionSuffix))
+                    title += $" ({Localizer.Format(__instance.actionSuffix)})";
+
+                pawGroup = new BasePAWGroup($"CF_Gimbal_{__instance.GetInstanceIDFast()}", title, __instance.part.Modules.Count > 3);
+            }
+            else
+            {
+                pawGroup = new BasePAWGroup("CF_Attitude", attitudeControlGroupTitle, __instance.part.Modules.Count > 3);
+            }
 
             foreach (BaseField baseField in __instance.Fields)
             {
