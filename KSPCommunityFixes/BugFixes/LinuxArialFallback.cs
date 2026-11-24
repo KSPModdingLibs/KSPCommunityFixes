@@ -52,39 +52,43 @@ namespace KSPCommunityFixes.BugFixes
             if (arial.IsNullOrDestroyed())
                 return;
 
-            // Glyphs missing from that font are still taken from Unity's list of substitutes.
-            string[] fontNames = { fontName };
+            // Glyphs requested from now on are rendered from that font, for every skin, style and uGUI text
+            // using the built-in font. Glyphs missing from it are still taken from Unity's list of substitutes.
+            arial.fontNames = new[] { fontName };
 
-            // Effective if nothing has used the font yet, including uGUI texts using it.
-            arial.fontNames = fontNames;
+            // Force a rebuild if any glyphs were already generated from the wrong font.
+            bool rebuilt = arial.characterInfo.Length > 0 && ForceTextureRebuild(arial);
 
-            // A copy keeps the line spacing of the built-in font, a font created from the OS font doesn't.
-            Font replacement = UnityEngine.Object.Instantiate(arial);
-            replacement.name = arial.name;
-            replacement.fontNames = fontNames;
-            replacement.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            Debug.Log($"[KSPCF:LinuxArialFallback] Using \"{fontName}\" for the built-in Arial font{(rebuilt ? ", rebuilt its texture" : "")}");
+        }
 
-            // The default skin, and any copy of it made by a mod
-            int replaced = 0;
-            foreach (GUISkin skin in Resources.FindObjectsOfTypeAll<GUISkin>())
+        // Request a glyph of increasing size until it doesn't fit in the font texture. Unity then rebuilds the
+        // texture with only the glyphs of that request, and every other glyph is rendered again when next requested.
+        private static bool ForceTextureRebuild(Font font)
+        {
+            bool rebuilt = false;
+            void OnTextureRebuilt(Font rebuiltFont)
             {
-                if (skin.font.RefEquals(arial))
-                {
-                    skin.font = replacement;
-                    replaced++;
-                }
-
-                foreach (GUIStyle style in skin)
-                {
-                    if (style.font.RefEquals(arial))
-                    {
-                        style.font = replacement;
-                        replaced++;
-                    }
-                }
+                if (rebuiltFont.RefEquals(font))
+                    rebuilt = true;
             }
 
-            Debug.Log($"[KSPCF:LinuxArialFallback] Using \"{fontName}\" for the built-in Arial font, replaced it in {replaced} skins and styles");
+            Font.textureRebuilt += OnTextureRebuilt;
+            try
+            {
+                int maxSize = 2 * font.material.mainTexture.height;
+                for (int size = 16; !rebuilt && size <= maxSize; size *= 2)
+                    font.RequestCharactersInTexture("W", size);
+            }
+            finally
+            {
+                Font.textureRebuilt -= OnTextureRebuilt;
+            }
+
+            if (!rebuilt)
+                Debug.LogWarning("[KSPCF:LinuxArialFallback] Couldn't rebuild the built-in Arial font texture, text already drawn with it may keep the substitute font");
+
+            return rebuilt;
         }
     }
 }
