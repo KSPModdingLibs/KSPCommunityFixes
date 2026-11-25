@@ -429,6 +429,10 @@ namespace KSPCommunityFixes.BugFixes
                     __instance.partJointUnbreakable = false; // useless but lets be consistent with stock state
                 }
 
+                // the other node is handled from here too, so reset its state as well
+                if (isJointOwner && __instance.otherNode.canRotate)
+                    __instance.otherNode.IsRotating = false;
+
                 return false;
             }
 
